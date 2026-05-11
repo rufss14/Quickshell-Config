@@ -1,6 +1,6 @@
-# quicktest — Quickshell Config
+# Quicktest — Quickshell Config
 
-A Hyprland status bar built with [Quickshell](https://quickshell.outfoxxed.me/), featuring pywal theming, a live audio visualizer, and a switchable unified/split pill layout.
+A Hyprland status bar built with [Quickshell](https://quickshell.outfoxxed.me/), featuring pywal theming, a live audio visualizer,a switchable unified/split pill layoutand much more in the future!
 
 ---
 
