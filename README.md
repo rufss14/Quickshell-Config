@@ -1,4 +1,4 @@
-# Quicktest — Quickshell Config
+# Quicktest - Quickshell Config
 
 A Hyprland status bar built with [Quickshell](https://quickshell.outfoxxed.me/), featuring pywal theming, a live audio visualizer, a switchable unified/split pill layout, and a bunch more.
 
@@ -6,25 +6,25 @@ A Hyprland status bar built with [Quickshell](https://quickshell.outfoxxed.me/),
 
 ## What it does
 
-**Two bar modes** — toggle between a single unified bar and floating split pills, with smooth fade and slide transitions. You can also switch each pill between a rounded and rectangular shape on the fly.
+**Two bar modes** - toggle between a single unified bar and floating split pills, with smooth fade and slide transitions. You can also switch each pill between a rounded and rectangular shape on the fly.
 
-**Pywal integration** — colors hot-reload automatically via inotify the moment `wal` regenerates `~/.cache/wal/colors.json`. Falls back to Tokyo Night if pywal isn’t around.
+**Pywal integration** - colors hot-reload automatically via inotify the moment `wal` regenerates `~/.cache/wal/colors.json`. Falls back to Tokyo Night if pywal isn’t around.
 
-**Workspace indicators** — five Hyprland workspace dots where the active one expands. Click any dot to jump to that workspace.
+**Workspace indicators** - five Hyprland workspace dots where the active one expands. Click any dot to jump to that workspace.
 
-**Live audio visualizer** — 16-bar cava visualizer running at 60fps. Falls back to a sine-wave animation when cava isn’t running.
+**Live audio visualizer** - 16-bar cava visualizer running at 60fps. Falls back to a sine-wave animation when cava isn’t running.
 
-**Clock** — an analog mini-clock alongside a date and digital time. Clicking it opens a draggable clock popup.
+**Clock** - an analog mini-clock alongside a date and digital time. Clicking it opens a draggable clock popup.
 
-**Brightness slider** — iPhone-style fill bar that auto-detects DDC (`ddcutil`) or falls back to `brightnessctl`. Scroll-wheel works too.
+**Brightness slider** - Apple-style fill bar that auto-detects DDC (`ddcutil`) or falls back to `brightnessctl`. Scroll-wheel works too.
 
-**Wallpaper gallery** — a searchable grid/list view of `~/wallpapers/walls`. Applying a wallpaper runs a full theming pipeline across the system (see below).
+**Wallpaper gallery** - a searchable grid/list view of `~/wallpapers/walls`. Applying a wallpaper runs a full theming pipeline across the system (see below).
 
-**System updater** — checks for pacman updates every 10 minutes via `checkupdates`. Clicking opens a sudo password prompt and runs `pacman -Syu` plus `flatpak update` with a live progress bar.
+**System updater** - checks for pacman updates every 10 minutes via `checkupdates`. Clicking opens a sudo password prompt and runs `pacman -Syu` plus `flatpak update` with a live progress bar.
 
-**Persistent state** — bar mode, shape, and open panels all survive quickshell reloads via `PersistentProperties`.
+**Persistent state** - bar mode, shape, and open panels all survive quickshell reloads via `PersistentProperties`.
 
-**System tray** — shows tray items only when they’re present, hidden otherwise.
+**System tray** - shows tray items only when they’re present, hidden otherwise.
 
 -----
 
