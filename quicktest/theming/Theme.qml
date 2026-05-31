@@ -50,6 +50,20 @@ Singleton {
     readonly property color hoverAccent: pw(pal?.colors?.color1 || "#f7768e", 0.25)
     readonly property color hoverFull:   pw(pal?.colors?.color1 || "#f7768e", 1.0)
 
+    // ── Unified button states (use these in ALL bar buttons) ──────────────────
+    // idle
+    readonly property color btnFg:       pw(pal?.colors?.color7 || "#a9b1d6", 0.70)
+    readonly property color btnBg:       "transparent"
+    // hovered
+    readonly property color btnHoverBg:  pw(pal?.colors?.color1 || "#f7768e", 0.18)
+    readonly property color btnHoverFg:  pw(pal?.colors?.color1 || "#f7768e", 1.00)
+    // pressed / clicked
+    readonly property color btnPressBg:  pw(pal?.colors?.color1 || "#f7768e", 0.35)
+    readonly property color btnPressFg:  pw(pal?.colors?.color1 || "#f7768e", 1.00)
+    // active (panel is open)
+    readonly property color btnActiveBg: pw(pal?.colors?.color1 || "#f7768e", 0.22)
+    readonly property color btnActiveFg: pw(pal?.colors?.color1 || "#f7768e", 1.00)
+
     // ── Typography ────────────────────────────────────────────────────────────
     readonly property string fontFamily: "CodeNewRoman Nerd Font Propo"
     readonly property int    fontSize:   13
