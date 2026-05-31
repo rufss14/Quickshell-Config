@@ -146,8 +146,8 @@ Rectangle {
         anchors.fill: parent
         radius: parent.radius
         color: clockMa.containsMouse
-            ? (root.clockOpen ? T.Theme.pw(T.Theme.pal?.colors?.color1, 0.20) : T.Theme.hoverFull)
-            : (root.clockOpen ? T.Theme.pw(T.Theme.pal?.colors?.color1, 0.10) : "transparent")
+            ? (root.clockOpen ? T.Theme.btnPressBg  : T.Theme.btnHoverBg)
+            : (root.clockOpen ? T.Theme.btnActiveBg : "transparent")
         Behavior on color { ColorAnimation { duration: T.Theme.animFast } }
     }
 
