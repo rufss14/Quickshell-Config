@@ -48,9 +48,26 @@ QtObject {
     readonly property int clockW:      340
 
     // ── Left-side layout ──────────────────────────────────────────────────────
-    // Row 0: Wallpaper
-    // Row 1: Equalizer + BGM (pushed down when Wallpaper is open)
-    // Row 2: Brightness — always below Equalizer (same left edge)
+    // Default (nothing open): Brightness spawns at the Wallpaper anchor (top-left).
+    // Wallpaper open:         Brightness is pushed right, sitting beside it on row 0.
+    // Equalizer open:         Brightness is pushed below the Equalizer on row 1.
+    // Both open:              Equalizer is on row 1 (pushed down by Wallpaper),
+    //                         Brightness is on row 2, below the Equalizer.
+    //
+    //   Nothing open:
+    //     [ Brightness (at wallpaper anchor) ]
+    //
+    //   Wallpaper open:
+    //     [ Wallpaper (535) ][ Brightness (300) ]
+    //
+    //   Equalizer open:
+    //     [ Equalizer (460) ][ BGM (528) ]
+    //     [ Brightness (300) ]
+    //
+    //   Both open:
+    //     [ Wallpaper (535) ][ Brightness pushed right... ]
+    //     [ Equalizer (460) ][ BGM (528)                 ]
+    //     [ Brightness (300) ]
 
     readonly property real wallpaperLeft: edgeMargin
 
@@ -61,13 +78,6 @@ QtObject {
             return topMargin + 340 + gap
         return topMargin
     }
-
-    // Equalizer height exposed so Brightness can anchor below it
-    property real equalizerH: 0   // written by equalizerPopup via implicitHeight binding
-
-    // Brightness — always below Equalizer, same left edge
-    readonly property real brightnessLeft: equalizerLeft
-    readonly property real brightnessTop:  equalizerTop + equalizerH + gap
 
     // BGM — sits to the right of Equalizer on row 1.
     // If Equalizer is not open it sits at the left edge.
@@ -147,12 +157,21 @@ QtObject {
         anchors.top:  true
         anchors.left: true
 
-        margins.left: root.brightnessLeft
-
-        // Animate top so brightness slides smoothly as equalizer grows/shrinks
-        property real targetTop: root.brightnessTop
-        margins.top: targetTop
-        Behavior on targetTop { NumberAnimation { duration: T.Theme.animNormal; easing.type: Easing.OutCubic } }
+        property real targetLeft: root.edgeMargin
+        property real targetTop: {
+            if (Panels.equalizerOpen || Panels.bgmOpen) {
+                var rowH = Math.max(Panels.equalizerOpen ? equalizerWin.implicitHeight : 0,
+                                    Panels.bgmOpen       ? bgmWin.implicitHeight       : 0)
+                return root.equalizerTop + rowH + root.gap
+            }
+            if (Panels.wallpaperOpen)
+                return root.topMargin + 340 + root.gap
+            return root.topMargin
+        }
+        margins.left: targetLeft
+        margins.top:  targetTop
+        Behavior on targetLeft { NumberAnimation { duration: T.Theme.animNormal; easing.type: Easing.OutCubic } }
+        Behavior on targetTop  { NumberAnimation { duration: T.Theme.animNormal; easing.type: Easing.OutCubic } }
 
         implicitWidth:  root.brightnessW
         implicitHeight: brightnessContent.implicitHeight
@@ -208,9 +227,6 @@ QtObject {
         implicitWidth:  root.equalizerW
         implicitHeight: equalizerContent.implicitHeight
 
-        // Keep root.equalizerH in sync declaratively so brightness always
-        // tracks the live height, including the initial value on creation.
-        Binding { target: root; property: "equalizerH"; value: equalizerContent.implicitHeight }
         color: "transparent"
         visible: Panels.activeScreen === root.screen && (Panels.equalizerOpen || equalizerCard.opacity > 0.005)
 
