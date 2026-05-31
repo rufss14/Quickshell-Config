@@ -64,7 +64,7 @@ Rectangle {
     radius: T.Theme.radius(barShape)
     color: root.reloading
         ? T.Theme.pw(T.Theme.pal?.colors?.color3, 0.20)
-        : (btn.containsMouse ? T.Theme.hoverFull : T.Theme.pillBg)
+        : (btn.pressed ? T.Theme.btnPressBg : (btn.containsMouse ? T.Theme.btnHoverBg : T.Theme.pillBg))
 
     Behavior on color  { ColorAnimation  { duration: T.Theme.animFast } }
     Behavior on radius { NumberAnimation { duration: T.Theme.animSlow; easing.type: Easing.OutCubic } }
