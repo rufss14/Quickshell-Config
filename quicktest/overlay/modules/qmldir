@@ -1,0 +1,8 @@
+singleton Panels            1.0 Panels.qml
+UpdatePanel       1.0 UpdatePanel.qml
+WallpaperPanel    1.0 WallpaperPanel.qml
+BrightnessPanel   1.0 BrightnessPanel.qml
+WifiPanel         1.0 WifiPanel.qml
+EqualizerPanel    1.0 EqualizerPanel.qml
+ClockPanel        1.0 ClockPanel.qml
+BgmPanel          1.0 BgmPanel.qml

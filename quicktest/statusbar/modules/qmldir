@@ -1,0 +1,15 @@
+Workspaces        1.0 Workspaces.qml
+UpdateButton      1.0 UpdateButton.qml
+ReloadButton      1.0 ReloadButton.qml
+Clock             1.0 Clock.qml
+BarShape          1.0 BarShape.qml
+BarMode           1.0 BarMode.qml
+WallpaperButton   1.0 WallpaperButton.qml
+WifiButton        1.0 WifiButton.qml
+AudioVisualizer   1.0 AudioVisualizer.qml
+Tray              1.0 Tray.qml
+BrightnessButton  1.0 BrightnessButton.qml
+ResetPanelPosButton 1.0 ResetPanelPosButton.qml
+KeyboardLayout    1.0 KeyboardLayout.qml
+EqualizerButton   1.0 EqualizerButton.qml
+BgmButton         1.0 BgmButton.qml

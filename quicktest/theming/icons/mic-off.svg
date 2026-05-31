@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none">
+  <!-- body (clipped by slash) -->
+  <rect x="5.5" y="1" width="5" height="8" rx="2.5" fill="white"/>
+  <!-- stand -->
+  <path d="M3 7.5A5 5 0 0 0 8 12.5M8 12.5A5 5 0 0 0 13 7.5M8 12.5V15M6 15H10" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+  <!-- slash -->
+  <line x1="2" y1="2" x2="14" y2="14" stroke="white" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

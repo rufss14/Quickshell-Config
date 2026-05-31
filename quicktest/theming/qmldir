@@ -1,0 +1,4 @@
+module theming
+
+singleton Theme 1.0 Theme.qml
+singleton PywalColors 1.0 PywalColors.qml
