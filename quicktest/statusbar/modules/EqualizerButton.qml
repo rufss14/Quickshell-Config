@@ -98,8 +98,8 @@ Item {
 
         Behavior on implicitWidth { NumberAnimation { duration: T.Theme.animSlow; easing.type: Easing.OutCubic } }
 
-        color: root.equalizerOpen ? T.Theme.hoverAccent
-                                  : (hov.containsMouse ? T.Theme.hoverAccent : T.Theme.pillBg)
+        color: root.equalizerOpen ? T.Theme.btnActiveBg
+                                  : (hov.containsMouse ? T.Theme.btnHoverBg : T.Theme.pillBg)
         Behavior on color  { ColorAnimation  { duration: T.Theme.animFast } }
         Behavior on radius { NumberAnimation { duration: T.Theme.animSlow; easing.type: Easing.OutCubic } }
 
@@ -136,7 +136,7 @@ Item {
                 id: iconText
                 text: root._icon
                 color: root._muted ? T.Theme.color1
-                                   : (root.equalizerOpen ? T.Theme.hoverFull : T.Theme.fg)
+                                   : (root.equalizerOpen ? T.Theme.btnActiveFg : T.Theme.btnFg)
                 font { pixelSize: 15; family: T.Theme.fontFamily }
                 verticalAlignment: Text.AlignVCenter
                 height: T.Theme.pillHeight
@@ -146,7 +146,7 @@ Item {
             Text {
                 text: root._muted ? "muted" : Math.round(root._vol * 100) + "%"
                 color: root._muted ? T.Theme.color1
-                                   : (root.equalizerOpen ? T.Theme.hoverFull : T.Theme.fg)
+                                   : (root.equalizerOpen ? T.Theme.btnActiveFg : T.Theme.btnFg)
                 font { pixelSize: 11; family: T.Theme.fontFamily; weight: Font.Bold }
                 verticalAlignment: Text.AlignVCenter
                 height: T.Theme.pillHeight
@@ -211,7 +211,7 @@ Item {
 
             Text {
                 text: root._muted ? "mut" : Math.round(root._vol * 100) + "%"
-                color: root._muted ? T.Theme.color1 : T.Theme.fg
+                color: root._muted ? T.Theme.color1 : T.Theme.btnFg
                 font { pixelSize: 11; family: T.Theme.fontFamily; weight: Font.Bold }
                 verticalAlignment: Text.AlignVCenter
                 height: T.Theme.pillHeight
