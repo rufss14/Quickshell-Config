@@ -29,12 +29,8 @@ Rectangle {
         anchors.fill: parent
         radius: parent.radius
         color: hov.containsMouse
-            ? (root.bgmOpen
-                ? T.Theme.pw(T.Theme.pal?.colors?.color9, 0.30)
-                : T.Theme.hoverAccent)
-            : (root.bgmOpen
-                ? T.Theme.pw(T.Theme.pal?.colors?.color9, 0.18)
-                : "transparent")
+            ? (root.bgmOpen ? T.Theme.btnPressBg  : T.Theme.btnHoverBg)
+            : (root.bgmOpen ? T.Theme.btnActiveBg : "transparent")
         Behavior on color { ColorAnimation { duration: T.Theme.animFast } }
     }
 
