@@ -49,8 +49,8 @@ Item {
         // scalable dirs only carry .svg; raster dirs only carry .png
         var paths = []
         var svgDirs = [
-            home + "/.local/share/icons/hicolor/scalable/apps/",
-            "/usr/share/icons/hicolor/scalable/apps/"
+            "/usr/share/icons/hicolor/scalable/apps/",
+            home + "/.local/share/icons/hicolor/scalable/apps/"
         ]
         var pngDirs = [
             home + "/.local/share/icons/hicolor/48x48/apps/",
