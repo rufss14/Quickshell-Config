@@ -29,7 +29,7 @@ Rectangle {
     Rectangle {
         anchors.fill: parent
         radius: parent.radius
-        color: ma.containsMouse ? T.Theme.hoverAccent : "transparent"
+        color: ma.containsMouse ? T.Theme.btnHoverBg : "transparent"
         Behavior on color { ColorAnimation { duration: T.Theme.animFast } }
     }
 
@@ -38,7 +38,7 @@ Rectangle {
         id: layoutLabel
         anchors.centerIn: parent
         text: root.currentLayout.toUpperCase()
-        color: T.Theme.fg
+        color: ma.containsMouse ? T.Theme.btnHoverFg : T.Theme.btnFg
         font.family:    T.Theme.fontFamily
         font.pixelSize: T.Theme.fontSize
         font.bold:      true
