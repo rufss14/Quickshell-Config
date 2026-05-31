@@ -84,9 +84,11 @@ Rectangle {
     implicitWidth:  updateInfo.count > 0 ? 44 : 40
     implicitHeight: T.Theme.pillHeight
     radius: T.Theme.radius(barShape)
-    color:  btn.containsMouse
-        ? T.Theme.hoverFull
-        : (updateInfo.count > 0 ? T.Theme.pw(T.Theme.pal?.colors?.color1, 0.15) : T.Theme.pillBg)
+    color:  btn.pressed
+        ? T.Theme.btnPressBg
+        : (btn.containsMouse
+            ? T.Theme.btnHoverBg
+            : (updateInfo.count > 0 ? T.Theme.pw(T.Theme.pal?.colors?.color1, 0.15) : T.Theme.pillBg))
 
     Behavior on implicitWidth { NumberAnimation { duration: T.Theme.animFast } }
     Behavior on color         { ColorAnimation  { duration: T.Theme.animFast } }
