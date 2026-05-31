@@ -68,12 +68,13 @@ Rectangle {
                 return
             }
         }
-        // Nothing playing — keep last player if it's still in the list
+        // Nothing playing — keep last player only if it's still in the list
         for (var j = 0; j < all.length; j++) {
             if (all[j] === _lastPlayer) return   // still valid, keep it
         }
-        // Last player gone — fall back to first available
-        _lastPlayer = all.length > 0 ? all[0] : null
+        // Last player is gone (e.g. Firefox closed) — null it out immediately
+        // so the position-polling timers stop and don't hit a dead D-Bus object
+        _lastPlayer = null
     }
 
     // Also refresh when any individual player's playback state changes
