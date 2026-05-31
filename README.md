@@ -2,7 +2,6 @@
 
 > A Hyprland status bar built with [Quickshell](https://quickshell.outfoxxed.me/), featuring pywal theming, lots of overlay panels, a switchable unified/split pill layout, a workspace overview, and much more.
 
----
 
 ## Preview
 
@@ -43,22 +42,9 @@ quicktest/
 
 ## Dependencies
 
-| Tool | Purpose |
-|---|---|
-| `quickshell` | Shell framework |
-| `hyprland` | Window manager |
-| `cava` | Audio visualizer (optional, falls back to demo) |
-| `brightnessctl` | Brightness control |
-| `inotify-tools` | Watch `colors.json` for pywal changes |
-| `python-pywal` | Color scheme generation |
-| `awww` | Wallpaper setter |
-| `pacman-contrib` | `checkupdates` for update checking |
-| `swaync` | Notification daemon |
-| CodeNewRoman Nerd Font Propo | Bar font |
-
 ```bash
 # Pacman
-sudo pacman -S hyprland cava brightnessctl inotify-tools python-pywal pacman-contrib swaync
+sudo pacman -S hyprland ddcutil cava brightnessctl inotify-tools python-pywal pacman-contrib swaync
 
 # AUR
 yay -S quickshell-git awww
