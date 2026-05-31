@@ -6,7 +6,9 @@
 
 ## Preview
 
-> *(drop a screenshot here)*
+<p align="center">
+  <img src="./Quickshell Showcase.png" alt="Desktop Preview">
+</p>
 
 ---
 
