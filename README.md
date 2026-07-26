@@ -157,19 +157,6 @@ A full-screen, see-through overlay over your live desktop — opened by bar modu
 
 ![The overview — workspace grid, dock, power menu, now playing](screenshots/overview.png)
 
-```
-┌──────────────────────────────────────────────────────┐
-│ [power]          [now playing]              09:41    │
-│                                       Mon, 13 July    │
-│          ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐           │
-│          └────┘ └────┘ └────┘ └────┘ └────┘   drag    │
-│          ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐  windows  │
-│          └────┘ └────┘ └────┘ └────┘ └────┘           │
-│                                                        │
-│ [calendar]      [ dock ]           [timer/stopwatch]  │
-└──────────────────────────────────────────────────────┘
-```
-
 - **Workspace grid** — live window thumbnails, drag windows between workspaces
 - **Now playing** — media controls with word-synced lyrics where the provider supports
   it, coloured from the current album art rather than the shell palette
