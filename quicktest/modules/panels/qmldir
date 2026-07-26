@@ -1,0 +1,12 @@
+PanelHost         1.0 PanelHost.qml
+
+WallpaperPanel    1.0 WallpaperPanel.qml
+ColorSchemePanel  1.0 ColorSchemePanel.qml
+EqualizerPanel    1.0 EqualizerPanel.qml
+WifiPanel         1.0 WifiPanel.qml
+UpdatePanel       1.0 UpdatePanel.qml
+
+AppLauncherPanel  1.0 AppLauncherPanel.qml
+AppLauncherPopup  1.0 AppLauncherPopup.qml
+CavaBG            1.0 CavaBG.qml
+TrayMenu          1.0 TrayMenu.qml

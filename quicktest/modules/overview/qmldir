@@ -1,0 +1,13 @@
+Overview            1.0 Overview.qml
+WorkspaceGrid       1.0 WorkspaceGrid.qml
+OverviewWindow      1.0 OverviewWindow.qml
+OverviewDock        1.0 OverviewDock.qml
+OverviewNowPlaying  1.0 OverviewNowPlaying.qml
+OverviewNotifications 1.0 OverviewNotifications.qml
+OverviewBrightness  1.0 OverviewBrightness.qml
+OverviewLyrics      1.0 OverviewLyrics.qml
+
+PowerPanel          1.0 PowerPanel.qml
+CalendarCard        1.0 CalendarCard.qml
+TimerCard           1.0 TimerCard.qml
+OverviewClipboard   1.0 OverviewClipboard.qml

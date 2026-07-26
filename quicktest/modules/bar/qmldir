@@ -1,0 +1,5 @@
+Bar       1.0 Bar.qml
+BarRegion 1.0 BarRegion.qml
+BarGroup  1.0 BarGroup.qml
+BarGroupRow 1.0 BarGroupRow.qml
+BarFrameEdge 1.0 BarFrameEdge.qml

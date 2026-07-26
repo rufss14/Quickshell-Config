@@ -1,0 +1,10 @@
+ClockPill       1.0 ClockPill.qml
+KeyboardPill    1.0 KeyboardPill.qml
+MediaController 1.0 MediaController.qml
+ReloadPill      1.0 ReloadPill.qml
+TrayPill        1.0 TrayPill.qml
+UpdatePill      1.0 UpdatePill.qml
+VisualizerPill  1.0 VisualizerPill.qml
+VolumePill      1.0 VolumePill.qml
+WifiPill        1.0 WifiPill.qml
+WorkspacesPill  1.0 WorkspacesPill.qml

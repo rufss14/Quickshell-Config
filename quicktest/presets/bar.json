@@ -1,0 +1,57 @@
+{
+  "presets": [
+    {
+      "name": "Floating Pill",
+      "config": {
+        "barShape": false,
+        "barMode": true,
+        "barThickness": 45,
+        "barRoundness": 20,
+        "barInset": 6,
+        "barSpacing": 10,
+        "barOpacity": 0.97,
+        "barCentreAnchor": true,
+        "barFontScale": 1,
+        "barIconScale": 1.15,
+        "layout": {
+          "left": [
+            [
+              "settings",
+              "overview"
+            ],
+            [
+              "wallpaper",
+              "palette"
+            ],
+            [
+              "volume",
+              "visualizer"
+            ]
+          ],
+          "centre": [
+            [
+              "keyboard"
+            ],
+            [
+              "update",
+              "workspaces",
+              "reload"
+            ],
+            [
+              "tray"
+            ]
+          ],
+          "right": [
+            [
+              "notifications",
+              "wifi"
+            ],
+            [
+              "clock"
+            ]
+          ]
+        }
+      }
+    }
+  ]
+}
