@@ -1,0 +1,237 @@
+{
+  "versions": [
+    {
+      "version": "0.4",
+      "name": "Everything grew",
+      "date": "2026-10",
+      "summary": "v0.3 rebuilt the codebase. v0.4 is what got built on top of it: a sidebar, a real dock, clips, karaoke, a new overview, colour that reaches every app, and a shell that sets itself up and updates itself.",
+      "highlights": [
+        {
+          "symbol": "grid_view",
+          "title": "A new overview",
+          "text": "Your workspaces in one card, HUD cards in the corners, Alt+Tab and search inside the grid, and a window inspector."
+        },
+        {
+          "symbol": "dock",
+          "title": "A sidebar and a real dock",
+          "text": "A second edge full of small modules, and a dock with live previews and jump lists."
+        },
+        {
+          "symbol": "videocam",
+          "title": "Clips",
+          "text": "A replay buffer: save the last minutes of a game with one key, then trim it in the built-in editor."
+        },
+        {
+          "symbol": "palette",
+          "title": "Colour everywhere",
+          "text": "A colour wave, a palette per workspace or from the album playing, and apps that repaint live."
+        },
+        {
+          "symbol": "mic",
+          "title": "Karaoke",
+          "text": "Sing along to synced lyrics and get ranked from SS to F."
+        },
+        {
+          "symbol": "auto_awesome",
+          "title": "Ask the shell",
+          "text": "An AI that can change your colours and settings, running on your own machine by default."
+        }
+      ],
+      "sections": [
+        {
+          "title": "Overview",
+          "symbol": "grid_view",
+          "items": [
+            "Rebuilt in the panels' look: a header with search, your workspaces in one card, HUD cards in the corners",
+            "Only busy workspaces get a cell — tap Shift for all ten, and an empty one waits as \"+ New workspace\"",
+            "Alt+Tab and window search live inside the grid; search understands ws:, app: and is:",
+            "Right-click a window to inspect it: live preview, float, pin, fullscreen, send, close",
+            "Ctrl+click selects several windows to move as one, and Ctrl+Z undoes a move",
+            "Hold Space over a window to see it big without going there",
+            "A left face you swipe: these notes, an AI that changes the shell, and the news",
+            "Opens by zooming out of the workspace you're on, and zooms into the one you pick"
+          ]
+        },
+        {
+          "title": "Bar and panels",
+          "symbol": "widgets",
+          "items": [
+            "Panels weld into the bar as one shape; the optional blob plugin melts them together",
+            "Wallpaper, colours, the mixer and updates rebuilt to one recipe, and they hug their content",
+            "An entrance when the shell starts or reloads, and pills that animate their changes",
+            "The volume and brightness sliders grow out of the screen frame",
+            "Cookie shapes drift behind panels, the bar and the frame, picked from your wallpaper",
+            "A new power menu"
+          ]
+        },
+        {
+          "title": "Sidebar and dock",
+          "symbol": "dock",
+          "items": [
+            "A sidebar on the dock edge: stats, clips, timer, colour picker, clipboard, notifications, screen time, Lens, voice and power",
+            "Every module can sit on the bar or the sidebar — drag them where you want",
+            "Side panels open off the sidebar, one at a time",
+            "A real dock: pinned and running apps, live previews, jump lists, SUPER+ALT+number to launch",
+            "Dock styles, magnification, and auto-hide with reveal rules",
+            "Idle actions: after a while without input, lock, turn the screen off, suspend or run your own command"
+          ]
+        },
+        {
+          "title": "Clips and capture",
+          "symbol": "videocam",
+          "items": [
+            "A ShadowPlay-style replay buffer on gpu-screen-recorder: save the last stretch with one key",
+            "Record the whole screen or a region; trim and export in the built-in editor",
+            "A clip library with a player, bulk actions, and drag-out into any app",
+            "Game names on clips, presets, storage limits, and a diagnosis when recording won't start",
+            "Screenshots get a toast with an annotator, plus a snip tool",
+            "Lens reads and translates any text on screen",
+            "A magnifier"
+          ]
+        },
+        {
+          "title": "Music",
+          "symbol": "music_note",
+          "items": [
+            "A now-playing panel with word-synced lyrics from Spicy, LRCLIB and NetEase",
+            "Lyrics can be translated and romanized, syllable by syllable",
+            "Karaoke: sing to the lyrics, get an osu!-style rank, keep your best scores",
+            "Music recognition tells you what's playing around you",
+            "Volume profiles for Spotify, up to 135%"
+          ]
+        },
+        {
+          "title": "Colour and theme",
+          "symbol": "palette",
+          "items": [
+            "A new colour washes across the screen as a wave",
+            "Each workspace can have its own wallpaper and colour scheme",
+            "Colours can follow the album cover of what's playing",
+            "Open apps repaint live: the terminal, GTK and Qt apps, Discord, Spotify, Dark Reader, even the cursor",
+            "A light theme with tinted pages",
+            "No colours yet? They're read from your wallpaper — the shell never wears a built-in scheme",
+            "Icon shapes and corner styles to choose from"
+          ]
+        },
+        {
+          "title": "Notifications",
+          "symbol": "notifications",
+          "items": [
+            "A notification centre with search, by-app and by-day views, selection and undo",
+            "Do Not Disturb for a while, mute an app, snooze, copy and reply",
+            "It sits beside your workspaces in the overview"
+          ]
+        },
+        {
+          "title": "Launcher",
+          "symbol": "search",
+          "items": [
+            "Run commands, calculate, convert units and search the web",
+            "Ask an AI with ? — Claude, Gemini, ChatGPT, Grok, or a model on your own machine",
+            "Install packages from the repos or the AUR with +",
+            "Shell actions: lock, reload, open any panel"
+          ]
+        },
+        {
+          "title": "Everyday tools",
+          "symbol": "bolt",
+          "items": [
+            "Night light, an anti-flashbang filter and screen time",
+            "Snap zones for floating windows",
+            "Timers with focus sessions, alarms that snooze and repeat, and laps",
+            "A to-do list, and a random panel: coin, wheel, roulette",
+            "Optional sound effects, including key sounds",
+            "The shell's own password prompt, and secrets kept in the keyring",
+            "A warning on the power menu when ending the session would interrupt something",
+            "Battery saver: the ambient effects rest while you're on battery",
+            "SUPER+L locks, and the screen locks before the machine sleeps"
+          ]
+        },
+        {
+          "title": "Apps and games",
+          "symbol": "sports_esports",
+          "items": [
+            "Discord: a call bar and a voice panel, plus rich presence for Claude Code and CS2",
+            "Claude sessions: resume a recent one and watch your rate limits",
+            "Bluetooth pairing from the shell",
+            "A HUD for games: FPS cap, performance and your keys on screen, pinned over fullscreen"
+          ]
+        },
+        {
+          "title": "Setup and updates",
+          "symbol": "update",
+          "items": [
+            "A welcome panel and Settings › Setup find what's missing and install it, asking for your password once",
+            "Quicktest updates itself: signed releases, one click, no password",
+            "The update panel follows each phase of a system update",
+            "Setup spots a second bar, notification daemon or password agent and tells you how to drop it",
+            "A smaller core install; Clips, Game Mode and the rest are packs you tick in Setup"
+          ]
+        },
+        {
+          "title": "Settings",
+          "symbol": "settings",
+          "items": [
+            "Every page redesigned, with previews and help tips",
+            "Search across all settings, and undo",
+            "The bar is its own module picker, and the desktop is the widgets page",
+            "Displays: arrange your screens, set mode, scale, rotation and VRR, and get 15 seconds to undo a bad one",
+            "Mouse and touchpad: speed, acceleration, natural scrolling, tap to click"
+          ]
+        },
+        {
+          "title": "Under the hood",
+          "symbol": "memory",
+          "items": [
+            "Icons ship with the shell, so a font upgrade can't redraw them as something else",
+            "Idle surfaces rest, and the overview's backdrop costs half what it did",
+            "Hyprland events instead of polling, wherever there's an event",
+            "Static checks, a smoke test and CI guard every change",
+            "Ready for translations"
+          ]
+        }
+      ]
+    },
+    {
+      "version": "0.3",
+      "name": "The refactor",
+      "date": "2026-07-26",
+      "summary": "A full-codebase rebuild. Config format, directory layout and most of the QML changed since v0.2.",
+      "highlights": [],
+      "sections": [
+        {
+          "title": "Added",
+          "symbol": "auto_awesome",
+          "items": [
+            "A Settings app: bar, wallpaper, widgets, Wi-Fi, Bluetooth, sound, battery, storage, updates, keyboard, language, Hyprland, about",
+            "The overview: a full-screen workspace grid, dock, now playing with synced lyrics, calendar, clipboard, timers, power",
+            "A built-in notification daemon, replacing dunst and swaync",
+            "17 draggable desktop widgets",
+            "A bar layout editor with presets, and a colour scheme editor",
+            "Wallpaper Engine support, and a native Hyprland config editor",
+            "Speed test, mic test, word-synced lyrics"
+          ]
+        },
+        {
+          "title": "Changed",
+          "symbol": "tune",
+          "items": [
+            "Colour overrides persist across wallpaper changes",
+            "Volume, network and the mixer run on native services instead of polling",
+            "One shared audio spectrum instead of up to three cava processes",
+            "The dock groups one icon per app"
+          ]
+        },
+        {
+          "title": "Performance",
+          "symbol": "speed",
+          "items": [
+            "Event-driven instead of polling, wherever the API allows",
+            "Background work runs only while something uses it",
+            "Popups and panels load when opened"
+          ]
+        }
+      ]
+    }
+  ]
+}

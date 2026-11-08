@@ -1,0 +1,15 @@
+HudLayer 1.0 HudLayer.qml
+HudWidget 1.0 HudWidget.qml
+HudStats 1.0 HudStats.qml
+HudClips 1.0 HudClips.qml
+HudVoice 1.0 HudVoice.qml
+HudFace 1.0 HudFace.qml
+HudInput 1.0 HudInput.qml
+HudCap 1.0 HudCap.qml
+HudCard 1.0 HudCard.qml
+HudPerfCard 1.0 HudPerfCard.qml
+HudClipsCard 1.0 HudClipsCard.qml
+HudVoiceCard 1.0 HudVoiceCard.qml
+HudInputCard 1.0 HudInputCard.qml
+HudInspector 1.0 HudInspector.qml
+HudArrange 1.0 HudArrange.qml

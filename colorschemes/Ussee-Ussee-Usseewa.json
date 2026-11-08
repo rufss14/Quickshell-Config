@@ -1,0 +1,77 @@
+{
+  "special": {
+    "background": "#000000",
+    "foreground": "#ECEAF3",
+    "cursor": "#ECEAF3"
+  },
+  "colors": {
+    "color0": "#000000",
+    "color8": "#535255",
+    "color1": "#6759de",
+    "color9": "#8277e4",
+    "color2": "#636a99",
+    "color10": "#7f85ab",
+    "color3": "#6562bc",
+    "color11": "#817ec8",
+    "color4": "#887de3",
+    "color12": "#9e95e8",
+    "color5": "#858ab0",
+    "color13": "#9b9fbe",
+    "color6": "#665dcd",
+    "color14": "#827ad6",
+    "color7": "#ECEAF3",
+    "color15": "#efedf5"
+  },
+  "variants": {
+    "dark": {
+      "special": {
+        "background": "#000000",
+        "foreground": "#ECEAF3",
+        "cursor": "#ECEAF3"
+      },
+      "colors": {
+        "color0": "#000000",
+        "color8": "#535255",
+        "color1": "#6759de",
+        "color9": "#8277e4",
+        "color2": "#636a99",
+        "color10": "#7f85ab",
+        "color3": "#6562bc",
+        "color11": "#817ec8",
+        "color4": "#887de3",
+        "color12": "#9e95e8",
+        "color5": "#858ab0",
+        "color13": "#9b9fbe",
+        "color6": "#665dcd",
+        "color14": "#827ad6",
+        "color7": "#ECEAF3",
+        "color15": "#efedf5"
+      }
+    },
+    "light": {
+      "special": {
+        "background": "#e6e6e6",
+        "foreground": "#000000",
+        "cursor": "#000000"
+      },
+      "colors": {
+        "color0": "#e6e6e6",
+        "color8": "#969696",
+        "color1": "#6759de",
+        "color9": "#8277e4",
+        "color2": "#887de3",
+        "color10": "#9d94e8",
+        "color3": "#786be1",
+        "color11": "#9086e6",
+        "color4": "#4d43a7",
+        "color12": "#6d65b6",
+        "color5": "#665eaa",
+        "color13": "#827bba",
+        "color6": "#6f62df",
+        "color14": "#897ee5",
+        "color7": "#000000",
+        "color15": "#262626"
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+WelcomePanel 1.0 WelcomePanel.qml
+SetupFlow 1.0 SetupFlow.qml
+SetupStepRow 1.0 SetupStepRow.qml
+SetupRunRow 1.0 SetupRunRow.qml
+SetupPassword 1.0 SetupPassword.qml
+SetupRun 1.0 SetupRun.qml
+SetupWizard 1.0 SetupWizard.qml
+SetupCookie 1.0 SetupCookie.qml
+SetupRestore 1.0 SetupRestore.qml

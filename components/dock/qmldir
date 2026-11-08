@@ -1,0 +1,7 @@
+DockWash 1.0 DockWash.qml
+DockRunPill 1.0 DockRunPill.qml
+DockFocusRing 1.0 DockFocusRing.qml
+DockTailButton 1.0 DockTailButton.qml
+DockStartCell 1.0 DockStartCell.qml
+DockGhost 1.0 DockGhost.qml
+DockAppButton 1.0 DockAppButton.qml

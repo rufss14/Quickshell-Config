@@ -1,0 +1,9 @@
+UpdateActionButton 1.0 UpdateActionButton.qml
+UpdateCaughtUpView 1.0 UpdateCaughtUpView.qml
+UpdateCompositionStrip 1.0 UpdateCompositionStrip.qml
+UpdateMainView 1.0 UpdateMainView.qml
+UpdateNewsLine 1.0 UpdateNewsLine.qml
+UpdatePkgRow 1.0 UpdatePkgRow.qml
+UpdateRebootBanner 1.0 UpdateRebootBanner.qml
+UpdateRunningView 1.0 UpdateRunningView.qml
+UpdateShellUpdateButton 1.0 UpdateShellUpdateButton.qml

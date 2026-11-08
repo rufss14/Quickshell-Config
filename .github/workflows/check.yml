@@ -1,0 +1,68 @@
+# Runs scripts/check-all.sh — the same sweep you run by hand. A pass means "no typos and
+# the logic tests agree", NOT "the shell works": CI never launches Quickshell (see
+# scripts/smoke.sh for that, which needs a Wayland session and is run by hand).
+#
+# Arch, because the checkers read the installed Qt (qmlformat, QtQuick's qmltypes) and
+# this config targets Arch + Hyprland; an Ubuntu runner has Qt at different paths/versions.
+name: check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  static:
+    name: static checkers + QML syntax sweep
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install tools
+        run: |
+          pacman -Syu --noconfirm --needed git python python-fonttools qt6-declarative nodejs
+      - uses: actions/checkout@v4
+      - name: check-all --static
+        run: bash scripts/check-all.sh --static
+
+  tests:
+    name: scripts/test-*
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    # Not gating yet: this job has never had a first run on a runner (locally everything
+    # passes, 106/106 for test-apply-wallpaper.py included). Flip this to false once it
+    # has been green on a real push.
+    continue-on-error: true
+    steps:
+      - name: Install tools
+        run: |
+          pacman -Syu --noconfirm --needed git python python-fonttools python-pillow qt6-declarative nodejs
+      - uses: actions/checkout@v4
+      - name: check-all (checkers + tests)
+        run: bash scripts/check-all.sh
+
+  smoke:
+    name: load the shell (headless sway)
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    # The one job that STARTS Quickshell: every .qml loads, the eager singletons build their
+    # IPC targets, the overview's delegates build without a TypeError (scripts/smoke.sh,
+    # sandboxed by scripts/smoke-headless.sh). It catches the hard load failures the static
+    # job can't ("not a type", "set multiple", "unavailable"…). No Hyprland here, so nothing
+    # Hyprland-specific is exercised — a reload is still the real test.
+    #
+    # Not gating until its first green run on a real push; flip continue-on-error to false
+    # then. vulkan-swrast is Mesa's lavapipe: the shell renders through Vulkan
+    # (QSG_RHI_BACKEND, docs/launch-environment.md) and a runner has no GPU.
+    continue-on-error: true
+    steps:
+      - name: Install tools
+        run: |
+          pacman -Syu --noconfirm --needed git python quickshell sway vulkan-swrast mesa dbus \
+            procps-ng findutils qt6-svg qt6-5compat qt6-multimedia qt6-multimedia-ffmpeg \
+            qt6-imageformats noto-fonts
+      - uses: actions/checkout@v4
+      # sway warns when run as root; run as a plain user, like a real session.
+      - name: smoke-headless
+        run: |
+          useradd -m runner
+          chown -R runner "$GITHUB_WORKSPACE"
+          runuser -u runner -- bash scripts/smoke-headless.sh

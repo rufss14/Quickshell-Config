@@ -1,0 +1,8 @@
+NotificationToast   1.0 NotificationToast.qml
+NotificationOverlay 1.0 NotificationOverlay.qml
+NotificationStack   1.0 NotificationStack.qml
+ScreenshotToast 1.0 ScreenshotToast.qml
+NotificationCentre 1.0 NotificationCentre.qml
+NotificationGroups  1.0 NotificationGroups.qml
+NotificationStrip   1.0 NotificationStrip.qml
+NotificationRow     1.0 NotificationRow.qml

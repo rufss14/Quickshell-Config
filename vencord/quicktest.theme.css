@@ -1,0 +1,494 @@
+/**
+ * @name Quicktest
+ * @description The Quicktest shell's palette, mapped onto Discord's own CSS variables, plus a softened guild-rail selected/hover highlight and the shell's own WaveSlider on the Spotify progress bar. Everything else — shape, panels, hover motion, the settings modal — is left to Discord's own look (or another theme, such as Discord Mica, layered alongside this one).
+ * @author rufss14
+ * @version 0.6.2
+ * @source https://github.com/rufss14/Quickshell-Config
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Quicktest — colours, a tonal guild-rail selection highlight, and the shell's own
+   WaveSlider on the progress bar. Scaled back from a fuller pass by request (2026-11-01):
+   meant to sit ALONGSIDE another theme (Discord Mica or similar) that owns the rest of the
+   look; Vencord can have more than one theme enabled at a time.
+
+   ── Colour ───────────────────────────────────────────────────────────────────
+   Five inputs live in the palette block below, rewritten by
+   scripts/themes/discord/quicktest-theme.py whenever the shell's palette changes; every
+   other role is mixed from them with color-mix(), the same blends as PaletteRoles.qml.
+   There is no hex colour outside that block (scripts/test-discord-theme.py checks).
+   Presence dots (online/idle/dnd), the red mute/deafen/delete buttons and the red
+   notification badge stay Discord's own: a wallpaper palette is free to land on red, and
+   a "do not disturb" dot that reads green states the opposite of what it means.
+
+   ── Guild rail highlight ────────────────────────────────────────────────────
+   Discord's own selected/hover rule paints the guild/DM icon's background full-strength
+   `--background-brand` (our `--qs-primary`) — a solid block, not a highlight. Retoned to the
+   same tonal `--qs-primary-container` wash used for "selected" everywhere else in this file.
+
+   ── The progress bar wave ───────────────────────────────────────────────────
+   WaveSlider.qml, as QuickSpice (this theme's Spotify-side sibling) also draws it: a 4px
+   round-capped sine up to the playhead, a plain rail from there on, travelling only while a
+   track is actually playing. An earlier pass here had this but on the wrong colour roles
+   (`--qs-focus` for the wave/handle, `--qs-fg-faint` for the rail) — a plain re-read of
+   MediaSeek.qml/WaveSlider.qml (2026-11-01) confirmed the real component wears `--qs-primary`
+   throughout: the wave, the handle, and the empty rail (22% alpha of the SAME colour, not a
+   greyscale one). Fixed here to match. CSS has no live audio level, so the amplitude is the
+   component's two fixed states (flat at rest, travelling at 2px amplitude while alive), not a
+   loudness-reactive one — that part genuinely isn't reproducible outside the shell. The smooth
+   glide is a separate, narrower fix: Vencord's own Spotify plugin re-renders the bar's width
+   from React state once a second with no transition of its own, so it visibly snapped;
+   `transition: width 1000ms linear` (measured interval, not a guess) turns that into a
+   continuous advance.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* qs-palette:begin (rewritten by scripts/themes/discord/quicktest-theme.py; edit nothing inside) */
+:root {
+  --qs-base: #000000;
+  --qs-text: #ffffff;
+  --qs-primary: #ffffff;
+  --qs-focus: #909090;
+  --qs-on-primary: #000000;
+  --qs-shadow: #000000;
+  --qs-a-outline: 22%;
+  --qs-a-dim: 58%;
+  --qs-a-faint: 30%;
+  --qs-a-shadow-card: 38%;
+  --qs-a-shadow-popup: 46%;
+}
+/* qs-palette:end */
+
+/* qs-shape:begin (rewritten by scripts/themes/discord/quicktest-theme.py from Settings -> Type & Shape; edit nothing inside) */
+:root {
+  --qs-sp-xs: 2px;
+  --qs-sp-sm: 4px;
+  --qs-sp-md: 8px;
+  --qs-sp-lg: 12px;
+  --qs-sp-xl: 16px;
+  --qs-sp-xxl: 24px;
+  --qs-r-xs: 4px;
+  --qs-r-sm: 8px;
+  --qs-r-pill: 12px;
+  --qs-r-card: 16px;
+  --qs-r-xl: 24px;
+  --qs-font: "CodeNewRoman Nerd Font", "JetBrains Mono", "Fira Code", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --qs-font-mono: "CodeNewRoman Nerd Font Mono", "JetBrains Mono", ui-monospace, monospace;
+  --qs-t-respond: 100ms;
+  --qs-t-fast: 120ms;
+  --qs-t-standard: 150ms;
+  --qs-t-emphasized: 340ms;
+  --qs-t-exit: 200ms;
+  --qs-t-slow: 400ms;
+  --qs-t-ripple: 500ms;
+  --qs-t-spring-fast: 322ms;
+  --qs-t-spring: 371ms;
+  --qs-shadow-card: 0 3px 10.8px -1.4px color-mix(in srgb, var(--qs-shadow) var(--qs-a-shadow-card), transparent);
+  --qs-shadow-popup: 0 6px 17.6px -2.2px color-mix(in srgb, var(--qs-shadow) var(--qs-a-shadow-popup), transparent);
+  --qs-clip-holder: var(--qs-clip-cookie);
+  --qs-clip-holder-hot: var(--qs-clip-cookie-hot);
+  --qs-clip-button: var(--qs-clip-rounded);
+  --qs-clip-button-hot: var(--qs-clip-rounded);
+}
+/* qs-shape:end */
+/* The shape block above is still the full contract DiscordTheme.qml/quicktest-theme.py push
+   (Settings → Type & Shape, every time it changes) — nothing in this trimmed file reads most of
+   it any more (no icon shapes, no springs, no motion-scaled durations below), but it has to stay
+   intact: the generator's tests check the committed block IS its defaults, and a future pass that
+   adds shape-dependent rules back shouldn't also have to re-wire the push. --qs-sp-xs is the one
+   piece this file actually uses, in the wave slider's rail below. */
+
+/* ═══ Tokens ═════════════════════════════════════════════════════════════════════
+   Only what colours and the slider need. Motion curves, the mica panel fills and the
+   HoverTrack plugin's plate colours all lived here in the fuller pass; trimmed along
+   with the rules that used them. The --qs-clip-* polygons below are the one exception:
+   nothing in THIS file's own rules uses them, but the shape block above is a fixed
+   generator contract (quicktest-theme.py always writes `--qs-clip-holder: var(--qs-clip-
+   cookie)` etc.) that this file doesn't control — so they stay defined even unused,
+   rather than leaving that reference dangling. */
+:root {
+  /* The shapes Settings → Type & Shape → Icon shape picks between (ShapeBox.qml) — only
+     reachable indirectly, through the shape block's --qs-clip-holder/-button, which nothing
+     here currently reads either. Scallop.qml's outline as a polygon, rest and hovered, with
+     the same vertex count so a hover interpolates; scripts/test-discord-theme.py regenerates
+     them and compares WHEN the committed file defines them at all. */
+  --qs-clip-cookie: polygon(100.0% 50.0%,99.7% 52.6%,98.7% 55.1%,97.2% 57.5%,95.4% 59.6%,93.6% 61.7%,92.0% 63.6%,90.7% 65.6%,89.8% 67.7%,89.3% 70.0%,89.1% 72.6%,88.9% 75.3%,88.6% 78.1%,88.0% 80.8%,86.9% 83.3%,85.4% 85.4%,83.3% 86.9%,80.8% 88.0%,78.1% 88.6%,75.3% 88.9%,72.6% 89.1%,70.0% 89.3%,67.7% 89.8%,65.6% 90.7%,63.6% 92.0%,61.7% 93.6%,59.6% 95.4%,57.5% 97.2%,55.1% 98.7%,52.6% 99.7%,50.0% 100.0%,47.4% 99.7%,44.9% 98.7%,42.5% 97.2%,40.4% 95.4%,38.3% 93.6%,36.4% 92.0%,34.4% 90.7%,32.3% 89.8%,30.0% 89.3%,27.4% 89.1%,24.7% 88.9%,21.9% 88.6%,19.2% 88.0%,16.7% 86.9%,14.6% 85.4%,13.1% 83.3%,12.0% 80.8%,11.4% 78.1%,11.1% 75.3%,10.9% 72.6%,10.7% 70.0%,10.2% 67.7%,9.3% 65.6%,8.0% 63.6%,6.4% 61.7%,4.6% 59.6%,2.8% 57.5%,1.3% 55.1%,0.3% 52.6%,0.0% 50.0%,0.3% 47.4%,1.3% 44.9%,2.8% 42.5%,4.6% 40.4%,6.4% 38.3%,8.0% 36.4%,9.3% 34.4%,10.2% 32.3%,10.7% 30.0%,10.9% 27.4%,11.1% 24.7%,11.4% 21.9%,12.0% 19.2%,13.1% 16.7%,14.6% 14.6%,16.7% 13.1%,19.2% 12.0%,21.9% 11.4%,24.7% 11.1%,27.4% 10.9%,30.0% 10.7%,32.3% 10.2%,34.4% 9.3%,36.4% 8.0%,38.3% 6.4%,40.4% 4.6%,42.5% 2.8%,44.9% 1.3%,47.4% 0.3%,50.0% 0.0%,52.6% 0.3%,55.1% 1.3%,57.5% 2.8%,59.6% 4.6%,61.7% 6.4%,63.6% 8.0%,65.6% 9.3%,67.7% 10.2%,70.0% 10.7%,72.6% 10.9%,75.3% 11.1%,78.1% 11.4%,80.8% 12.0%,83.3% 13.1%,85.4% 14.6%,86.9% 16.7%,88.0% 19.2%,88.6% 21.9%,88.9% 24.7%,89.1% 27.4%,89.3% 30.0%,89.8% 32.3%,90.7% 34.4%,92.0% 36.4%,93.6% 38.3%,95.4% 40.4%,97.2% 42.5%,98.7% 44.9%,99.7% 47.4%);
+  --qs-clip-cookie-hot: polygon(100.0% 50.0%,99.5% 52.6%,98.1% 55.1%,96.0% 57.3%,93.5% 59.2%,91.1% 61.0%,89.0% 62.7%,87.4% 64.4%,86.6% 66.3%,86.5% 68.6%,86.8% 71.2%,87.3% 74.2%,87.7% 77.4%,87.6% 80.4%,86.8% 83.2%,85.4% 85.4%,83.2% 86.8%,80.4% 87.6%,77.4% 87.7%,74.2% 87.3%,71.2% 86.8%,68.6% 86.5%,66.3% 86.6%,64.4% 87.4%,62.7% 89.0%,61.0% 91.1%,59.2% 93.5%,57.3% 96.0%,55.1% 98.1%,52.6% 99.5%,50.0% 100.0%,47.4% 99.5%,44.9% 98.1%,42.7% 96.0%,40.8% 93.5%,39.0% 91.1%,37.3% 89.0%,35.6% 87.4%,33.7% 86.6%,31.4% 86.5%,28.8% 86.8%,25.8% 87.3%,22.6% 87.7%,19.6% 87.6%,16.8% 86.8%,14.6% 85.4%,13.2% 83.2%,12.4% 80.4%,12.3% 77.4%,12.7% 74.2%,13.2% 71.2%,13.5% 68.6%,13.4% 66.3%,12.6% 64.4%,11.0% 62.7%,8.9% 61.0%,6.5% 59.2%,4.0% 57.3%,1.9% 55.1%,0.5% 52.6%,0.0% 50.0%,0.5% 47.4%,1.9% 44.9%,4.0% 42.7%,6.5% 40.8%,8.9% 39.0%,11.0% 37.3%,12.6% 35.6%,13.4% 33.7%,13.5% 31.4%,13.2% 28.8%,12.7% 25.8%,12.3% 22.6%,12.4% 19.6%,13.2% 16.8%,14.6% 14.6%,16.8% 13.2%,19.6% 12.4%,22.6% 12.3%,25.8% 12.7%,28.7% 13.2%,31.4% 13.5%,33.7% 13.4%,35.6% 12.6%,37.3% 11.0%,39.0% 8.9%,40.8% 6.5%,42.7% 4.0%,44.9% 1.9%,47.4% 0.5%,50.0% 0.0%,52.6% 0.5%,55.1% 1.9%,57.3% 4.0%,59.2% 6.5%,61.0% 8.9%,62.7% 11.0%,64.4% 12.6%,66.3% 13.4%,68.6% 13.5%,71.2% 13.2%,74.2% 12.7%,77.4% 12.3%,80.4% 12.4%,83.2% 13.2%,85.4% 14.6%,86.8% 16.8%,87.6% 19.6%,87.7% 22.6%,87.3% 25.8%,86.8% 28.8%,86.5% 31.4%,86.6% 33.7%,87.4% 35.6%,89.0% 37.3%,91.1% 39.0%,93.5% 40.8%,96.0% 42.7%,98.1% 44.9%,99.5% 47.4%);
+  --qs-clip-clover: polygon(100.0% 50.0%,99.8% 52.6%,99.3% 55.2%,98.4% 57.7%,97.3% 60.1%,95.9% 62.3%,94.3% 64.4%,92.5% 66.3%,90.6% 68.1%,88.7% 69.7%,86.8% 71.2%,84.9% 72.7%,83.1% 74.1%,81.4% 75.4%,79.8% 76.8%,78.3% 78.3%,76.8% 79.8%,75.4% 81.4%,74.1% 83.1%,72.7% 84.9%,71.2% 86.8%,69.7% 88.7%,68.1% 90.6%,66.3% 92.5%,64.4% 94.3%,62.3% 95.9%,60.1% 97.3%,57.7% 98.4%,55.2% 99.3%,52.6% 99.8%,50.0% 100.0%,47.4% 99.8%,44.8% 99.3%,42.3% 98.4%,39.9% 97.3%,37.7% 95.9%,35.6% 94.3%,33.7% 92.5%,31.9% 90.6%,30.3% 88.7%,28.8% 86.8%,27.3% 84.9%,25.9% 83.1%,24.6% 81.4%,23.2% 79.8%,21.7% 78.3%,20.2% 76.8%,18.6% 75.4%,16.9% 74.1%,15.1% 72.7%,13.2% 71.2%,11.3% 69.7%,9.4% 68.1%,7.5% 66.3%,5.7% 64.4%,4.1% 62.3%,2.7% 60.1%,1.6% 57.7%,0.7% 55.2%,0.2% 52.6%,0.0% 50.0%,0.2% 47.4%,0.7% 44.8%,1.6% 42.3%,2.7% 39.9%,4.1% 37.7%,5.7% 35.6%,7.5% 33.7%,9.4% 31.9%,11.3% 30.3%,13.2% 28.8%,15.1% 27.3%,16.9% 25.9%,18.6% 24.6%,20.2% 23.2%,21.7% 21.7%,23.2% 20.2%,24.6% 18.6%,25.9% 16.9%,27.3% 15.1%,28.7% 13.2%,30.3% 11.3%,31.9% 9.4%,33.7% 7.5%,35.6% 5.7%,37.7% 4.1%,39.9% 2.7%,42.3% 1.6%,44.8% 0.7%,47.4% 0.2%,50.0% 0.0%,52.6% 0.2%,55.2% 0.7%,57.7% 1.6%,60.1% 2.7%,62.3% 4.1%,64.4% 5.7%,66.3% 7.5%,68.1% 9.4%,69.7% 11.3%,71.2% 13.2%,72.7% 15.1%,74.1% 16.9%,75.4% 18.6%,76.8% 20.2%,78.3% 21.7%,79.8% 23.2%,81.4% 24.6%,83.1% 25.9%,84.9% 27.3%,86.8% 28.8%,88.7% 30.3%,90.6% 31.9%,92.5% 33.7%,94.3% 35.6%,95.9% 37.7%,97.3% 39.9%,98.4% 42.3%,99.3% 44.8%,99.8% 47.4%);
+  --qs-clip-clover-hot: polygon(100.0% 50.0%,99.8% 52.6%,99.1% 55.2%,98.1% 57.6%,96.7% 59.9%,95.0% 62.1%,93.1% 64.0%,91.0% 65.8%,88.9% 67.3%,86.7% 68.7%,84.5% 69.9%,82.5% 71.1%,80.6% 72.2%,78.8% 73.3%,77.2% 74.5%,75.8% 75.8%,74.5% 77.2%,73.3% 78.8%,72.2% 80.6%,71.1% 82.5%,69.9% 84.5%,68.7% 86.7%,67.3% 88.9%,65.8% 91.0%,64.0% 93.1%,62.1% 95.0%,59.9% 96.7%,57.6% 98.1%,55.2% 99.1%,52.6% 99.8%,50.0% 100.0%,47.4% 99.8%,44.8% 99.1%,42.4% 98.1%,40.1% 96.7%,37.9% 95.0%,36.0% 93.1%,34.2% 91.0%,32.7% 88.9%,31.3% 86.7%,30.1% 84.5%,28.9% 82.5%,27.8% 80.6%,26.7% 78.8%,25.5% 77.2%,24.2% 75.8%,22.8% 74.5%,21.2% 73.3%,19.4% 72.2%,17.5% 71.1%,15.5% 69.9%,13.3% 68.7%,11.1% 67.3%,9.0% 65.8%,6.9% 64.0%,5.0% 62.1%,3.3% 59.9%,1.9% 57.6%,0.9% 55.2%,0.2% 52.6%,0.0% 50.0%,0.2% 47.4%,0.9% 44.8%,1.9% 42.4%,3.3% 40.1%,5.0% 37.9%,6.9% 36.0%,9.0% 34.2%,11.1% 32.7%,13.3% 31.3%,15.5% 30.1%,17.5% 28.9%,19.4% 27.8%,21.2% 26.7%,22.8% 25.5%,24.2% 24.2%,25.5% 22.8%,26.7% 21.2%,27.8% 19.4%,28.9% 17.5%,30.1% 15.5%,31.3% 13.3%,32.7% 11.1%,34.2% 9.0%,36.0% 6.9%,37.9% 5.0%,40.1% 3.3%,42.4% 1.9%,44.8% 0.9%,47.4% 0.2%,50.0% 0.0%,52.6% 0.2%,55.2% 0.9%,57.6% 1.9%,59.9% 3.3%,62.1% 5.0%,64.0% 6.9%,65.8% 9.0%,67.3% 11.1%,68.7% 13.3%,69.9% 15.5%,71.1% 17.5%,72.2% 19.4%,73.3% 21.2%,74.5% 22.8%,75.8% 24.2%,77.2% 25.5%,78.8% 26.7%,80.6% 27.8%,82.5% 28.9%,84.5% 30.1%,86.7% 31.3%,88.9% 32.7%,91.0% 34.2%,93.1% 36.0%,95.0% 37.9%,96.7% 40.1%,98.1% 42.4%,99.1% 44.8%,99.8% 47.4%);
+  --qs-clip-squircle: inset(0 round 36%);
+  --qs-clip-circle: circle(50%);
+  --qs-clip-rounded: inset(0 round calc(var(--qs-r-sm) + 2px));
+
+  /* ── Roles (PaletteRoles.qml). Inputs first, everything else mixed from them. ── */
+  --qs-surface: color-mix(in srgb, var(--qs-primary) 3%, var(--qs-base));
+  --qs-container: color-mix(in srgb, var(--qs-primary) 8%, color-mix(in srgb, var(--qs-text) 7%, var(--qs-base)));
+  --qs-high: color-mix(in srgb, var(--qs-primary) 10%, color-mix(in srgb, var(--qs-text) 12%, var(--qs-base)));
+  /* A container that is being pointed at: the primary comes up through it, still opaque. */
+  --qs-container-hot: color-mix(in srgb, var(--qs-primary) 16%, var(--qs-container));
+
+  --qs-outline: color-mix(in srgb, var(--qs-text) var(--qs-a-outline), transparent);
+  --qs-outline-nested: color-mix(in srgb, var(--qs-text) 36%, transparent);
+  --qs-outline-focus: color-mix(in srgb, var(--qs-focus) 85%, transparent);
+
+  --qs-fg: var(--qs-text);
+  --qs-fg-muted: color-mix(in srgb, var(--qs-text) 72%, transparent);
+  --qs-fg-dim: color-mix(in srgb, var(--qs-text) var(--qs-a-dim), transparent);
+  --qs-fg-faint: color-mix(in srgb, var(--qs-text) var(--qs-a-faint), transparent);
+
+  /* stateHoverBg / statePressBg / stateActiveBg: translucent in the shell too, but only ever
+     laid over a solid surface as a state layer, never as a surface. */
+  --qs-hover: color-mix(in srgb, var(--qs-primary) 18%, transparent);
+  --qs-press: color-mix(in srgb, var(--qs-primary) 35%, transparent);
+  --qs-active: color-mix(in srgb, var(--qs-primary) 22%, transparent);
+
+  /* The accent as a button fill: hover lifts it toward the text, press sinks it into the base. */
+  --qs-primary-hover: color-mix(in srgb, var(--qs-primary) 90%, var(--qs-text));
+  --qs-primary-press: color-mix(in srgb, var(--qs-primary) 78%, var(--qs-base));
+
+  /* The accent's container (PaletteRoles.primaryContainer / fgOnPrimaryContainer): a tonal fill for
+     a mention pill, a reaction you've added. Approximated without the shell's contrast floor
+     (color-mix can't run legible()) — good enough for a chip, not a guarantee for body text. */
+  --qs-primary-container: color-mix(in srgb, var(--qs-primary) 26%, var(--qs-container));
+  --qs-fg-on-primary-container: color-mix(in srgb, var(--qs-primary) 60%, var(--qs-text));
+
+  --qs-bar: var(--qs-sp-xxl); /* the title bar height Discord's own CSS reads */
+
+  /* WaveSlider's stroke as a mask tile (the same two QuickSpice draws its seek bar with): a 4px round-capped sine,
+     2px amplitude, one period per tile. `flat` is the same line, still. */
+  --qs-wave: url("data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%20100%2012%27%20preserveAspectRatio=%27none%27%3E%3Cpath%20d=%27M-100.00%206.00C-98.96%206.13%20-95.83%206.53%20-93.75%206.77C-91.67%207.00%20-89.58%207.23%20-87.50%207.41C-85.42%207.59%20-83.33%207.75%20-81.25%207.85C-79.17%207.95%20-77.08%208.00%20-75.00%208.00C-72.92%208.00%20-70.83%207.95%20-68.75%207.85C-66.67%207.75%20-64.58%207.59%20-62.50%207.41C-60.42%207.23%20-58.33%207.00%20-56.25%206.77C-54.17%206.53%20-52.08%206.26%20-50.00%206.00C-47.92%205.74%20-45.83%205.47%20-43.75%205.23C-41.67%205.00%20-39.58%204.77%20-37.50%204.59C-35.42%204.41%20-33.33%204.25%20-31.25%204.15C-29.17%204.05%20-27.08%204.00%20-25.00%204.00C-22.92%204.00%20-20.83%204.05%20-18.75%204.15C-16.67%204.25%20-14.58%204.41%20-12.50%204.59C-10.42%204.77%20-8.33%205.00%20-6.25%205.23C-4.17%205.47%20-2.08%205.74%200.00%206.00C2.08%206.26%204.17%206.53%206.25%206.77C8.33%207.00%2010.42%207.23%2012.50%207.41C14.58%207.59%2016.67%207.75%2018.75%207.85C20.83%207.95%2022.92%208.00%2025.00%208.00C27.08%208.00%2029.17%207.95%2031.25%207.85C33.33%207.75%2035.42%207.59%2037.50%207.41C39.58%207.23%2041.67%207.00%2043.75%206.77C45.83%206.53%2047.92%206.26%2050.00%206.00C52.08%205.74%2054.17%205.47%2056.25%205.23C58.33%205.00%2060.42%204.77%2062.50%204.59C64.58%204.41%2066.67%204.25%2068.75%204.15C70.83%204.05%2072.92%204.00%2075.00%204.00C77.08%204.00%2079.17%204.05%2081.25%204.15C83.33%204.25%2085.42%204.41%2087.50%204.59C89.58%204.77%2091.67%205.00%2093.75%205.23C95.83%205.47%2097.92%205.74%20100.00%206.00C102.08%206.26%20104.17%206.53%20106.25%206.77C108.33%207.00%20110.42%207.23%20112.50%207.41C114.58%207.59%20116.67%207.75%20118.75%207.85C120.83%207.95%20122.92%208.00%20125.00%208.00C127.08%208.00%20129.17%207.95%20131.25%207.85C133.33%207.75%20135.42%207.59%20137.50%207.41C139.58%207.23%20141.67%207.00%20143.75%206.77C145.83%206.53%20147.92%206.26%20150.00%206.00C152.08%205.74%20154.17%205.47%20156.25%205.23C158.33%205.00%20160.42%204.77%20162.50%204.59C164.58%204.41%20166.67%204.25%20168.75%204.15C170.83%204.05%20172.92%204.00%20175.00%204.00C177.08%204.00%20179.17%204.05%20181.25%204.15C183.33%204.25%20185.42%204.41%20187.50%204.59C189.58%204.77%20191.67%205.00%20193.75%205.23C195.83%205.47%20198.96%205.87%20200.00%206.00%27%20fill=%27none%27%20stroke=%27black%27%20stroke-width=%274%27%20stroke-linecap=%27round%27/%3E%3C/svg%3E");
+  --qs-flat: url("data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%20100%2012%27%20preserveAspectRatio=%27none%27%3E%3Cpath%20d=%27M-10%206H110%27%20fill=%27none%27%20stroke=%27black%27%20stroke-width=%274%27%20stroke-linecap=%27round%27/%3E%3C/svg%3E");
+}
+
+/* ═══ Discord's tokens, remapped ═════════════════════════════════════════════════
+   Discord draws itself from these; remapping them recolours and re-tones everything
+   this file doesn't mention. Same scopes Discord defines them on, minus the user-profile
+   theme (a Nitro profile keeps its own colours). Ladder: base (the frame) < surface
+   (panels) < container (a section inside a panel) < high (popups). */
+body,
+.theme-dark:not(.custom-user-profile-theme),
+.theme-light:not(.custom-user-profile-theme),
+.theme-darker:not(.custom-user-profile-theme),
+.theme-midnight:not(.custom-user-profile-theme) {
+  /* surfaces */
+  --app-frame-background: var(--qs-base);
+  --app-frame-border: var(--qs-outline);
+  --background-base-lowest: var(--qs-surface);
+  --background-base-lower: var(--qs-surface);
+  --background-base-low: var(--qs-surface);
+  --background-primary: var(--qs-surface);
+  --background-secondary-alt: var(--qs-surface);
+  --chat-background-default: var(--qs-surface);
+  --home-background: var(--qs-surface);
+  --background-accent: var(--qs-container);
+  --background-code: var(--qs-container);
+  --card-background-default: var(--qs-container);
+  --background-surface-high: var(--qs-container);
+  --background-surface-higher: var(--qs-high);
+  --background-surface-highest: var(--qs-high);
+  --background-mod-subtle: var(--qs-hover);
+  --background-mod-muted: var(--qs-hover);
+  --background-mod-normal: var(--qs-container);
+  --background-mod-strong: var(--qs-container-hot);
+  --modal-background: var(--qs-surface);
+  --modal-footer-background: var(--qs-surface);
+  --background-scrim: color-mix(in srgb, var(--qs-base) 70%, transparent);
+  --background-scrim-lightbox: color-mix(in srgb, var(--qs-base) 90%, transparent);
+
+  /* text */
+  --text-strong: var(--qs-fg);
+  --text-default: var(--qs-fg);
+  --text-subtle: var(--qs-fg-muted);
+  --text-muted: var(--qs-fg-dim);
+  --text-brand: var(--qs-primary);
+  --text-link: var(--qs-primary);
+  --text-invert: var(--qs-on-primary);
+  --chat-text-muted: var(--qs-fg-dim);
+  --channel-text-area-placeholder: var(--qs-fg-dim);
+  --input-placeholder-text-default: var(--qs-fg-dim);
+  --textbox-markdown-syntax: var(--qs-fg-dim);
+  --header-primary: var(--qs-fg);
+  --header-secondary: var(--qs-fg-muted);
+  --text-normal: var(--qs-fg);
+
+  /* icons */
+  --icon-default: var(--qs-fg-muted);
+  --icon-subtle: var(--qs-fg-muted);
+  --icon-muted: var(--qs-fg-dim);
+  --icon-strong: var(--qs-fg);
+  --icon-link: var(--qs-primary);
+  --icon-invert: var(--qs-on-primary);
+
+  /* borders */
+  --border-subtle: var(--qs-outline);
+  --border-muted: var(--qs-outline);
+  --border-normal: var(--qs-outline);
+  --border-strong: var(--qs-outline-nested);
+  --border-focus: var(--qs-outline-focus);
+  --input-border-default: var(--qs-outline);
+  --input-border-hover: var(--qs-outline-nested);
+  --input-border-active: var(--qs-outline-focus);
+
+  /* the state ladder: idle fgMuted, hover and active primary on a primary wash */
+  --interactive-text-default: var(--qs-fg-muted);
+  --interactive-text-hover: var(--qs-primary);
+  --interactive-text-active: var(--qs-primary);
+  --interactive-icon-default: var(--qs-fg-muted);
+  --interactive-icon-hover: var(--qs-primary);
+  --interactive-icon-active: var(--qs-primary);
+  --interactive-muted: var(--qs-fg-faint);
+  --interactive-background-hover: var(--qs-hover);
+  --interactive-background-active: var(--qs-press);
+  --interactive-background-selected: var(--qs-primary-container);
+  --channels-default: var(--qs-fg-muted);
+  --channel-icon: var(--qs-fg-muted);
+
+  /* the accent, as a fill with the base drawn ON it (fgOnPrimary) */
+  --background-brand: var(--qs-primary);
+  --control-brand-foreground: var(--qs-primary);
+  --control-primary-background-default: var(--qs-primary);
+  --control-primary-background-hover: var(--qs-primary-hover);
+  --control-primary-background-active: var(--qs-primary-press);
+  --control-primary-text-default: var(--qs-on-primary);
+  --control-primary-text-hover: var(--qs-on-primary);
+  --control-primary-text-active: var(--qs-on-primary);
+  --control-primary-icon-default: var(--qs-on-primary);
+  --control-primary-icon-hover: var(--qs-on-primary);
+  --control-primary-icon-active: var(--qs-on-primary);
+  --control-primary-border-default: transparent;
+  --control-primary-border-hover: transparent;
+  --control-primary-border-active: transparent;
+  --badge-background-default: var(--qs-primary);
+  --badge-text-default: var(--qs-on-primary);
+  --badge-expressive-background-default: var(--qs-primary);
+  --badge-expressive-text-default: var(--qs-on-primary);
+
+  /* secondary buttons: a container with a hairline */
+  --control-secondary-background-default: var(--qs-container);
+  --control-secondary-background-hover: var(--qs-container-hot);
+  --control-secondary-background-active: var(--qs-press);
+  --control-secondary-text-default: var(--qs-fg);
+  --control-secondary-text-hover: var(--qs-primary);
+  --control-secondary-text-active: var(--qs-primary);
+  --control-secondary-icon-default: var(--qs-fg-muted);
+  --control-secondary-icon-hover: var(--qs-primary);
+  --control-secondary-icon-active: var(--qs-primary);
+  --control-secondary-border-default: var(--qs-outline);
+  --control-secondary-border-hover: var(--qs-outline-nested);
+  --control-secondary-border-active: var(--qs-outline-focus);
+  --control-icon-only-background-hover: var(--qs-hover);
+  --control-icon-only-background-active: var(--qs-active);
+  --control-icon-only-icon-default: var(--qs-fg-muted);
+  --control-icon-only-icon-hover: var(--qs-primary);
+  --control-icon-only-icon-active: var(--qs-primary);
+
+  /* fields and toggles: unselected is a container, selected the accent */
+  --input-background-default: var(--qs-container);
+  --input-text-default: var(--qs-fg);
+  --channeltextarea-background: var(--qs-container);
+  --switch-background-default: var(--qs-container-hot);
+  --switch-background-hover: var(--qs-container-hot);
+  --switch-background-selected-default: var(--qs-primary);
+  --switch-background-selected-hover: var(--qs-primary-hover);
+  --switch-border-default: var(--qs-outline);
+  --switch-border-hover: var(--qs-outline-nested);
+  --switch-border-selected-default: transparent;
+  --switch-border-selected-hover: transparent;
+  --switch-thumb-background-default: var(--qs-fg-muted);
+  --switch-thumb-background-selected-default: var(--qs-on-primary);
+  --checkbox-background-default: var(--qs-container);
+  --checkbox-background-hover: var(--qs-container-hot);
+  --checkbox-background-selected-default: var(--qs-primary);
+  --checkbox-background-selected-hover: var(--qs-primary-hover);
+  --checkbox-border-default: var(--qs-outline-nested);
+  --checkbox-border-hover: var(--qs-outline-focus);
+  --checkbox-border-selected-default: transparent;
+  --checkbox-border-selected-hover: transparent;
+  --checkbox-icon-active: var(--qs-on-primary);
+  --radio-background-default: var(--qs-container);
+  --radio-background-hover: var(--qs-container-hot);
+  --radio-background-selected-default: var(--qs-primary);
+  --radio-background-selected-hover: var(--qs-primary-hover);
+  --radio-border-default: var(--qs-outline-nested);
+  --radio-border-hover: var(--qs-outline-focus);
+  --radio-border-selected-default: transparent;
+  --radio-border-selected-hover: transparent;
+  --radio-thumb-background-active: var(--qs-on-primary);
+  --slider-track-background: var(--qs-container-hot);
+  --progressbar-track-background: var(--qs-container-hot);
+  --progressbar-indicator-background: var(--qs-primary);
+
+  /* messages */
+  --message-background-hover: color-mix(in srgb, var(--qs-text) 4%, transparent);
+  --message-mentioned-background-default: color-mix(in srgb, var(--qs-primary) 10%, transparent);
+  --message-mentioned-background-hover: color-mix(in srgb, var(--qs-primary) 14%, transparent);
+  --message-highlight-background-default: color-mix(in srgb, var(--qs-text) 8%, transparent);
+  --message-highlight-background-hover: color-mix(in srgb, var(--qs-text) 12%, transparent);
+  --mention-background: var(--qs-primary-container);
+  --mention-foreground: var(--qs-fg-on-primary-container);
+  --message-reacted-background-default: var(--qs-primary-container);
+  --message-reacted-text-default: var(--qs-fg-on-primary-container);
+  --reaction-background-default: var(--qs-container);
+  --reaction-background-hover: var(--qs-container-hot);
+  --reaction-background-active: var(--qs-press);
+  --reaction-background-reacted-default: var(--qs-primary-container);
+  --reaction-background-reacted-hover: var(--qs-hover);
+  --reaction-border-default: var(--qs-outline);
+  --reaction-border-hover: var(--qs-outline-nested);
+  --reaction-border-reacted-default: var(--qs-outline-focus);
+  --reaction-text-default: var(--qs-fg-muted);
+  --reaction-text-hover: var(--qs-primary);
+  --reaction-text-reacted-default: var(--qs-fg-on-primary-container);
+
+  /* scrollbars */
+  --scrollbar-thin-thumb: var(--qs-outline-nested);
+  --scrollbar-thin-track: transparent;
+  --scrollbar-auto-thumb: var(--qs-outline-nested);
+  --scrollbar-auto-track: transparent;
+
+  /* type. `--font-primary`/`-display`/`-headline`/`-code` do not exist in this Discord build
+     (1.0.168) — grepped the real `_app.asar` (2026-11-01): the only font custom property Discord
+     consumes is `--font-family` (`var(--font-family)`, default `system-ui, 'Helvetica Neue',
+     Arial, sans-serif`), which is why the font never actually changed despite this block looking
+     right. No `--font-code`/mono equivalent exists; code blocks are left to Discord's own default
+     (see "Not reaching Discord" in docs/discord.md). */
+  --font-family: var(--qs-font);
+
+  --custom-app-top-bar-height: var(--qs-bar);
+}
+.refresh-title-bar-small {
+  --custom-app-top-bar-height: var(--qs-bar);
+}
+
+::selection {
+  background: var(--qs-active);
+}
+:focus-visible {
+  outline-color: var(--qs-outline-focus);
+}
+
+/* The call window's video grid: hardcoded black in Discord's own CSS, not wired to
+   `--background-base-*` (those ARE remapped above, to `--qs-surface` — this one just doesn't use
+   them), so it stayed flat black instead of following the palette (user-reported, 2026-11-01).
+   `.videoGrid_a21736` alone, not the generic `scroller_*`/`thin_*` classes it's seen combined
+   with — those are the shared Scroller component's own modifier classes, reused on scrollers
+   that already follow the palette correctly, so scoping to just the grid's own class avoids
+   repainting those too. */
+.videoGrid_a21736 {
+  background: var(--qs-surface);
+}
+
+/* ═══ Guild rail — selected/hover highlight ═══════════════════════════════════════
+   Discord's own rule for the selected (and hovered) guild/DM icon paints its childWrapper
+   full-strength `--background-brand` (confirmed over CDP, 2026-11-01: `.wrapper__6e9f8.selected__6e9f8
+   .childWrapper__6e9f8, .wrapper__6e9f8:hover .childWrapper__6e9f8 { background-color:
+   var(--background-brand); color: var(--white) }`), and that var is this theme's `--qs-primary` — a
+   solid 40×40 block at full accent strength sitting on top of the icon rather than marking it
+   selected. `--background-brand` stays as-is (badges, buttons, the "Done" button etc. all want full
+   strength); this overrides just the rail's own rule to the same tonal wash `--qs-primary-container`
+   already uses elsewhere for a "selected" read, and drops the forced `color: white` entirely — a
+   highlight shouldn't recolour the icon, and `--qs-fg-on-primary-container` (this file's usual
+   on-tonal text colour) was tried first but doesn't read at this 24px glyph size against this
+   background; the icon falls through to the childWrapper's own default colour instead. */
+.wrapper__6e9f8.selected__6e9f8 .childWrapper__6e9f8,
+.wrapper__6e9f8:hover .childWrapper__6e9f8 {
+  background-color: var(--qs-primary-container);
+  border-radius: var(--qs-sp-md);
+}
+/* The Home/DM button's own glyph (inline SVG, not an avatar image like every other guild icon)
+   sometimes paints invisible — flagged in an earlier session, structurally fine every time it's
+   checked (fill white, opacity 1, mask resolves to real geometry) but nothing shows. Tried
+   forcing the wrapping foreignObject's `mask` off (2026-11-01): fixed it once, then did NOT
+   reproduce on a plain reload with the identical rule in place and matching per computed style —
+   so that "fix" was a coincidence (a one-off repaint, not the rule), not a real one. Left alone:
+   whatever this is, it isn't something this file's CSS controls reliably. See docs/discord.md. */
+
+/* ═══ Sliders — WaveSlider ═══════════════════════════════════════════════════════
+   WaveSlider.qml, as QuickSpice draws it: a 4px round-capped sine up to a thin playhead, a plain rail from there on.
+   Six waves across the whole track however wide it is (the bar is a size container, so `cqw` is its width). The
+   fill is a transparent 12px box: the rail is its ::after, starting 8px after the playhead, same colour
+   (`--qs-fg-faint`) this file always used. The WAVE itself, for Spotify specifically, is no longer this ::before's
+   CSS mask (see the comment lower down) — it's canvas-drawn by quicktestMotion's wave.ts, on top of this bar. Every
+   OTHER Discord slider (volume, settings) still gets the plain CSS mask below, held still (no `animation`) — those
+   never needed to move. `--qs-focus`, same as this file always used: WaveSlider.qml's own `_accent` is
+   `Colors.of(window).primary` technically, but `--qs-primary` read worse here against this palette (tried
+   2026-11-01, reverted) — the user's call on how it actually looks wins over what the QML source says it
+   "should" be. */
+.slider_ec237e .bar_ec237e {
+  container-type: inline-size;
+  height: 12px;
+  top: 50%;
+  translate: 0 -50%;
+  background: none;
+  border-radius: 0;
+  overflow-x: clip;
+  overflow-y: visible;
+}
+.slider_ec237e .barFill_ec237e {
+  position: relative;
+  height: 12px;
+  background: none;
+  /* Discord's own default for this bar: `border: 1px solid rgba(255,255,255,0.1)` — never
+     suppressed before, so it drew a faint rectangle around the wave (CDP-confirmed 2026-11-01,
+     user-reported as "a weird bow around the whole slider"). */
+  border: none;
+  /* Vencord's own Spotify plugin re-renders this bar's `width` from React state — measured over
+     CDP (2026-11-01): the inline `width: N%` jumps exactly every 1000ms with no transition of its
+     own, so it visibly snapped once a second instead of advancing. Motion.qml calls this exact
+     case out by name (the "LIVE TRACKING" category: "MediaController's progress bar advances at
+     the rate its position is re-read") — exempt from the shell's own motion scale/toggle, because
+     it isn't an animation, it's smoothing on an external poll. `linear`, not an eased curve: a
+     song's elapsed time moves at a constant rate, and an ease would read as the bar pulsing once a
+     second rather than playing. 1000ms is the MEASURED interval, not a guess — if Vencord's own
+     poll rate ever changes, a late update just retargets mid-glide (no snap, no stall) and an early
+     one sits briefly at rest. */
+  transition: width 1000ms linear;
+}
+/* A deliberate seek (dragging the grabber) must not inherit that glide — the user is waiting on
+   it before acting, so the instant the mouse is held down on the track, this reverts to a snap.
+   `:active` only (not a guessed Vencord class — unverified selectors have cost real time on this
+   file before; `:active` is native and needs no DOM inspection to trust). */
+.slider_ec237e:active .barFill_ec237e {
+  transition: none;
+}
+.slider_ec237e .barFill_ec237e::before {
+  content: "";
+  position: absolute;
+  inset: 0 8px 0 0;
+  background: var(--qs-focus);
+  mask-image: var(--qs-wave);
+  mask-repeat: repeat-x;
+  mask-size: calc(100cqw / 6) 12px;
+  mask-position: 0 50%;
+}
+.slider_ec237e .barFill_ec237e::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: calc(100% + 8px);
+  width: 100cqw;
+  height: 4px;
+  border-radius: var(--qs-sp-xs);
+  background: var(--qs-fg-faint);
+}
+/* Four CSS-only rounds (2026-11-01) fixed real, CDP-confirmed bugs here in turn — restart-on-
+   remount, the unsupported `mask-position-x` longhand, a `:root`-wide style recalc tanking the
+   whole page's frame rate — and it still didn't look like `components/WaveSlider.qml`: a scrolled
+   raster SVG tile is never going to read the same as a redrawn vector curve, however smoothly it
+   scrolls. Retired outright: quicktestMotion's wave.ts now draws the wave itself on a canvas, same
+   curve math as WaveSlider.qml, layered over this bar. The static `::before` mask stays as the
+   DEFAULT for every other Discord slider (volume, settings — "every other Discord slider keeps
+   the sine still", above); this just turns it off for Spotify's, so the canvas is the only thing
+   drawing a moving wave there. Requires the quicktestMotion plugin; without it this bar just goes
+   blank where the wave was, same as every other Discord slider shows a static one. */
+#vc-spotify-player .slider_ec237e .barFill_ec237e::before {
+  background: none;
+}
+.slider_ec237e .grabber_ec237e {
+  --grabber-size: 16px;
+  width: 3px;
+  height: var(--grabber-size);
+  margin: -8px 0 0 -2px;
+  border-radius: var(--qs-sp-xs);
+  background: var(--qs-focus);
+  box-shadow: none;
+}

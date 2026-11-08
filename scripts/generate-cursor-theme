@@ -1,0 +1,446 @@
+#!/usr/bin/env python3
+"""Generate the "quicktest" XCursor theme in two colours the shell hands it.
+
+    generate-cursor-theme --fill #RRGGBB --edge #RRGGBB [--size N] [--apply [--name quicktest|quicktest-b]]
+    generate-cursor-theme --fill … --edge … --out DIR         (write somewhere else)
+    generate-cursor-theme --fill … --edge … --preview F.png   (also draw a contact sheet)
+    generate-cursor-theme --fill … --edge … --preview F.png --preview-only
+    generate-cursor-theme --revert [--size N]                 (back to the default cursor)
+
+The system cursor belongs to the compositor, not to Quickshell, so "a cursor that
+follows the colour scheme" can only be a cursor THEME that is regenerated when the
+scheme moves. services/Cursor.qml does that: it passes `Colors.primary` as --fill
+and `Colors.base` as --edge, so this script never parses a palette file and can't
+disagree with the shell about which colour is "the accent" (Colors.primary is
+pywal's color1 pushed to a contrast floor, and Material You / album overlays reach
+it too — none of that is re-derived here).
+
+── What it draws ─────────────────────────────────────────────────────────────
+The arrow, text, grab, grabbing, wait, progress and crosshair, the four resize axes and
+the four-way move, not-allowed, help and the two zooms. Every shape is solid, with a thin
+outline in the second colour so the cursor stays visible on a window the same hue as the
+accent. Everything else is an ALIAS of one of those (see ALIASES): a window edge asks for
+`nw-resize`, an old toolkit for `top_left_corner`, and both land on the same file. Any
+name still missing falls through to Adwaita via `Inherits=`.
+
+That is what "the cursor goes back to the default on window edges" was: the resize and
+move shapes weren't drawn, so Hyprland took them from Adwaita.
+
+There is ONE arrow. `pointer` — what you hover over anything clickable — and the legacy
+hand names (`hand2`…) are aliases of `default`, so nothing changes shape over a link.
+
+── Fast, because it runs on every palette change ─────────────────────────────
+Every (shape, size, frame) is independent, so they are fanned out over processes, and a
+`.stamp` file (this script's own hash + the two colours) skips the drawing entirely when
+nothing changed — moving the size slider, or applying again after a Hyprland reload,
+costs a symlink check instead of a second of Pillow.
+
+── Pillow, no SVG ────────────────────────────────────────────────────────────
+Shapes are polygons and rounded rectangles on a 32-unit grid, drawn supersampled
+into a mask, softened (blur + threshold rounds the corners), grown into an outline,
+and downsampled. python-pillow is already a declared dependency; librsvg and
+xcursorgen would each be a new one.
+
+── The XCursor file, by hand ─────────────────────────────────────────────────
+It is a small little-endian container: header, table of contents, one chunk per
+(size, frame). Pixels are PREMULTIPLIED ARGB. A frame list with a delay is how
+`wait` spins — the client cycles them, nothing here runs afterwards.
+
+── Two names for one theme, because Hyprland caches by name ────────────────────
+Hyprland's XCursor loader remembers the theme name, size and scale of its last load
+(`m_themeName`, `m_lastLoadSize`, `m_lastLoadScale` in XCursorManager.hpp) and, as far
+as the header shows, has no "force" — so `hyprctl setcursor quicktest 24` a second time,
+with the FILES rewritten underneath, is treated as "already loaded". Regenerating was
+never the problem; showing it was. So the theme is reachable under two names — the
+directory, and `<name>-b`, a symlink to it — and the caller alternates with `--name`.
+To Hyprland that is a different theme every time, and it re-reads the files. (It also
+makes Hyprland's gsettings sync change value, which is the signal running GTK apps
+reload their cursor on.)
+
+── Reload caveat ─────────────────────────────────────────────────────────────
+--apply calls `hyprctl setcursor`, which repaints Hyprland's own cursor at once.
+Clients that already loaded the theme (XWayland, GTK, Qt) keep the old colours
+until they next ask for a cursor — usually a restart.
+"""
+
+import argparse
+import hashlib
+import math
+import multiprocessing
+import os
+import re
+import shutil
+import struct
+import subprocess
+import sys
+
+from PIL import Image, ImageDraw, ImageFilter
+
+NAME = "quicktest"
+GRID = 32                   # design units; every shape is drawn on this
+SIZES = (24, 32, 48, 64, 96)  # nominal sizes; the compositor picks the nearest
+SS_MIN = 3                  # supersampling floor, for the big sizes
+OUTLINE = 1.3               # outline width, design units (~1px at 24)
+SPIN_FRAMES = 8
+SPIN_DELAY = 100            # ms per frame — eight steps still read as smooth
+
+HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+# Drawn shape → every other name that must resolve to it: the CSS names a compositor asks
+# for (cursor-shape-v1), and the legacy X names a toolkit asks for. A symlink is cheaper
+# than a second copy, and one drawing per meaning keeps the set coherent. The groupings
+# follow Adwaita's, except `move`, which is the four-way arrow here (Adwaita draws the
+# plain arrow), so dragging a window looks like dragging.
+ALIASES = {
+    "default":     ("pointer", "left_ptr", "arrow", "top_left_arrow", "right_ptr", "center_ptr",
+                    "hand2", "pointing_hand", "context-menu", "dnd-ask", "copy", "alias",
+                    "dnd-copy", "dnd-link", "dnd-move", "X_cursor"),
+    "text":        ("xterm", "ibeam", "vertical-text"),
+    "grab":        ("openhand", "hand1"),
+    "grabbing":    ("closedhand",),
+    "wait":        ("watch",),
+    "progress":    ("left_ptr_watch", "half-busy"),
+    "crosshair":   ("cross", "tcross", "cross_reverse", "diamond_cross", "cell"),
+    "ew-resize":   ("e-resize", "w-resize", "col-resize", "right_side", "left_side",
+                    "sb_h_double_arrow", "size_hor", "split_h"),
+    "ns-resize":   ("n-resize", "s-resize", "row-resize", "top_side", "bottom_side",
+                    "sb_v_double_arrow", "size_ver", "split_v"),
+    "nesw-resize": ("ne-resize", "sw-resize", "top_right_corner", "bottom_left_corner",
+                    "fd_double_arrow", "size_bdiag"),
+    "nwse-resize": ("nw-resize", "se-resize", "top_left_corner", "bottom_right_corner",
+                    "bd_double_arrow", "size_fdiag"),
+    "all-resize":  ("move", "all-scroll", "fleur"),
+    "not-allowed": ("no-drop", "crossed_circle", "dnd-no-drop"),
+    "help":        ("question_arrow", "whats_this"),
+    "zoom-in":     (),
+    "zoom-out":    (),
+}
+
+
+# ── Shapes ────────────────────────────────────────────────────────────────────
+# Each draws white into an "L" mask at `u` pixels per design unit. Hotspots are in
+# design units, at the point a click should land.
+
+def _rr(d, u, box, r):
+    d.rounded_rectangle([c * u for c in box], radius=r * u, fill=255)
+
+
+def _arrow(d, u, k=1.0):
+    pts = [(4, 3), (4, 24.5), (9.6, 19.4), (13.4, 28), (17.2, 26.4), (13.4, 18), (21, 18)]
+    d.polygon([(x * k * u, y * k * u) for x, y in pts], fill=255)
+
+
+def _spinner(d, u, cx, cy, r, w, phase):
+    box = [(cx - r) * u, (cy - r) * u, (cx + r) * u, (cy + r) * u]
+    d.arc(box, phase, phase + 270, fill=255, width=max(1, round(w * u)))
+
+
+def _text(d, u):
+    _rr(d, u, (15, 5, 17, 27), 0.6)
+    _rr(d, u, (11.5, 4.5, 20.5, 6.5), 0.6)
+    _rr(d, u, (11.5, 25.5, 20.5, 27.5), 0.6)
+
+
+def _grab(d, u):
+    _rr(d, u, (7, 14, 25, 27), 5)
+    for box in ((7.5, 8, 11.5, 17), (12, 6, 16, 17), (16.5, 6.5, 20.5, 17), (21, 8.5, 25, 17)):
+        _rr(d, u, box, 2)
+    _rr(d, u, (4, 15, 9, 22), 2.3)
+
+
+def _grabbing(d, u):
+    _rr(d, u, (7, 15, 25, 27), 5)
+    for box in ((7.5, 11.5, 11.5, 18), (12, 10.5, 16, 18), (16.5, 10.5, 20.5, 18), (21, 11.5, 25, 18)):
+        _rr(d, u, box, 2)
+    _rr(d, u, (5, 17, 9.5, 23), 2.3)
+
+
+def _crosshair(d, u):
+    for box in ((15, 4, 17, 13), (15, 19, 17, 28), (4, 15, 13, 17), (19, 15, 28, 17)):
+        _rr(d, u, box, 0.6)
+
+
+def _rot(pts, deg, cx=16, cy=16):
+    a = math.radians(deg)
+    c, s = math.cos(a), math.sin(a)
+    return [(cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c) for x, y in pts]
+
+
+def _double(d, u, deg=0, reach=12.5, head=6.5, half=5.5, bar=1.3):
+    """A double-headed arrow through the centre; `deg` turns it (90 = vertical, 45 = diagonal)."""
+    left = [(16 - reach, 16), (16 - reach + head, 16 - half), (16 - reach + head, 16 + half)]
+    right = [(16 + reach, 16), (16 + reach - head, 16 - half), (16 + reach - head, 16 + half)]
+    shaft = [(16 - reach + head - 0.5, 16 - bar), (16 + reach - head + 0.5, 16 - bar),
+             (16 + reach - head + 0.5, 16 + bar), (16 - reach + head - 0.5, 16 + bar)]
+    for pts in (left, right, shaft):
+        d.polygon([(x * u, y * u) for x, y in _rot(pts, deg)], fill=255)
+
+
+def _all_resize(d, u):
+    _double(d, u, 0, reach=12, head=6, half=5, bar=1.2)
+    _double(d, u, 90, reach=12, head=6, half=5, bar=1.2)
+
+
+def _not_allowed(d, u):
+    d.ellipse([6 * u, 6 * u, 26 * u, 26 * u], outline=255, width=round(2.8 * u))
+    d.line([8.9 * u, 8.9 * u, 23.1 * u, 23.1 * u], fill=255, width=round(2.8 * u))
+
+
+def _help(d, u):
+    w = round(2.8 * u)
+    d.arc([10 * u, 6 * u, 22 * u, 18 * u], 180, 450, fill=255, width=w)   # the hook
+    d.line([16 * u, 17.5 * u, 16 * u, 21.5 * u], fill=255, width=w)      # the stem
+    d.ellipse([14.3 * u, 24.8 * u, 17.7 * u, 28.2 * u], fill=255)        # the dot
+
+
+def _zoom(d, u, plus):
+    d.ellipse([5.5 * u, 5.5 * u, 21.5 * u, 21.5 * u], outline=255, width=round(2.6 * u))
+    d.line([19.2 * u, 19.2 * u, 27 * u, 27 * u], fill=255, width=round(3.4 * u))
+    _rr(d, u, (9.9, 12.5, 17.1, 14.5), 0.5)
+    if plus:
+        _rr(d, u, (12.6, 9.9, 14.6, 17.1), 0.5)
+
+
+# name → (draw(d, u, phase), hotspot, frame count). `phase` is 0 for static shapes.
+SHAPES = {
+    "default":   (lambda d, u, p: _arrow(d, u), (4, 3), 1),
+    "text":      (lambda d, u, p: _text(d, u), (16, 16), 1),
+    "grab":      (lambda d, u, p: _grab(d, u), (16, 16), 1),
+    "grabbing":  (lambda d, u, p: _grabbing(d, u), (16, 17), 1),
+    "crosshair": (lambda d, u, p: _crosshair(d, u), (16, 16), 1),
+    "wait":      (lambda d, u, p: _spinner(d, u, 16, 16, 9.5, 3.0, p), (16, 16), SPIN_FRAMES),
+    "progress":  (lambda d, u, p: (_arrow(d, u, 0.8), _spinner(d, u, 24, 24, 5, 2.0, p)),
+                  (3.2, 2.4), SPIN_FRAMES),
+    "ew-resize":   (lambda d, u, p: _double(d, u, 0), (16, 16), 1),
+    "ns-resize":   (lambda d, u, p: _double(d, u, 90), (16, 16), 1),
+    "nesw-resize": (lambda d, u, p: _double(d, u, -45), (16, 16), 1),
+    "nwse-resize": (lambda d, u, p: _double(d, u, 45), (16, 16), 1),
+    "all-resize":  (lambda d, u, p: _all_resize(d, u), (16, 16), 1),
+    "not-allowed": (lambda d, u, p: _not_allowed(d, u), (16, 16), 1),
+    "help":        (lambda d, u, p: _help(d, u), (16, 16), 1),
+    "zoom-in":     (lambda d, u, p: _zoom(d, u, True), (13.5, 13.5), 1),
+    "zoom-out":    (lambda d, u, p: _zoom(d, u, False), (13.5, 13.5), 1),
+}
+
+
+# ── Rendering ─────────────────────────────────────────────────────────────────
+
+def _hex(c):
+    return tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def _soften(mask, radius):
+    """Blur then threshold: rounds every convex corner without changing the area much."""
+    return mask.filter(ImageFilter.GaussianBlur(radius)).point(lambda v: 255 if v > 110 else 0)
+
+
+def _grow(mask, n):
+    """Dilate by n pixels. Repeated 3×3 is linear in n; one big MaxFilter is quadratic."""
+    for _ in range(n):
+        mask = mask.filter(ImageFilter.MaxFilter(3))
+    return mask
+
+
+def frame(name, size, phase, fill, edge):
+    """One frame as a straight-alpha RGBA image."""
+    draw = SHAPES[name][0]
+    # Fewer subsamples as the canvas grows: a 96px frame at 6x is 576² and, times
+    # twelve frames of two spinners, took seconds on every palette change.
+    ss = max(SS_MIN, 8 - size // 12)
+    u = size * ss / GRID
+    big = size * ss
+    mask = Image.new("L", (big, big), 0)
+    draw(ImageDraw.Draw(mask), u, phase)
+    body = _soften(mask, 0.45 * u)
+    ring = _soften(_grow(body, round(OUTLINE * u)), 0.5 * u)
+
+    img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    img.paste(Image.new("RGBA", (big, big), edge + (255,)), (0, 0), ring)
+    img.paste(Image.new("RGBA", (big, big), fill + (255,)), (0, 0), body)
+    return img.resize((size, size), Image.LANCZOS)
+
+
+def render(name, size, phase, fill, edge):
+    """One frame → (width, height, xhot, yhot, premultiplied BGRA bytes)."""
+    hot = SHAPES[name][1]
+    # resize() premultiplies RGBA itself, so the edge doesn't bleed a dark halo;
+    # XCursor wants premultiplied BGRA in memory order.
+    r, g, b, a = frame(name, size, phase, fill, edge).convert("RGBa").split()
+    bgra = Image.merge("RGBA", (b, g, r, a)).tobytes()
+    xhot = min(size - 1, round(hot[0] * size / GRID))
+    yhot = min(size - 1, round(hot[1] * size / GRID))
+    return size, size, xhot, yhot, bgra
+
+
+def preview(path, fill, edge, size=64, pad=16):
+    """A contact sheet of every shape, on a transparent ground, for the settings page."""
+    names = list(ALIASES)
+    cols = (len(names) + 1) // 2
+    rows = 2
+    sheet = Image.new("RGBA", (cols * (size + pad) + pad, rows * (size + pad) + pad), (0, 0, 0, 0))
+    for i, n in enumerate(names):
+        x, y = pad + (i % cols) * (size + pad), pad + (i // cols) * (size + pad)
+        sheet.alpha_composite(frame(n, size, 0, fill, edge), (x, y))
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    tmp = path + ".tmp"
+    sheet.save(tmp, "PNG")
+    os.replace(tmp, path)
+
+
+def _job(task):
+    """One (shape, size, frame) → its XCursor image chunk. Top-level so a pool can call it."""
+    name, size, i, fill, edge = task
+    frames = SHAPES[name][2]
+    w, h, xh, yh, px = render(name, size, i * 360 / frames, fill, edge)
+    delay = SPIN_DELAY if frames > 1 else 0
+    return name, size, struct.pack("<9I", 36, 0xFFFD0002, size, 1, w, h, xh, yh, delay) + px
+
+
+def _pack(chunks):
+    """The whole file for one cursor from its (size, chunk) list, in size-then-frame order."""
+    head = 16 + 12 * len(chunks)
+    toc, body, pos = b"", b"", head
+    for size, data in chunks:
+        toc += struct.pack("<3I", 0xFFFD0002, size, pos)
+        body += data
+        pos += len(data)
+    return struct.pack("<4s3I", b"Xcur", 16, 0x10000, len(chunks)) + toc + body
+
+
+def build_all(fill, edge, jobs=None):
+    """{shape: file bytes} for every drawn cursor, the frames fanned out over processes."""
+    tasks = [(n, sz, i, fill, edge) for n in SHAPES for sz in SIZES for i in range(SHAPES[n][2])]
+    jobs = jobs or min(os.cpu_count() or 1, 8)
+    if jobs > 1:
+        # fork, not spawn: nothing here holds a thread, and a child that inherits the
+        # already-imported module starts in microseconds instead of re-importing Pillow.
+        with multiprocessing.get_context("fork").Pool(jobs) as pool:
+            done = pool.map(_job, tasks, chunksize=8)
+    else:
+        done = [_job(t) for t in tasks]
+    per = {n: [] for n in SHAPES}
+    for name, size, chunk in done:             # map keeps order, so frames stay in sequence
+        per[name].append((size, chunk))
+    return {n: _pack(c) for n, c in per.items()}
+
+
+# ── Installing ────────────────────────────────────────────────────────────────
+
+def _replace(path, data):
+    """Write via a temp file so a reader never sees a half-written cursor."""
+    tmp = path + ".tmp"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.replace(tmp, path)
+
+
+def twin(out):
+    """The second name for the same theme: a sibling symlink to the directory."""
+    return out.rstrip("/") + "-b"
+
+
+def _stamp(fill, edge):
+    """What the files on disk were drawn from: this script, and the two colours."""
+    with open(os.path.abspath(__file__), "rb") as f:
+        code = hashlib.sha1(f.read()).hexdigest()[:12]
+    return "%s #%02x%02x%02x #%02x%02x%02x\n" % ((code,) + tuple(fill) + tuple(edge))
+
+
+def _fresh(out, stamp):
+    """True when the theme on disk is already exactly this one."""
+    try:
+        with open(os.path.join(out, ".stamp")) as f:
+            if f.read() != stamp:
+                return False
+    except OSError:
+        return False
+    cur = os.path.join(out, "cursors")
+    return all(os.path.isfile(os.path.join(cur, n)) for n in SHAPES) \
+        and all(os.path.islink(os.path.join(cur, a)) for al in ALIASES.values() for a in al)
+
+
+def write_theme(out, fill, edge, jobs=None):
+    """Write the theme; returns False when it was already up to date and nothing was drawn."""
+    stamp = _stamp(fill, edge)
+    drew = not _fresh(out, stamp)
+    if drew:
+        cur = os.path.join(out, "cursors")
+        os.makedirs(cur, exist_ok=True)
+        _replace(os.path.join(out, "index.theme"),
+                 ("[Icon Theme]\nName=%s\nComment=Generated by generate-cursor-theme\n"
+                  "Inherits=Adwaita\n" % NAME).encode())
+        for name, data in build_all(fill, edge, jobs).items():
+            _replace(os.path.join(cur, name), data)
+        for name, aliases in ALIASES.items():
+            for a in aliases:
+                link = os.path.join(cur, a)
+                if os.path.islink(link) or os.path.exists(link):
+                    os.remove(link)
+                os.symlink(name, link)
+        _replace(os.path.join(out, ".stamp"), stamp.encode())
+
+    t = twin(out)
+    if os.path.islink(t) or os.path.exists(t):
+        if not os.path.islink(t):
+            return drew      # a real directory someone put there: not ours to replace
+        if os.readlink(t) == os.path.basename(out.rstrip("/")):
+            return drew
+        os.remove(t)
+    os.symlink(os.path.basename(out.rstrip("/")), t)
+    return drew
+
+
+def default_out():
+    data = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+    return os.path.join(data, "icons", NAME)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Generate the quicktest cursor theme.")
+    ap.add_argument("--fill", help="#RRGGBB — the cursor body")
+    ap.add_argument("--edge", help="#RRGGBB — the outline")
+    ap.add_argument("--size", type=int, default=int(os.environ.get("XCURSOR_SIZE") or 24))
+    ap.add_argument("--out", default=None, help="theme directory (default: $XDG_DATA_HOME/icons/quicktest)")
+    ap.add_argument("--apply", action="store_true", help="then run `hyprctl setcursor`")
+    ap.add_argument("--name", choices=(NAME, NAME + "-b"), default=NAME,
+                    help="which name to hand Hyprland; alternate them so it reloads (see above)")
+    ap.add_argument("--preview", metavar="PNG", help="also write a contact sheet of every shape")
+    ap.add_argument("--preview-only", action="store_true", help="write the preview and no theme")
+    ap.add_argument("--revert", action="store_true", help="hand the cursor back to the default theme")
+    args = ap.parse_args(argv)
+
+    if args.revert:
+        return _hyprctl("default", args.size)
+
+    # The colours arrive from QML; refuse anything that isn't a plain hex before it
+    # gets near an int() or a path.
+    for c in (args.fill, args.edge):
+        if not c or not HEX.match(c):
+            sys.stderr.write("generate-cursor-theme: not a #RRGGBB colour: %r\n" % c)
+            return 2
+    fill, edge = _hex(args.fill), _hex(args.edge)
+
+    if args.preview:
+        preview(args.preview, fill, edge)
+    if args.preview_only:
+        return 0
+
+    out = args.out or default_out()
+    drew = write_theme(out, fill, edge)
+    print(("wrote %s" if drew else "unchanged %s") % out)
+    return _hyprctl(args.name, args.size) if args.apply else 0
+
+
+def _hyprctl(theme, size):
+    if not shutil.which("hyprctl"):
+        print("hyprctl not found — not applied")
+        return 0
+    r = subprocess.run(["hyprctl", "setcursor", theme, str(size)], capture_output=True, text=True)
+    if r.returncode != 0 or r.stdout.strip() not in ("ok", ""):
+        sys.stderr.write("hyprctl setcursor: %s\n" % (r.stdout + r.stderr).strip())
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,15 @@
+{
+  "presets": [
+    {
+      "name": "rufss",
+      "config": {
+        "cursorColor": "accent",
+        "cursorCustom": "#ffffff",
+        "cursorSize": 16,
+        "cursorEffectMode": "tilt",
+        "cursorEffectSensitivity": 100,
+        "cursorShake": false
+      }
+    }
+  ]
+}

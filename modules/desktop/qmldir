@@ -1,0 +1,7 @@
+DesktopClock 1.0 DesktopClock.qml
+WallpaperView 1.0 WallpaperView.qml
+ScreenFrame 1.0 ScreenFrame.qml
+WidgetLayer   1.0 WidgetLayer.qml
+WaveCurtain   1.0 WaveCurtain.qml
+SnapOverlay 1.0 SnapOverlay.qml
+WallFx 1.0 WallFx.qml

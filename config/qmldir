@@ -1,0 +1,15 @@
+JsonStore 1.0 JsonStore.qml
+ConfigShell 1.0 ConfigShell.qml
+ConfigEdges 1.0 ConfigEdges.qml
+ConfigBarLayout 1.0 ConfigBarLayout.qml
+ConfigSystem 1.0 ConfigSystem.qml
+ConfigDesktop 1.0 ConfigDesktop.qml
+
+singleton Blend 1.0 Blend.qml
+singleton Defaults 1.0 Defaults.qml
+singleton Config 1.0 Config.qml
+singleton Tokens 1.0 Tokens.qml
+singleton Motion 1.0 Motion.qml
+singleton Colors 1.0 Colors.qml
+singleton Verdict 1.0 Verdict.qml
+PaletteRoles 1.0 PaletteRoles.qml

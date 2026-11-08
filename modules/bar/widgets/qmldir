@@ -1,0 +1,17 @@
+BarIconPill     1.0 BarIconPill.qml
+BatteryPill     1.0 BatteryPill.qml
+BluetoothPill   1.0 BluetoothPill.qml
+ClockPill       1.0 ClockPill.qml
+KeyboardPill    1.0 KeyboardPill.qml
+MediaController 1.0 MediaController.qml
+ReloadPill      1.0 ReloadPill.qml
+TrayPill        1.0 TrayPill.qml
+UpdatePill      1.0 UpdatePill.qml
+VisualizerPill  1.0 VisualizerPill.qml
+VolumePill      1.0 VolumePill.qml
+WifiPill        1.0 WifiPill.qml
+WorkspacesPill  1.0 WorkspacesPill.qml
+PrivacyPill 1.0 PrivacyPill.qml
+WindowPill 1.0 WindowPill.qml
+LocksPill 1.0 LocksPill.qml
+SideModulePill 1.0 SideModulePill.qml

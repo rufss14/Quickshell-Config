@@ -1,0 +1,2072 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "file": "AboutPage.qml",
+      "kind": "section",
+      "title": "Right now",
+      "detail": "Sampled once a second while this page is open. Memory counts what is not available — the page cache is reclaimable and doesn't count."
+    },
+    {
+      "file": "AboutPage.qml",
+      "kind": "section",
+      "title": "Software"
+    },
+    {
+      "file": "AboutPage.qml",
+      "kind": "section",
+      "title": "Displays"
+    },
+    {
+      "file": "AppearancePage.qml",
+      "kind": "section",
+      "title": "Your palette",
+      "detail": "Sixteen slots. Everything in the shell is drawn from these — point at one to read its value."
+    },
+    {
+      "file": "AppearancePage.qml",
+      "kind": "row",
+      "title": "Theme from wallpaper"
+    },
+    {
+      "file": "AppearancePage.qml",
+      "kind": "row",
+      "title": "Follow the album cover"
+    },
+    {
+      "file": "AppearancePage.qml",
+      "kind": "row",
+      "title": "Recolour every app"
+    },
+    {
+      "file": "AppearancePage.qml",
+      "kind": "row",
+      "title": "Lock while playing",
+      "detail": "While music plays, a new wallpaper or scheme doesn't overwrite the cover's colours."
+    },
+    {
+      "file": "AppearancePage.qml",
+      "kind": "row",
+      "title": "Tint media cards",
+      "detail": "Works on its own: the media cards take the cover's colours even when the shell doesn't follow the album."
+    },
+    {
+      "file": "AppearancePage.qml",
+      "kind": "row",
+      "title": "Colorize icons"
+    },
+    {
+      "file": "AppearancePage.qml",
+      "kind": "section",
+      "title": "Accent",
+      "detail": "The fallback colour, for widgets that ask for one. Picked by role, so it follows the next wallpaper."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "section",
+      "title": "Your bar",
+      "detail": "Click a module to change it"
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "section",
+      "title": "Not on the bar",
+      "detail": "Drag one straight up onto the bar, or click it to drop it somewhere sensible. Drag a module off the bar onto this card to take it off."
+    },
+    {
+      "file": "BarPanelsPage.qml",
+      "kind": "section",
+      "title": "Panel placement",
+      "detail": "Which side of the bar each panel drops from. Each one defaults to the side its own bar module sits on."
+    },
+    {
+      "file": "BarPanelsPage.qml",
+      "kind": "section",
+      "title": "Resized panels",
+      "detail": "Drag a panel's outer bottom corner to resize it. Click one here to put it back to its default size."
+    },
+    {
+      "file": "BarPanelsPage.qml",
+      "kind": "section",
+      "title": "Panel backdrop",
+      "detail": "Soft cookie shapes drifting behind every panel. They hold still when animations are switched off, and cost nothing while no panel is open."
+    },
+    {
+      "file": "BarPanelsPage.qml",
+      "kind": "section",
+      "title": "Cookies on the bar, sidebar & frame"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Thickness",
+      "section": "Size"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Roundness",
+      "section": "Size"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "section",
+      "title": "Size",
+      "detail": "Small, Normal and Big move thickness, roundness, inset and the text and icon scales together. Any slider takes you off them, to Custom."
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Opacity",
+      "detail": "Translucency needs a compositor blur behind it — Hyprland's is in Desktop › Tuning.",
+      "section": "Look"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Text",
+      "detail": "How big the bar's text runs — the clock, the workspace numbers, labels.",
+      "section": "Look"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Icons",
+      "detail": "How big the bar's icons run. Separate from text: a glyph is an icon that happens to be a character.",
+      "section": "Look"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "section",
+      "title": "Look"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Square corners"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Inner pill"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Anchor on workspaces",
+      "detail": "Keeps the workspace dots at the exact centre of the screen, however wide the modules either side of them grow."
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "section",
+      "title": "Presets",
+      "detail": "The whole bar, saved under a name: what is on it and every size on this page."
+    },
+    {
+      "file": "BatteryPage.qml",
+      "kind": "section",
+      "title": "Charge"
+    },
+    {
+      "file": "BatteryPage.qml",
+      "kind": "section",
+      "title": "Health",
+      "detail": "How much of the battery's original capacity is left."
+    },
+    {
+      "file": "BatteryPage.qml",
+      "kind": "section",
+      "title": "Power mode",
+      "detail": "Trades battery life against how hard the machine will work."
+    },
+    {
+      "file": "BatteryPage.qml",
+      "kind": "section",
+      "title": "Battery saver",
+      "detail": "Rests the cava background, wallpaper effects, floating cookies and the beat clock, and caps Wallpaper Engine at 30 fps. Animations stay."
+    },
+    {
+      "file": "BluetoothPage.qml",
+      "kind": "section",
+      "title": "No adapter",
+      "detail": "No Bluetooth adapter was found, or BlueZ isn't running."
+    },
+    {
+      "file": "BluetoothPage.qml",
+      "kind": "section",
+      "title": "My devices"
+    },
+    {
+      "file": "BluetoothPage.qml",
+      "kind": "section",
+      "title": "Nearby"
+    },
+    {
+      "file": "BluetoothPage.qml",
+      "kind": "row",
+      "title": "Discoverable",
+      "section": "Options"
+    },
+    {
+      "file": "BluetoothPage.qml",
+      "kind": "row",
+      "title": "Accept pairing",
+      "section": "Options"
+    },
+    {
+      "file": "BluetoothPage.qml",
+      "kind": "row",
+      "title": "Pairing agent",
+      "section": "Options"
+    },
+    {
+      "file": "BluetoothPage.qml",
+      "kind": "row",
+      "title": "Announce connections",
+      "section": "Options"
+    },
+    {
+      "file": "BluetoothPage.qml",
+      "kind": "row",
+      "title": "Low battery warnings",
+      "section": "Options"
+    },
+    {
+      "file": "BluetoothPage.qml",
+      "kind": "row",
+      "title": "Battery ring on the bar",
+      "section": "Options"
+    },
+    {
+      "file": "BluetoothPage.qml",
+      "kind": "row",
+      "title": "Warn at",
+      "section": "Options"
+    },
+    {
+      "file": "BluetoothPage.qml",
+      "kind": "section",
+      "title": "Options"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "section",
+      "title": "Recorder",
+      "detail": "Clipping keeps a replay buffer running — across reloads and reboots — so Alt+F10 always has something to save."
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "row",
+      "title": "Desktop audio",
+      "section": "Capture"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "row",
+      "title": "Microphone",
+      "section": "Capture"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "row",
+      "title": "Cursor",
+      "section": "Capture"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "row",
+      "title": "Separate tracks",
+      "detail": "On, the mic gets a track of its own, for editing. Players, browsers and Discord play only the first track — export with Mixed audio to share.",
+      "section": "Capture"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "section",
+      "title": "Capture",
+      "detail": "Focused follows whichever monitor you're on when it starts. Portal asks once through the desktop portal and remembers."
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "row",
+      "title": "Length",
+      "section": "Replay buffer"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "section",
+      "title": "Replay buffer",
+      "detail": "How far back a clip can reach. In quality mode its size follows what's on screen; bitrate mode fixes it."
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "row",
+      "title": "Bitrate",
+      "section": "Quality"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "section",
+      "title": "Quality",
+      "detail": "Constant quality stays sharp in motion and its size varies. A fixed bitrate gives a predictable file and buffer size."
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "row",
+      "title": "Peek",
+      "detail": "A saved clip opens a card beside the sidebar button for a moment, with its thumbnail.",
+      "section": "Files"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "row",
+      "title": "Notify",
+      "detail": "Also send a notification per saved clip — for when the sidebar is hidden.",
+      "section": "Files"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "section",
+      "title": "Files",
+      "detail": "H.264 in MP4 plays everywhere (Discord and browsers don't play HEVC); Auto picks H.264. MKV survives a crash mid-recording; MP4 doesn't."
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "row",
+      "title": "Name by game",
+      "detail": "Name a clip after the window you cut it in, so the library can group by game. A game under Steam, Proton",
+      "section": "Clip & record"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "section",
+      "title": "Clip & record",
+      "detail": "Keep recording a few seconds after you press Clip it — so a play you only reacted to afterwards is in the clip."
+    },
+    {
+      "file": "CursorPage.qml",
+      "kind": "section",
+      "title": "Preview",
+      "detail": "Drawn by the script that draws the theme, in the colours below. Hyprland's cursor repaints at once; GTK, Qt and XWayland windows pick new colours up the next time they open."
+    },
+    {
+      "file": "CursorPage.qml",
+      "kind": "row",
+      "title": "Size",
+      "section": "Look"
+    },
+    {
+      "file": "CursorPage.qml",
+      "kind": "section",
+      "title": "Look",
+      "detail": "The fill colour and the size. The outline is always the shell's background colour."
+    },
+    {
+      "file": "CursorPage.qml",
+      "kind": "section",
+      "title": "Presets",
+      "detail": "Colour, size and motion tuning, saved under a name. Loading one never turns the cursor theme or the plugin on or off."
+    },
+    {
+      "file": "CursorPage.qml",
+      "kind": "row",
+      "title": "Sensitivity",
+      "section": "Motion effects"
+    },
+    {
+      "file": "CursorPage.qml",
+      "kind": "section",
+      "title": "Motion effects",
+      "detail": "Tilt, rotate or stretch the pointer as it moves, with the hypr-dynamic-cursors plugin."
+    },
+    {
+      "file": "CursorPage.qml",
+      "kind": "row",
+      "title": "Shake to find",
+      "detail": "Part of the motion plugin: a quick shake makes the pointer big for a moment, so you can find it."
+    },
+    {
+      "file": "DiscordPage.qml",
+      "kind": "section",
+      "title": "Sign-in",
+      "detail": "How the shell talks to Discord, so the sidebar's Voice module can mute, deafen and screen share."
+    },
+    {
+      "file": "DiscordPage.qml",
+      "kind": "section",
+      "title": "Your own application",
+      "detail": "About a minute, once"
+    },
+    {
+      "file": "DiscordPage.qml",
+      "kind": "section",
+      "title": "Screen share & camera",
+      "detail": "Discord has no RPC command for these, so the shell presses Discord's own keybind. Set the same combinations as Discord → Settings → Keybinds; screen share has no default."
+    },
+    {
+      "file": "DiscordPresencePage.qml",
+      "kind": "row",
+      "title": "Use the AI title",
+      "detail": "Instead of the short session name",
+      "section": "Claude Code"
+    },
+    {
+      "file": "DiscordPresencePage.qml",
+      "kind": "row",
+      "title": "Show the workspace",
+      "section": "Claude Code"
+    },
+    {
+      "file": "DiscordPresencePage.qml",
+      "kind": "row",
+      "title": "Show the model",
+      "section": "Claude Code"
+    },
+    {
+      "file": "DiscordPresencePage.qml",
+      "kind": "row",
+      "title": "Show context used",
+      "section": "Claude Code"
+    },
+    {
+      "file": "DiscordPresencePage.qml",
+      "kind": "row",
+      "title": "Show other sessions",
+      "section": "Claude Code"
+    },
+    {
+      "file": "DiscordPresencePage.qml",
+      "kind": "section",
+      "title": "Claude Code",
+      "detail": "Shows what you're doing in Claude Code as your Discord status. It needs a separate app you register — a client id, nothing else."
+    },
+    {
+      "file": "DiscordPresencePage.qml",
+      "kind": "row",
+      "title": "Show the score",
+      "section": "Counter-Strike 2"
+    },
+    {
+      "file": "DiscordPresencePage.qml",
+      "kind": "row",
+      "title": "Show your K/D",
+      "section": "Counter-Strike 2"
+    },
+    {
+      "file": "DiscordPresencePage.qml",
+      "kind": "row",
+      "title": "Show the mode",
+      "section": "Counter-Strike 2"
+    },
+    {
+      "file": "DiscordPresencePage.qml",
+      "kind": "section",
+      "title": "Counter-Strike 2",
+      "detail": "Shows your match as your Discord status. No app to set up — it uses Valve's own."
+    },
+    {
+      "file": "DisplaysPage.qml",
+      "kind": "section",
+      "title": "Keep these settings?"
+    },
+    {
+      "file": "DisplaysPage.qml",
+      "kind": "section",
+      "title": "Couldn't apply"
+    },
+    {
+      "file": "DisplaysPage.qml",
+      "kind": "section",
+      "title": "Arrangement",
+      "detail": "Drag a screen to move it; click one to edit it below"
+    },
+    {
+      "file": "DisplaysPage.qml",
+      "kind": "row",
+      "title": "On",
+      "detail": "Turn a screen off without unplugging it. At least one has to stay on."
+    },
+    {
+      "file": "DisplaysPage.qml",
+      "kind": "row",
+      "title": "Variable refresh rate",
+      "detail": "Adaptive sync (FreeSync / G-Sync compatible). Only on screens that support it."
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "section",
+      "title": "Floating, not welded"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "row",
+      "title": "Start button",
+      "section": "Your dock"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "row",
+      "title": "Downloads",
+      "section": "Your dock"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "row",
+      "title": "Trash",
+      "section": "Your dock"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "section",
+      "title": "Your dock",
+      "detail": "Click an app to open it or go to its next window; Shift-click for a new one; middle-click closes its newest window."
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "row",
+      "title": "Style",
+      "detail": "ii is End-4's dock: flat rounded buttons, up to three dots under an app (one per window), hairlines between groups, a keep button before the apps (when the sidebar auto-hides — it holds the dock out) and an overview button after them. It has no magnification.",
+      "section": "Behaviour"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "row",
+      "title": "Previews",
+      "detail": "Hover an app for a live thumbnail of each of its windows.",
+      "section": "Behaviour"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "row",
+      "title": "Peek",
+      "detail": "Rest on a window in a preview to glance at its workspace, with that window lit.",
+      "section": "Behaviour"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "row",
+      "title": "Melting",
+      "detail": "Previews and the right-click menu melt out of the dock, inside its length, instead of floating above it.",
+      "section": "Behaviour"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "row",
+      "title": "Inner pill",
+      "detail": "Running apps sit on a pill, neighbours sharing one — like the bar's workspaces.",
+      "section": "Behaviour"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "section",
+      "title": "Behaviour"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "row",
+      "title": "Magnify",
+      "section": "Zoom & length"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "row",
+      "title": "Zoom",
+      "section": "Zoom & length"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "row",
+      "title": "Cap",
+      "detail": "How much of the edge the dock may take before it scrolls.",
+      "section": "Zoom & length"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "section",
+      "title": "Zoom & length"
+    },
+    {
+      "file": "DockPage.qml",
+      "kind": "section",
+      "title": "Pinned",
+      "detail": "Pin from an app's right-click menu in the dock. Reorder by dragging on the dock itself. Shared with the launcher."
+    },
+    {
+      "file": "HyprTuningPage.qml",
+      "kind": "section",
+      "title": "Preview",
+      "detail": "Two tiled windows drawn from your live config: gaps, border, rounding and opacity."
+    },
+    {
+      "file": "HyprTuningPage.qml",
+      "kind": "section",
+      "title": "Shape",
+      "detail": "Gaps, borders and how opaque a window is. Written to your Hyprland config when you let go of a slider."
+    },
+    {
+      "file": "HyprTuningPage.qml",
+      "kind": "section",
+      "title": "Blur & shadow",
+      "detail": "What sits behind a translucent window — the one thing the preview can't show."
+    },
+    {
+      "file": "HyprTuningPage.qml",
+      "kind": "section",
+      "title": "Window wobble",
+      "detail": "Windows stretch like jelly while you drag or resize them. Needs Hyprland 0.57 or newer."
+    },
+    {
+      "file": "HyprTuningPage.qml",
+      "kind": "row",
+      "title": "Snap floating windows",
+      "detail": "SUPER-drag a floating window to an edge or corner to fill a half, a quarter or the screen.",
+      "section": "Input"
+    },
+    {
+      "file": "HyprTuningPage.qml",
+      "kind": "row",
+      "title": "Snap windows to the widget grid",
+      "detail": "A floating window you SUPER-drag lands on the same grid as your desktop widgets (set in Desktop › Widgets). Dropping in a zone above still wins.",
+      "section": "Input"
+    },
+    {
+      "file": "HyprTuningPage.qml",
+      "kind": "section",
+      "title": "Input",
+      "detail": "Pointer and focus behaviour, and the keyboard layouts Hyprland starts with."
+    },
+    {
+      "file": "HyprTuningPage.qml",
+      "kind": "section",
+      "title": "Animations",
+      "detail": "Each animation's speed (lower is faster), and whether it runs at all."
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "section",
+      "title": "Your layouts",
+      "detail": "The bar's keyboard pill cycles these, in this order. To reorder, remove one and add it back — it goes to the end. Applied with hyprctl, so a Hyprland restart brings back what your config says."
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "row",
+      "title": "Repeat rate",
+      "section": "Key repeat"
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "row",
+      "title": "Repeat delay",
+      "section": "Key repeat"
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "section",
+      "title": "Key repeat",
+      "detail": "What a held-down key does: how soon it starts repeating, and how fast."
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "row",
+      "title": "Speed",
+      "detail": "Hyprland's sensitivity: 0 is the device's own speed.",
+      "section": "Mouse"
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "row",
+      "title": "Acceleration",
+      "detail": "Adaptive speeds up with faster movement; Flat keeps it 1:1 (what most players want).",
+      "section": "Mouse"
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "row",
+      "title": "Scroll speed",
+      "section": "Mouse"
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "row",
+      "title": "Left-handed",
+      "detail": "Swaps the primary and secondary buttons.",
+      "section": "Mouse"
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "section",
+      "title": "Mouse",
+      "detail": "Applies to every pointer. Saved to hardware.lua; Reload in the bar above applies it."
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "row",
+      "title": "Natural scrolling",
+      "detail": "Content follows your fingers, like a phone.",
+      "section": "Touchpad"
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "row",
+      "title": "Tap to click",
+      "section": "Touchpad"
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "row",
+      "title": "Tap and drag",
+      "detail": "Tap, then keep the finger down to drag.",
+      "section": "Touchpad"
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "row",
+      "title": "Ignore while typing",
+      "detail": "The touchpad pauses briefly after a key press, so a palm doesn't move the cursor.",
+      "section": "Touchpad"
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "row",
+      "title": "Two-finger right-click",
+      "detail": "Click with two fingers for a right-click and three for a middle-click, instead of by where you press.",
+      "section": "Touchpad"
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "row",
+      "title": "Scroll speed",
+      "section": "Touchpad"
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "section",
+      "title": "Touchpad",
+      "detail": "Laptop touchpads. Saved to hardware.lua; Reload in the bar above applies it."
+    },
+    {
+      "file": "KeyboardPage.qml",
+      "kind": "section",
+      "title": "Add a layout"
+    },
+    {
+      "file": "LanguagePage.qml",
+      "kind": "section",
+      "title": "Shell language",
+      "detail": "The language of the shell's own text. Only strings that have been prepared for translation change; everything else stays in English. To add a language, copy translations/en_US.json to a new <code>.json and translate the right-hand sides."
+    },
+    {
+      "file": "LanguagePage.qml",
+      "kind": "section",
+      "title": "Current",
+      "detail": "What the system reports right now. Picking a locale below sets the language, date and number formats programs start with — it needs your password, and running programs keep the old one until they restart."
+    },
+    {
+      "file": "LanguagePage.qml",
+      "kind": "section",
+      "title": "How it looks"
+    },
+    {
+      "file": "LanguagePage.qml",
+      "kind": "section",
+      "title": "Available locales"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "section",
+      "title": "Prefixes",
+      "detail": "Typed into the launcher's empty field, a prefix switches its mode: > runs a command, ? asks, + installs a package, ; searches your clipboard, : finds an emoji. Sums, unit conversions and site shortcuts (yt cats) just work."
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Shell actions",
+      "section": "Results"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Settings",
+      "section": "Results"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Calculator",
+      "section": "Results"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Install with +",
+      "section": "Results"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Clipboard with ;",
+      "section": "Results"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Emoji with :",
+      "section": "Results"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "AUR lookups",
+      "section": "Results"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Learn from use",
+      "section": "Results"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Rows shown",
+      "detail": "How many results fit before the list scrolls. The card grows by a row each.",
+      "section": "Results"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "section",
+      "title": "Results",
+      "detail": "What it answers, and how much of it"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Model",
+      "detail": "Empty is the provider's default. Change it if a provider starts answering 404.",
+      "section": "Ask"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Session",
+      "detail": "Kept between questions",
+      "section": "Ask"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Search the web first",
+      "detail": "Gemini only. The question also reaches the search backend.",
+      "section": "Ask"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "section",
+      "title": "Ask",
+      "detail": "Start a launcher line with ? to ask. Nothing is sent until you press Enter. Off, ? opens a web search in your browser instead."
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Terminal",
+      "section": "Run & search"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Search engine",
+      "detail": "The address a web search opens; %s is replaced by what you typed.",
+      "section": "Run & search"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "Engine name",
+      "detail": "What the launcher calls it where it offers a search.",
+      "section": "Run & search"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "row",
+      "title": "History",
+      "detail": "Apps you open often rise within equally good matches. Only app ids and counts are kept — never what you typed.",
+      "section": "Run & search"
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "section",
+      "title": "Run & search",
+      "detail": "> runs a command in a terminal. A search that finds no app offers the web search instead."
+    },
+    {
+      "file": "LauncherPage.qml",
+      "kind": "section",
+      "title": "Site shortcuts",
+      "detail": "Type a key, a space, then what to search"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "row",
+      "title": "Now playing",
+      "section": "What it shows"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "row",
+      "title": "Lyrics on YouTube",
+      "section": "What it shows"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "row",
+      "title": "Notifications",
+      "section": "What it shows"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "row",
+      "title": "System stats",
+      "section": "What it shows"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "row",
+      "title": "Calendar",
+      "section": "What it shows"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "row",
+      "title": "Discord call",
+      "section": "What it shows"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "row",
+      "title": "Session actions",
+      "section": "What it shows"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "row",
+      "title": "Audio spectrum",
+      "section": "What it shows"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "section",
+      "title": "What it shows",
+      "detail": "Everything on the lock screen is readable by whoever is standing at the machine."
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "row",
+      "title": "Animate the scene",
+      "detail": "Off holds one frame of the scene's preview — the only real cure for its short loop.",
+      "section": "Background"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "section",
+      "title": "Background",
+      "detail": "What sits behind the clock. A running Wallpaper Engine scene shows as its blurred preview — the renderer publishes no still of the live frame."
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "row",
+      "title": "Lock before sleep",
+      "detail": "Locks as the machine suspends or hibernates, so it wakes to the lock screen.",
+      "section": "Automatic locking"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "row",
+      "title": "Lock when idle",
+      "detail": "Leave this off until you've tested unlocking. The bar's idle pill and gamemode hold it off.",
+      "section": "Automatic locking"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "row",
+      "title": "After",
+      "section": "Automatic locking"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "section",
+      "title": "Automatic locking"
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "section",
+      "title": "Profile picture",
+      "detail": "Lock screen only — nothing is written to ~/.face."
+    },
+    {
+      "file": "LockPage.qml",
+      "kind": "section",
+      "title": "Authentication",
+      "detail": "Which PAM stack the password box asks. \\\"login\\\" exists everywhere. If the lock ever refuses a correct password: Ctrl+Alt+F2, log in, and run loginctl unlock-session."
+    },
+    {
+      "file": "MiscPage.qml",
+      "kind": "row",
+      "title": "Motion",
+      "section": "Motion"
+    },
+    {
+      "file": "MiscPage.qml",
+      "kind": "section",
+      "title": "Motion",
+      "detail": "How far each word travels as it is sung — never the timing, which stays keyed to the vocal. Point at the line to play it."
+    },
+    {
+      "file": "MiscPage.qml",
+      "kind": "row",
+      "title": "Right now",
+      "section": "Source"
+    },
+    {
+      "file": "MiscPage.qml",
+      "kind": "row",
+      "title": "Look up as a fallback",
+      "detail": "Asks NetEase and LRCLIB when the Spotify bridge has nothing. It sends the artist, title and album.",
+      "section": "Source"
+    },
+    {
+      "file": "MiscPage.qml",
+      "kind": "section",
+      "title": "Source",
+      "detail": "Which provider answered for the current track, and whether the shell may look lyrics up itself."
+    },
+    {
+      "file": "MiscPage.qml",
+      "kind": "row",
+      "title": "Translate lyrics"
+    },
+    {
+      "file": "MiscPage.qml",
+      "kind": "row",
+      "title": "Backends",
+      "section": "Translation"
+    },
+    {
+      "file": "MiscPage.qml",
+      "kind": "section",
+      "title": "Translation",
+      "detail": "Which service translates, and its optional API key."
+    },
+    {
+      "file": "NetworkPage.qml",
+      "kind": "section",
+      "title": "Radio blocked",
+      "detail": "A kill switch or function key holds Wi-Fi off"
+    },
+    {
+      "file": "NetworkPage.qml",
+      "kind": "section",
+      "title": "Wi-Fi",
+      "detail": "Join, forget, or connect to a hidden network."
+    },
+    {
+      "file": "NetworkPage.qml",
+      "kind": "section",
+      "title": "Speed test",
+      "detail": "What the link can carry, measured only when you press Run. It contacts a third party and moves real data, so both are named under the trace."
+    },
+    {
+      "file": "NetworkPage.qml",
+      "kind": "section",
+      "title": "DNS",
+      "detail": "Which resolver answers your lookups. Changing it reconnects the link for a moment."
+    },
+    {
+      "file": "NightLightPage.qml",
+      "kind": "section",
+      "title": "Needs a backend",
+      "detail": "Install one, then reload the shell"
+    },
+    {
+      "file": "NightLightPage.qml",
+      "kind": "row",
+      "title": "Temperature",
+      "detail": "Lower is warmer. 6500K is daylight — no change at all.",
+      "section": "Warmth"
+    },
+    {
+      "file": "NightLightPage.qml",
+      "kind": "section",
+      "title": "Warmth"
+    },
+    {
+      "file": "NightLightPage.qml",
+      "kind": "row",
+      "title": "On a schedule"
+    },
+    {
+      "file": "NightLightPage.qml",
+      "kind": "row",
+      "title": "Follow the sun"
+    },
+    {
+      "file": "NightLightPage.qml",
+      "kind": "section",
+      "title": "Fixed times",
+      "detail": "From and until, as HH:MM. Crossing midnight (20:00 until 07:00) is the normal case."
+    },
+    {
+      "file": "NightLightPage.qml",
+      "kind": "row",
+      "title": "Anti-flashbang"
+    },
+    {
+      "file": "NightLightPage.qml",
+      "kind": "row",
+      "title": "Only at night"
+    },
+    {
+      "file": "NightLightPage.qml",
+      "kind": "row",
+      "title": "Dims above",
+      "section": "How glaring"
+    },
+    {
+      "file": "NightLightPage.qml",
+      "kind": "row",
+      "title": "Never below",
+      "section": "How glaring"
+    },
+    {
+      "file": "NightLightPage.qml",
+      "kind": "section",
+      "title": "How glaring"
+    },
+    {
+      "file": "ScreenTimePage.qml",
+      "kind": "section",
+      "title": "This week",
+      "detail": "App names and minutes, kept on this computer only — never window titles."
+    },
+    {
+      "file": "ScreenTimePage.qml",
+      "kind": "row",
+      "title": "Away after",
+      "detail": "With no input for this long, you count as away and the clock stops.",
+      "section": "What counts"
+    },
+    {
+      "file": "ScreenTimePage.qml",
+      "kind": "section",
+      "title": "What counts",
+      "detail": "The focused window's app counts while you're at the machine. Idle time doesn't, unless something keeps the screen awake (a video playing). Locked time never does."
+    },
+    {
+      "file": "ScreenTimePage.qml",
+      "kind": "row",
+      "title": "Keep",
+      "detail": "Days older than this are dropped.",
+      "section": "Kept"
+    },
+    {
+      "file": "ScreenTimePage.qml",
+      "kind": "section",
+      "title": "Kept"
+    },
+    {
+      "file": "SetupPage.qml",
+      "kind": "section",
+      "title": "Set up",
+      "detail": "Packages, the morphing plugin, Hyprland wiring, app theming and the optional extras — tick what you want and press the one button. The same thing the first-run window shows."
+    },
+    {
+      "file": "SetupPage.qml",
+      "kind": "section",
+      "title": "Checks",
+      "detail": "How Hyprland is wired, the optional tools, Spotify's bridge and where secrets live. Tap one that needs attention for its fix."
+    },
+    {
+      "file": "SetupPage.qml",
+      "kind": "row",
+      "title": "Password prompts",
+      "section": "Options"
+    },
+    {
+      "file": "SetupPage.qml",
+      "kind": "row",
+      "title": "Spotify listener stays up",
+      "section": "Options"
+    },
+    {
+      "file": "SetupPage.qml",
+      "kind": "row",
+      "title": "Reload card",
+      "section": "Options"
+    },
+    {
+      "file": "SetupPage.qml",
+      "kind": "section",
+      "title": "Options"
+    },
+    {
+      "file": "SetupPage.qml",
+      "kind": "section",
+      "title": "Shell presets",
+      "detail": "Every settings page, saved under a name; tap one to apply it. To use it on another machine: commit presets/shell.json, git pull there, and tap it. Bar presets (presets/bar.json) and desktop-widget placement (widgets.json) are their own files — commit them too if you want them."
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "section",
+      "title": "Preview",
+      "detail": "A card drawn at your settings, from the shell's real components. Everything on this page changes it."
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "row",
+      "title": "Text",
+      "detail": "The font for labels, titles and body copy everywhere in the shell.",
+      "section": "Type"
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "row",
+      "title": "Numerals",
+      "detail": "The font for throughput, timers and other figures that must line up. A monospace face is best.",
+      "section": "Type"
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "row",
+      "title": "Display",
+      "detail": "The font for the big clock on the lock and login screens. Heavier faces read best.",
+      "section": "Type"
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "row",
+      "title": "Text scale",
+      "section": "Type"
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "section",
+      "title": "Type"
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "row",
+      "title": "Spacing",
+      "detail": "How tightly everything packs: padding, gaps, row heights.",
+      "section": "Shape"
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "row",
+      "title": "Roundness",
+      "detail": "Corner radius of cards, panels and controls. The bar and desktop widgets keep their own.",
+      "section": "Shape"
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "row",
+      "title": "Square corners",
+      "section": "Shape"
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "row",
+      "title": "Opacity",
+      "detail": "How much of the desktop shows through the shell's surfaces.",
+      "section": "Shape"
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "row",
+      "title": "Shadows",
+      "detail": "How far surfaces float. At zero the shell stops drawing shadows altogether.",
+      "section": "Shape"
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "section",
+      "title": "Shape"
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "row",
+      "title": "Speed",
+      "section": "Motion"
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "section",
+      "title": "Motion",
+      "detail": "Every animation in the shell — panels, notifications, the lock screen, the bar — runs through these two."
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "section",
+      "title": "Settings window",
+      "detail": "Window: a floating window the compositor places, like any other app. Panel: pinned to the bottom edge and merged into the frame, so it never covers the bar."
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "section",
+      "title": "On the sidebar",
+      "detail": "Tap one to put it on the sidebar or take it off. The dock, stats and clips have tabs of their own, with their switch in the heading."
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "row",
+      "title": "Icons",
+      "section": "Edge & size"
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "section",
+      "title": "Edge & size",
+      "detail": "The bar owns the top edge; the sidebar takes one of the other three. Everything on it is sized around the dock's icons."
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "row",
+      "title": "Auto-hide",
+      "detail": "Rest the pointer on the edge, or press Super+D (by default), to bring it back."
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "row",
+      "title": "Dodge windows",
+      "detail": "A kind of auto-hide: the sidebar stays out until a window would sit under it."
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "row",
+      "title": "Empty workspaces",
+      "detail": "Nothing to cover and nothing else to look at, so the sidebar and its dock stay out until a window opens. (End-4's rule.)"
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "row",
+      "title": "Edge reveal",
+      "detail": "Turn this off to stop the sidebar popping out whenever the pointer brushes the edge — combine it with Empty workspaces and the dock's keep button."
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "row",
+      "title": "Reserve space",
+      "detail": "Tiled windows leave the sidebar's edge free. Off while auto-hide is on — it would reserve an empty strip."
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "row",
+      "title": "Islands",
+      "section": "Look"
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "row",
+      "title": "With the music",
+      "section": "Look"
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "section",
+      "title": "Look",
+      "detail": "Islands give each group its own pill. The hero sits on a tinted chip, as the top bar's clock does. The music makes the pills breathe and glow while something plays."
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "row",
+      "title": "Timer",
+      "section": "Peeks"
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "row",
+      "title": "Claude",
+      "section": "Peeks"
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "row",
+      "title": "Colour picker",
+      "section": "Peeks"
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "row",
+      "title": "Clipboard",
+      "detail": "Copies a password manager marks as secret never reach the history, so they never peek.",
+      "section": "Peeks"
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "section",
+      "title": "Peeks",
+      "detail": "When something happens to a module, a card opens beside it for a moment — on the monitor you're on, and never over a panel you opened."
+    },
+    {
+      "file": "SidebarPage.qml",
+      "kind": "section",
+      "title": "Arrange",
+      "detail": "Drag one onto the sidebar, along it to move it, onto another to group them, or off it onto this card to take it off."
+    },
+    {
+      "file": "SidebarStatsPage.qml",
+      "kind": "section",
+      "title": "Readings",
+      "detail": "The button shows the first three"
+    },
+    {
+      "file": "SidebarStatsPage.qml",
+      "kind": "row",
+      "title": "Temperatures",
+      "detail": "An inner arc on the CPU and GPU rings showing the temperature, 0–100°C.",
+      "section": "Rings"
+    },
+    {
+      "file": "SidebarStatsPage.qml",
+      "kind": "row",
+      "title": "Split network",
+      "detail": "Download on the network ring's outer arc, upload on the inner one.",
+      "section": "Rings"
+    },
+    {
+      "file": "SidebarStatsPage.qml",
+      "kind": "row",
+      "title": "Line speed",
+      "detail": "What a full network ring means. Fixed, so an idle link never looks busy.",
+      "section": "Rings"
+    },
+    {
+      "file": "SidebarStatsPage.qml",
+      "kind": "section",
+      "title": "Rings"
+    },
+    {
+      "file": "SidebarStatsPage.qml",
+      "kind": "row",
+      "title": "Load",
+      "section": "Alerts"
+    },
+    {
+      "file": "SidebarStatsPage.qml",
+      "kind": "row",
+      "title": "Heat",
+      "section": "Alerts"
+    },
+    {
+      "file": "SidebarStatsPage.qml",
+      "kind": "row",
+      "title": "Notify",
+      "section": "Alerts"
+    },
+    {
+      "file": "SidebarStatsPage.qml",
+      "kind": "section",
+      "title": "Alerts",
+      "detail": "A ring held over its threshold says so in its card. CPU and memory alert on load, the temperatures on degrees."
+    },
+    {
+      "file": "SidebarStatsPage.qml",
+      "kind": "section",
+      "title": "System monitor",
+      "detail": "What a middle-click on the stats button, or on a reading in its panel, opens. Right-clicking the button opens this page."
+    },
+    {
+      "file": "SoundEffectsPage.qml",
+      "kind": "section",
+      "title": "Mixer",
+      "detail": "Off until you turn it on. Every sound is generated on this machine (scripts/gen-sfx.py) — nothing is downloaded."
+    },
+    {
+      "file": "SoundPage.qml",
+      "kind": "section",
+      "title": "Output",
+      "detail": "Where sound goes, and how loud. Click the speaker to mute; scroll over the level to step it."
+    },
+    {
+      "file": "SoundPage.qml",
+      "kind": "row",
+      "title": "Test",
+      "section": "Input"
+    },
+    {
+      "file": "SoundPage.qml",
+      "kind": "section",
+      "title": "Input",
+      "detail": "What the machine can hear. Test plays your microphone back through the output, so you hear how you actually sound — headphones only, or it howls."
+    },
+    {
+      "file": "SoundPage.qml",
+      "kind": "section",
+      "title": "Applications",
+      "detail": "Per-app volume, and which device each one plays on. It is a PipeWire stream property — it follows the app, not this page."
+    },
+    {
+      "file": "SoundPage.qml",
+      "kind": "row",
+      "title": "Intensity",
+      "section": "Desktop visualiser"
+    },
+    {
+      "file": "SoundPage.qml",
+      "kind": "row",
+      "title": "Music only",
+      "section": "Desktop visualiser"
+    },
+    {
+      "file": "SoundPage.qml",
+      "kind": "row",
+      "title": "Peak caps",
+      "detail": "A cap over each bar that holds, then falls",
+      "section": "Desktop visualiser"
+    },
+    {
+      "file": "SoundPage.qml",
+      "kind": "row",
+      "title": "Glow",
+      "detail": "A soft light round it, in its colour",
+      "section": "Desktop visualiser"
+    },
+    {
+      "file": "SoundPage.qml",
+      "kind": "row",
+      "title": "Album cover",
+      "detail": "The cover inside the ring while music plays",
+      "section": "Desktop visualiser"
+    },
+    {
+      "file": "SoundPage.qml",
+      "kind": "row",
+      "title": "Opacity",
+      "section": "Desktop visualiser"
+    },
+    {
+      "file": "SoundPage.qml",
+      "kind": "section",
+      "title": "Desktop visualiser",
+      "detail": "A live spectrum of what's playing, pinned behind your windows."
+    },
+    {
+      "file": "SoundPage.qml",
+      "kind": "section",
+      "title": "Recording",
+      "detail": "Applications holding the microphone open."
+    },
+    {
+      "file": "StoragePage.qml",
+      "kind": "section",
+      "title": "Disks",
+      "detail": "Each disk's used space against its size. The root disk is broken down by what fills it; Other is everything not measured on its own, and Reserved is the share the filesystem keeps for root — why the numbers seem not to add up."
+    },
+    {
+      "file": "StoragePage.qml",
+      "kind": "section",
+      "title": "Home folder",
+      "detail": "Each tile is a folder in your home, as large as its share of the space. Hover one for its path. Nothing here is ever deleted for you."
+    },
+    {
+      "file": "StoragePage.qml",
+      "kind": "section",
+      "title": "Reclaim space",
+      "detail": "Caches, old package versions and logs — files that rebuild themselves. Orphans are packages nothing needs any more; removing those uninstalls them, so it asks twice."
+    },
+    {
+      "file": "StoragePage.qml",
+      "kind": "section",
+      "title": "Installed on purpose"
+    },
+    {
+      "file": "UpdatesPage.qml",
+      "kind": "section",
+      "title": "Finish setup"
+    },
+    {
+      "file": "UpdatesPage.qml",
+      "kind": "section",
+      "title": "Reboot afterwards"
+    },
+    {
+      "file": "UpdatesPage.qml",
+      "kind": "section",
+      "title": "Arch news"
+    },
+    {
+      "file": "UpdatesPage.qml",
+      "kind": "section",
+      "title": "Held back"
+    },
+    {
+      "file": "UpdatesPage.qml",
+      "kind": "row",
+      "title": "Check for new versions",
+      "detail": "Every 6 hours",
+      "section": "Quicktest"
+    },
+    {
+      "file": "UpdatesPage.qml",
+      "kind": "section",
+      "title": "Quicktest",
+      "detail": "Updates to the shell itself — signed releases from GitHub."
+    },
+    {
+      "file": "UpdatesPage.qml",
+      "kind": "section",
+      "title": "Recently changed"
+    },
+    {
+      "file": "UpdatesPage.qml",
+      "kind": "section",
+      "title": "Discord",
+      "detail": "Re-patch Vencord"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "section",
+      "title": "Drawn by",
+      "detail": "Static images only."
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Material Wallpaper"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Parallax"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Follow workspace"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Zoom",
+      "section": "Parallax strength"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Pointer",
+      "section": "Parallax strength"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "section",
+      "title": "Parallax strength"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Depth clock"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Size",
+      "section": "Depth clock"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Depth",
+      "detail": "How far the clock stays behind when the picture moves, so it slides behind the subject. Needs parallax on.",
+      "section": "Depth clock"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Edge softness",
+      "detail": "Blurs the edge where the subject covers the clock, so the pixels of the cut-out don't show.",
+      "section": "Depth clock"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "section",
+      "title": "Depth clock"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Date"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "12-hour"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Prepare the library"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Shuffle"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Every",
+      "section": "Shuffle timer"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "section",
+      "title": "Shuffle timer"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "section",
+      "title": "Apply images to",
+      "detail": "Scenes always cover every screen."
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Music effects",
+      "detail": "Pictures, and Wallpaper Engine scenes the shell plays from a window (scene preload on). Rests while nothing plays, behind a fullscreen window and in Game Mode."
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Bars glow with the music"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Intensity",
+      "detail": "How strong everything is at its biggest. The song does the rest: calm parts settle to a soft glow, big parts move, the drop hits hardest, and a busy part (sixteenth hi-hats) plays smaller.",
+      "section": "Intensity"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Sync",
+      "detail": "The effects already wait for your speakers. If they still land before the beat you hear (Bluetooth adds more delay than it reports), hold them back further.",
+      "section": "Intensity"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "section",
+      "title": "Intensity"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "section",
+      "title": "Sound map",
+      "detail": "Every sound is on, and the song decides how much each one shows: little in a calm part, all of it in a big one, more on the drop. Slide one to want more or less of it; Auto puts every sound back. Strobe is never on unless you turn it on."
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "section",
+      "title": "Renderer",
+      "detail": "Options apply on Refresh."
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Frame rate",
+      "section": "Playback & rendering"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Volume",
+      "section": "Playback & rendering"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "section",
+      "title": "Playback & rendering"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "V-Sync"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Mute"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Keep audio"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "React to audio"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Follow the mouse"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Parallax"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Particles"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Pause when fullscreen"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Start with the shell"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "row",
+      "title": "Scene colours"
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "section",
+      "title": "Monitors",
+      "detail": "One scene per screen, or one spanned across several."
+    },
+    {
+      "file": "WallpaperPage.qml",
+      "kind": "section",
+      "title": "Library",
+      "detail": "Blank = the default folder."
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "section",
+      "title": "Add a widget",
+      "detail": "Click one to place it"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "24-hour clock",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Show seconds",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Stopwatch",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Change every",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Slow zoom",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Shuffle",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Background opacity",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Shape rotation",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Brightness",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Saturation",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Blur",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Pan strength",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Fade speed",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Bring forward what matters",
+      "detail": "A running timer, or the music while something plays",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Turn on its own every",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "24-hour clock",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Mirrored spectrum",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Grow from centre",
+      "detail": "Bars extend both ways from the middle, like the bar pill",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Rows to show",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Track card",
+      "detail": "What's playing, shown when a song starts and when you hover; plus how far through it is",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Soft edges",
+      "detail": "Lines fade out at the top and bottom instead of being cut",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Tile frame",
+      "detail": "The widget's own fill and outline, around the card",
+      "section": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "section",
+      "title": "Your desktop"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Liquid glass",
+      "section": "Look"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Grow on hover",
+      "section": "Look"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Parallax",
+      "section": "Look"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Entrance",
+      "section": "Look"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Opacity",
+      "section": "Look"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Roundness",
+      "section": "Look"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Parallax",
+      "detail": "How far a widget leans and its contents shift under the pointer. Off in the chips above.",
+      "section": "Look"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "row",
+      "title": "Snap grid",
+      "detail": "Widgets you drag snap to this grid.",
+      "section": "Look"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "section",
+      "title": "Look",
+      "detail": "Every widget"
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "section",
+      "title": "Weather",
+      "detail": "Only the place you pick is ever requested — your location is never looked up from your IP. Night light and the calendar use it too."
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "section",
+      "title": "Calendars",
+      "detail": "Paste a calendar's .ics address — Google: your calendar's settings › Secret address in iCal format — and its events show in the clock panel, read-only, in a colour of their own. The address stays on this machine."
+    },
+    {
+      "file": "WidgetsPage.qml",
+      "kind": "section",
+      "title": "Presets",
+      "detail": "Click a preset to load it once, on the chosen screen. Right-click one to give the screen's wallpaper that preset LIVE instead: switch to the wallpaper and its tiles take over automatically; switch away and your normal ones return. Follows the colour scheme panel's own click-to-load / right-click-to-bind split."
+    }
+  ]
+}

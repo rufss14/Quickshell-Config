@@ -1,0 +1,72 @@
+# ── Secrets ───────────────────────────────────────────────────────────────────
+# Since 2026-11-08 these files live OUTSIDE the repo, in $XDG_STATE_HOME/quicktest/secrets/
+# (scripts/qspaths.py moves an old copy there on first use). The lines below stay so a
+# copy left behind by an older version, or restored by hand, still can't be committed.
+#
+# discord-rpc.json carries the OAuth `clientSecret` (32 chars, currently set) and is
+# written 0600 by scripts/discord-credentials.py — which exists precisely so the secret
+# never passes through argv or QML. Committing it would undo all of that, and this repo
+# is PUBLISHED, so a single push would put it in the clone history of everyone who has
+# ever pulled it.
+#
+# Anyone setting this config up creates their own via the Discord page in settings.
+discord-rpc.json
+
+# ai-keys.json holds the launcher's AI provider API keys, written 0600 by
+# scripts/ai-credentials.py for exactly the same reasons. It lands in this directory
+# because $XDG_CONFIG_HOME/quicktest IS this repo — so without this line a key would
+# sit untracked-but-visible in `git status`, one `git add -A` from being published.
+ai-keys.json
+
+# cs2-gsi.json is scripts/install-cs2-gsi.sh's record of the port and auth token it
+# wrote into CS2's Game State Integration .cfg, written 0600. The token is only a
+# loopback shared secret and regenerated on every install, so it's far less sensitive
+# than the two above — but it's still a generated per-machine value that belongs in
+# nobody else's clone, and $XDG_CONFIG_HOME/quicktest IS this repo.
+cs2-gsi.json
+
+# lyrics-translate-keys.json holds the DeepL API key used by the lyrics-translation
+# fallback, written 0600 by scripts/lyrics-translate-credentials.py for exactly the
+# same reasons ai-keys.json is gitignored above — a personal API key must never
+# round-trip through a config someone else forks.
+lyrics-translate-keys.json
+
+# games.json is the Games module's per-user record: your custom entries, per-profile
+# settings and PLAY-TIME stats. Personal, rewritten as you play, and not something a
+# clone should inherit.
+games.json
+
+# ── Machine-local agent/editor settings ───────────────────────────────────────
+# settings.local.json holds absolute /home paths. .claude/settings.json (shared) and
+# .claude/skills/ are intentionally NOT ignored.
+.claude/settings.local.json
+
+# ── Python bytecode ───────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+
+# ── Editor and OS noise ───────────────────────────────────────────────────────
+*.swp
+*~
+*.bak
+.DS_Store
+
+# ── The blobs plugin's build tree ─────────────────────────────────────────────
+# scripts/build-blobs-plugin.sh compiles here; the INSTALLED module goes to the
+# system Qt QML dir (see the script), so nothing under plugin/build is ever what
+# ships — it's exactly the kind of machine-specific binary output the rest of
+# this file's rules exist to keep out. A CMakeCache.txt that rides along in a
+# clone has another machine's paths baked in and breaks the next build; the
+# script rm -rf's this dir before configuring for that reason.
+plugin/build/
+
+# ── Deliberately NOT ignored, so the reasoning is on the record ───────────────
+#   presets/bar.json      meant to be read, hand-edited, shared and backed up
+#   presets/cursor.json   the same, for the cursor's saved looks (created on first Save)
+#   shaders/*.qsb         compiled at build time, but nothing here rebuilds it —
+#                         drop it and the liquid-glass effect silently stops working
+#   colorschemes/         the user's saved schemes; small, and the point of saving them
+#
+# The live preferences document is NOT here at all: it lives in XDG_STATE_HOME
+# (Quickshell.statePath("config.json")), deliberately outside the shell directory,
+# because it is rewritten on every slider drag and watchFiles would reload on each one.

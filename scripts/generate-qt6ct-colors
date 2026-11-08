@@ -1,0 +1,315 @@
+#!/usr/bin/env python3
+"""Generate a qt6ct colour scheme from the live pywal palette.
+
+    generate-qt6ct-colors
+
+So Qt6 apps — most visibly `hyprland-share-picker`, the screen-share dialog Discord
+opens — follow the wallpaper like everything else, instead of sitting there in default
+Fusion light.
+
+── Why this is separate from the GTK step ────────────────────────────────────
+Different toolkit, different mechanism, and no overlap. GTK is CSS with named colours;
+Qt is a QPalette — twenty-one fixed ROLES in a fixed order, addressed positionally.
+There is no way to express one in terms of the other, so `reload-theme.sh` gains a
+sibling step rather than the GTK one growing a second half.
+
+── The format, which is unforgiving ──────────────────────────────────────────
+`active_colors` is a comma-separated list of exactly 21 #AARRGGBB values, in
+QPalette::ColorRole order. It is POSITIONAL — there are no names in the file, so a
+list of 20 or a pair swapped doesn't error, it just renders wrong somewhere you won't
+immediately look. The ROLES list below is the authority; keep it in order.
+
+── Which Qt sees this ────────────────────────────────────────────────────────
+Only apps whose QT_QPA_PLATFORMTHEME is `qt6ct`. Note qt5ct and qt6ct are NOT
+interchangeable — qt5ct cannot theme a Qt6 binary, which is exactly why the share
+picker was unthemed while the rest of the Qt5 desktop looked fine.
+"""
+
+import json, os, sys
+
+# XDG, not a literal ~/.config: on a machine that sets XDG_CONFIG_HOME, qt6ct reads its
+# config there, and so does theme-setup.sh's status check.
+WAL = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"),
+                   "wal", "colors.json")
+CFG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"),
+                       "qt6ct")
+SCHEME = os.path.join(CFG_DIR, "colors", "quicktest.conf")
+QSS = os.path.join(CFG_DIR, "qss", "quicktest.qss")
+CONF = os.path.join(CFG_DIR, "qt6ct.conf")
+
+# QPalette::ColorRole, in order. Positional — see the header.
+ROLES = ["WindowText", "Button", "Light", "Midlight", "Dark", "Mid", "Text",
+         "BrightText", "ButtonText", "Base", "Window", "Shadow", "Highlight",
+         "HighlightedText", "Link", "LinkVisited", "AlternateBase", "NoRole",
+         "ToolTipBase", "ToolTipText", "PlaceholderText"]
+
+
+def rgb(h):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def hexa(r, g, b, a=255):
+    return "#%02x%02x%02x%02x" % (a, int(r), int(g), int(b))
+
+
+def mix(c1, c2, t):
+    a, b = rgb(c1), rgb(c2)
+    return tuple(a[i] + (b[i] - a[i]) * t for i in range(3))
+
+
+def lighten(c, t):
+    return mix(c, "#ffffff", t)
+
+
+def darken(c, t):
+    return mix(c, "#000000", t)
+
+
+def hexrgb(r, g, b):
+    """#RRGGBB, for the STYLESHEET.
+
+    Not interchangeable with hexa(): the colour-scheme file wants #AARRGGBB with the
+    alpha first, and Qt's stylesheet parser does not accept that form. Feeding a
+    palette value straight into the QSS produces a colour that is silently wrong
+    rather than an error.
+    """
+    return "#%02x%02x%02x" % (int(r), int(g), int(b))
+
+
+def lum(c):
+    r, g, b = rgb(c)
+    return 0.299 * r + 0.587 * g + 0.114 * b
+
+
+def main():
+    try:
+        wal = json.load(open(WAL))
+    except (OSError, ValueError) as e:
+        sys.stderr.write("generate-qt6ct-colors: no palette (%s)\n" % e)
+        return 1
+
+    bg = wal["special"]["background"]
+    fg = wal["special"]["foreground"]
+    c = wal["colors"]
+    accent = c["color1"]
+
+    # ── The surface ladder has to be built AWAY from the background ──────────
+    # Surfaces are derived from the background rather than taken from the ramp, so the
+    # result stays coherent whatever colour0 happens to be. But the direction is not a
+    # given: this palette's background is pure black, and darkening pure black does
+    # nothing — Base, Window and Shadow all came out #000000, which is a dialog whose
+    # text fields are invisible.
+    #
+    # So the ladder always climbs away from whichever extreme the background sits at:
+    # lighter on a dark theme, darker on a light one. That's the only version that
+    # can't silently collapse.
+    dark = lum(bg) < 128
+    step = (lambda t: lighten(bg, t)) if dark else (lambda t: darken(bg, t))
+
+    button  = hexa(*step(0.11))
+    base    = hexa(*step(0.05))
+    altbase = hexa(*step(0.08))
+
+    palette = {
+        "WindowText":      hexa(*rgb(fg)),
+        "Button":          button,
+        "Light":           hexa(*step(0.30)),
+        "Midlight":        hexa(*step(0.20)),
+        "Dark":            hexa(*step(0.04)),
+        "Mid":             hexa(*step(0.13)),
+        "Text":            hexa(*rgb(fg)),
+        "BrightText":      "#ffffffff",
+        "ButtonText":      hexa(*rgb(fg)),
+        "Base":            base,
+        "Window":          hexa(*rgb(bg)),
+        "Shadow":          hexa(*(darken(bg, 0.70) if dark else step(0.45))),
+        "Highlight":       hexa(*rgb(accent)),
+        # Text ON the accent, picked by luminance rather than assumed: a pale
+        # wallpaper produces a pale accent, and white-on-pale is unreadable.
+        "HighlightedText": "#ff000000" if lum(accent) > 150 else "#ffffffff",
+        "Link":            hexa(*rgb(c["color4"])),
+        "LinkVisited":     hexa(*rgb(c["color5"])),
+        "AlternateBase":   altbase,
+        "NoRole":          hexa(*rgb(bg)),
+        "ToolTipBase":     button,
+        "ToolTipText":     hexa(*rgb(fg)),
+        "PlaceholderText": hexa(*mix(bg, fg, 0.45)),
+    }
+
+    active = [palette[r] for r in ROLES]
+
+    # Disabled: everything pulled toward the window colour, which is what "greyed out"
+    # means for a palette that has no fixed grey. Values are #AARRGGBB, so the alpha
+    # pair is sliced off before mixing and re-added by hexa().
+    disabled = [hexa(*mix(bg, "#" + palette[r][3:], 0.55)) for r in ROLES]
+
+    os.makedirs(os.path.dirname(SCHEME), exist_ok=True)
+    with open(SCHEME, "w") as f:
+        f.write("[ColorScheme]\n")
+        f.write("active_colors=%s\n" % ", ".join(active))
+        # Inactive (unfocused window) matches active — a dimmed unfocused dialog reads
+        # as disabled, and the share picker is only ever looked at while focused.
+        f.write("inactive_colors=%s\n" % ", ".join(active))
+        f.write("disabled_colors=%s\n" % ", ".join(disabled))
+
+    # ── The stylesheet ────────────────────────────────────────────────────────
+    # A palette alone gets you a dark dialog, not a designed one: Fusion still draws
+    # its bevelled tabs, a heavy sunken frame, and a checkbox indicator that on a black
+    # palette is black-on-black and effectively invisible. Those are STYLE decisions,
+    # not colour ones, and the only lever Qt gives for them is a stylesheet.
+    #
+    # Deliberately narrow. It restyles the handful of widget classes the share picker
+    # actually uses and leaves everything else to Fusion — a global stylesheet that
+    # tries to restyle all of Qt is how you end up with unclickable comboboxes in some
+    # app you forgot you had.
+    surface  = hexrgb(*step(0.07))
+    hover    = hexrgb(*step(0.14))
+    border   = hexrgb(*step(0.16))
+    dim      = hexrgb(*mix(bg, fg, 0.55))
+    on_accent = "#000000" if lum(accent) > 150 else "#ffffff"
+
+    qss = f"""/* Generated by quicktest generate-qt6ct-colors — edits will be overwritten. */
+
+/* No global `QWidget {{ background }}` rule on purpose. The PALETTE already sets
+   Window/Base/Button, so it would be redundant — and a blanket background on every
+   widget is the classic way to break item views and custom-painted widgets in some
+   unrelated Qt app that happens to use qt6ct too. This sheet only touches widget
+   classes whose Fusion defaults are actually the problem. */
+
+/* Flat tabs with an accent underline, instead of Fusion's bevelled folder tabs. */
+QTabWidget::pane {{
+    border: none;
+    background: {bg};
+    top: -1px;
+}}
+QTabBar {{ qproperty-drawBase: 0; }}
+QTabBar::tab {{
+    background: transparent;
+    color: {dim};
+    padding: 7px 16px;
+    margin: 0 2px 0 0;
+    border: none;
+    border-bottom: 2px solid transparent;
+}}
+QTabBar::tab:hover {{ color: {fg}; }}
+QTabBar::tab:selected {{
+    color: {fg};
+    border-bottom: 2px solid {accent};
+}}
+
+/* The content area: one soft surface, not a sunken 3D well. */
+QScrollArea, QAbstractScrollArea {{
+    background: {surface};
+    border: 1px solid {border};
+    border-radius: 8px;
+}}
+QScrollArea > QWidget > QWidget {{ background: transparent; }}
+
+/* The screen/window entries. */
+QPushButton {{
+    background: {surface};
+    color: {fg};
+    border: 1px solid {border};
+    border-radius: 6px;
+    padding: 9px 14px;
+}}
+QPushButton:hover  {{ background: {hover}; border-color: {accent}; }}
+QPushButton:pressed {{ background: {accent}; color: {on_accent}; }}
+QPushButton:focus  {{ border-color: {accent}; outline: none; }}
+
+/* Was black-on-black and effectively invisible. */
+QCheckBox {{ color: {fg}; spacing: 8px; }}
+QCheckBox::indicator {{
+    width: 15px; height: 15px;
+    border: 1px solid {border};
+    border-radius: 4px;
+    background: {surface};
+}}
+QCheckBox::indicator:hover {{ border-color: {accent}; }}
+QCheckBox::indicator:checked {{
+    background: {accent};
+    border-color: {accent};
+}}
+
+QScrollBar:vertical {{
+    background: transparent;
+    width: 10px;
+    margin: 0;
+}}
+QScrollBar::handle:vertical {{
+    background: {border};
+    border-radius: 5px;
+    min-height: 28px;
+}}
+QScrollBar::handle:vertical:hover {{ background: {accent}; }}
+QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
+QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
+
+QToolTip {{
+    background: {surface};
+    color: {fg};
+    border: 1px solid {border};
+    border-radius: 6px;
+    padding: 4px 8px;
+}}
+"""
+
+    os.makedirs(os.path.dirname(QSS), exist_ok=True)
+    with open(QSS, "w") as f:
+        f.write(qss)
+
+    # ── Point qt6ct at it, without clobbering the user's other settings ──────
+    # Read-modify-write by line rather than configparser: qt6ct.conf is a Qt .ini
+    # whose [Appearance] section can carry keys configparser will happily reformat,
+    # and reformatting a config we don't own is how you break someone's icon theme.
+    # Section -> keys we own. Everything else in the file is left exactly as found.
+    want = {
+        "appearance": {
+            "color_scheme_path": SCHEME,
+            "custom_palette": "true",
+            "style": "Fusion",
+        },
+        "interface": {
+            "stylesheets": QSS,
+        },
+    }
+
+    lines = open(CONF).read().splitlines() if os.path.exists(CONF) else []
+
+    out, section, done = [], "", {k: set() for k in want}
+
+    def flush(sec):
+        for k, v in want.get(sec, {}).items():
+            if k not in done[sec]:
+                out.append("%s=%s" % (k, v))
+                done[sec].add(k)
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("["):
+            flush(section)
+            section = stripped.strip("[]").lower()
+        elif section in want and "=" in stripped:
+            key = stripped.split("=", 1)[0].strip()
+            if key in want[section]:
+                line = "%s=%s" % (key, want[section][key])
+                done[section].add(key)
+        out.append(line)
+    flush(section)
+
+    for sec in want:
+        if not done[sec]:
+            out.append("[%s]" % sec.capitalize())
+            flush(sec)
+
+    os.makedirs(CFG_DIR, exist_ok=True)
+    with open(CONF, "w") as f:
+        f.write("\n".join(out).rstrip() + "\n")
+
+    print("qt6ct palette written to %s" % SCHEME)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,201 @@
+{
+  "presets": [
+    {
+      "name": "Quicktest 1#",
+      "config": {
+        "barShape": false,
+        "barThickness": 58,
+        "barRoundness": 17,
+        "barInset": 4,
+        "barBorderWidth": 2,
+        "barOpacity": 0.98,
+        "barCentreAnchor": true,
+        "barFontScale": 1.18,
+        "barIconScale": 1.32,
+        "barInnerPill": true,
+        "screenFrame": true,
+        "barLayout": "unifiedAnchored",
+        "frameThickness": 12,
+        "frameRoundness": 22,
+        "frameBorderWidth": 2,
+        "motionEnabled": true,
+        "barHoverGrow": true,
+        "motionScale": 1,
+        "layout": {
+          "left": [
+            [
+              "overview"
+            ],
+            [
+              "wallpaper",
+              "palette"
+            ],
+            [
+              "volume"
+            ],
+            [
+              "visualizer"
+            ]
+          ],
+          "centre": [
+            [
+              "update"
+            ],
+            [
+              "workspaces"
+            ],
+            [
+              "reload"
+            ]
+          ],
+          "right": [
+            [
+              "tray",
+              "keyboard",
+              "privacy",
+              "notifications",
+              "gamemode",
+              "bluetooth",
+              "wifi"
+            ],
+            [
+              "clock"
+            ],
+            [
+              "settings"
+            ],
+            [
+              "battery"
+            ]
+          ]
+        },
+        "moduleSettings": {
+          "bluetooth": {
+            "rightPersist": true,
+            "rightState": true,
+            "innerPill": false
+          },
+          "wifi": {
+            "rightPersist": true,
+            "rightState": true,
+            "innerPill": false
+          },
+          "tray": {
+            "innerPill": false
+          },
+          "keyboard": {
+            "innerPill": false
+          },
+          "privacy": {
+            "innerPill": false
+          },
+          "notifications": {
+            "innerPill": false
+          },
+          "gamemode": {
+            "innerPill": false
+          }
+        }
+      }
+    },
+    {
+      "name": "Quicktest 2#",
+      "config": {
+        "barShape": false,
+        "barThickness": 58,
+        "barRoundness": 17,
+        "barInset": 4,
+        "barBorderWidth": 2,
+        "barOpacity": 0.98,
+        "barCentreAnchor": false,
+        "barFontScale": 1.18,
+        "barIconScale": 1.32,
+        "barInnerPill": true,
+        "screenFrame": true,
+        "barLayout": "unifiedAnchored",
+        "frameThickness": 12,
+        "frameRoundness": 22,
+        "frameBorderWidth": 2,
+        "motionEnabled": true,
+        "barHoverGrow": true,
+        "motionScale": 0.85,
+        "layout": {
+          "left": [
+            [
+              "wallpaper",
+              "palette"
+            ],
+            [
+              "workspaces"
+            ],
+            [
+              "volume"
+            ],
+            [
+              "visualizer"
+            ]
+          ],
+          "centre": [
+            [
+              "update"
+            ],
+            [
+              "clock"
+            ],
+            [
+              "reload"
+            ]
+          ],
+          "right": [
+            [
+              "tray"
+            ],
+            [
+              "keyboard",
+              "notifications",
+              "gamemode",
+              "bluetooth",
+              "wifi"
+            ],
+            [
+              "overview",
+              "settings"
+            ],
+            [
+              "battery"
+            ]
+          ]
+        },
+        "moduleSettings": {
+          "bluetooth": {
+            "rightPersist": true,
+            "rightState": true
+          },
+          "wifi": {
+            "rightPersist": true,
+            "rightState": true
+          },
+          "clock": {
+            "panelHeader": false
+          },
+          "notifications": {
+            "showOnlyDnd": false
+          }
+        },
+        "groupSettings": {
+          "bluetooth,gamemode,keyboard,notifications,privacy,wifi": {
+            "spacing": 15
+          },
+          "bluetooth,gamemode,keyboard,notifications,wifi": {
+            "spacing": 16
+          }
+        },
+        "panelPlacement": {
+          "media": "center",
+          "clock": "center"
+        },
+        "panelZoom": {}
+      }
+    }
+  ]
+}
