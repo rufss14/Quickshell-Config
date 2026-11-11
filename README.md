@@ -93,7 +93,9 @@ equalizer, updates, notifications, clipboard, timer, to‑do, system stats, and 
 
 ### The sidebar and dock
 
-<img align="right" width="44" src="assets/previews/SideBarPreview.png" alt="The sidebar">
+<table>
+<tr>
+<td valign="middle">
 
 The second edge, arranged like the bar. It can auto-hide and dodge windows.
 
@@ -105,7 +107,10 @@ The second edge, arranged like the bar. It can auto-hide and dodge windows.
 
 SUPER+D reveals it while hidden; SUPER+SHIFT+D hides or shows it entirely.
 
-<br clear="right">
+</td>
+<td width="40%"><img src="assets/previews/SidebarPanelPreview.png" alt="The sidebar with its System stats panel open"></td>
+</tr>
+</table>
 
 ### The launcher
 
