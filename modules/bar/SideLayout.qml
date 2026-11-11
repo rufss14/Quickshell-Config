@@ -21,8 +21,10 @@ Item {
     implicitHeight: Config.sidebarCell
 
     SideCell {
+
+        moduleId: "layout"
         anchors.fill: parent
-        glyph: HyprLayout.info.glyph
+        symbol: HyprLayout.info.symbol                                   // the bar pill's
         active: UiState.sidePanel === "layout" && root.ownsPanel
         wheel: true
         onScrolled: function (d) { HyprLayout.step(d > 0 ? -1 : 1) }

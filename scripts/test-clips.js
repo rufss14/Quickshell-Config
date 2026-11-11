@@ -15,19 +15,27 @@ const here = dirname(fileURLToPath(import.meta.url));
 // ClockFmt object the .import would have bound.
 const clockSrc = readFileSync(join(here, "..", "services", "clockfmt.js"), "utf8")
     .replace(/^\s*\.pragma\s+library\s*$/m, "");
+// calllog.js likewise, in its own scope (its helper names would clash with clips.js's).
+const callSrc = readFileSync(join(here, "..", "services", "calllog.js"), "utf8")
+    .replace(/^\s*\.pragma\s+library\s*$/m, "");
 const src = clockSrc + "\nconst ClockFmt = { clock };\n" +
+    "const CallLog = (function () {\n" + callSrc + "\nreturn { cleanName, people };\n})();\n" +
     readFileSync(join(here, "..", "services", "clips.js"), "utf8")
         .replace(/^\s*\.pragma\s+library\s*$/m, "")
-        .replace(/^\s*\.import\s+.*$/m, "");
+        .replace(/^\s*\.import\s+.*$/gm, "");
 
 const { target, region, windowGeom, settings, recorderArgv, saveCommand, saveLengths, timelineAt, parseEvents, newEvents,
         clock, span, age, bufferMiB, summary, audioText, trimSpan, clipKind, libraryView, stamp,
         gameOf, gamesOf, isToday, aheadPlan, PRESETS, matchPreset, RECORD_LIMITS, limitOf, limitHit,
-        estimateBufferMiB, explainError, diagnose, FILE_MANAGERS, pickFileManager, fileManagerArgv, prettyName, dayLabel, groupByDay } =
+        estimateBufferMiB, explainError, diagnose, FILE_MANAGERS, pickFileManager, fileManagerArgv, prettyName, dayLabel, groupByDay,
+        DISCORD_CAPS, discordPlan, prunePlan, bytesText, contextOf, contextLine, cleanBook, listSig,
+        layoutRows, cleanTag, cleanTagBook, withTag, withoutTag, tagCounts, groupLine, withoutAll } =
     new Function(src + "\nreturn { target, region, windowGeom, settings, recorderArgv, saveCommand, saveLengths, timelineAt, " +
                  "parseEvents, newEvents, clock, span, age, bufferMiB, summary, audioText, trimSpan, " +
                  "clipKind, libraryView, stamp, gameOf, gamesOf, isToday, aheadPlan, PRESETS, matchPreset, " +
-                 "RECORD_LIMITS, limitOf, limitHit, estimateBufferMiB, explainError, diagnose, FILE_MANAGERS, pickFileManager, fileManagerArgv, prettyName, dayLabel, groupByDay };")();
+                 "RECORD_LIMITS, limitOf, limitHit, estimateBufferMiB, explainError, diagnose, FILE_MANAGERS, pickFileManager, fileManagerArgv, prettyName, dayLabel, groupByDay, " +
+                 "DISCORD_CAPS, discordPlan, prunePlan, bytesText, contextOf, contextLine, cleanBook, listSig, " +
+                 "layoutRows, cleanTag, cleanTagBook, withTag, withoutTag, tagCounts, groupLine, withoutAll };")();
 
 let pass = 0;
 let fail = 0;
@@ -361,6 +369,118 @@ check("groups: nothing, not by day", groupByDay([], nowD, false), []);
 check("groups: garbage", groupByDay(null, nowD, true), []);
 check("groups: the same day apart is two groups when something sits between", groupByDay(
       [{ mtime: at_(2026, 9, 18) }, { mtime: at_(2026, 9, 17) }, { mtime: at_(2026, 9, 18) }], nowD, true).length, 3);
+
+// ── Discord's upload cap ─────────────────────────────────────────────────────
+const MB = 1048576;
+check("discord: under the cap is left alone", discordPlan(8 * MB, 10, 30), { shrink: false, sizeMB: 0, cap: 10, fits: true });
+check("discord: close under the cap is left alone", discordPlan(9.5 * MB, 10, 30).shrink, false);
+check("discord: just over the cap shrinks to it", discordPlan(10.2 * MB, 10, 30), { shrink: true, sizeMB: 10, cap: 10, fits: true });
+check("discord: a big clip shrinks", discordPlan(200 * MB, 10, 60).shrink, true);
+check("discord: unknown size is not shrunk", discordPlan(0, 10, 60).shrink, false);
+check("discord: a bad cap is 10", discordPlan(50 * MB, "x", 30).cap, 10);
+check("discord: a cap is clamped to 500", discordPlan(900 * MB, 9999, 30).cap, 500);
+check("discord: ten minutes cannot fit 10 MB", discordPlan(900 * MB, 10, 600).fits, false);
+check("discord: thirty seconds fits 10 MB", discordPlan(100 * MB, 10, 30).fits, true);
+check("discord: caps offered", DISCORD_CAPS, [10, 25, 50, 500]);
+
+// ── Clearing out ─────────────────────────────────────────────────────────────
+const DAY = 86400000, GB = 1073741824, T0 = Date.UTC(2026, 10, 9, 12);
+const mk = (n, ageDays, size, extra) => Object.assign({ path: "/c/" + n, name: n, mtime: T0 - ageDays * DAY, size: size }, extra || {});
+const L = [mk("new", 0.5, GB), mk("a", 3, GB), mk("b", 40, GB), mk("c", 90, GB), mk("fav", 200, GB)];
+check("prune: nothing without a limit", prunePlan(L, [], { days: 0, gb: 0 }, T0), { paths: [], bytes: 0, count: 0 });
+check("prune: by age, oldest first", prunePlan(L, [], { days: 30, gb: 0 }, T0).paths, ["/c/fav", "/c/c", "/c/b"]);
+check("prune: a favourite is kept", prunePlan(L, ["/c/fav"], { days: 30, gb: 0 }, T0).paths, ["/c/c", "/c/b"]);
+check("prune: bytes add up", prunePlan(L, ["/c/fav"], { days: 30, gb: 0 }, T0).bytes, 2 * GB);
+check("prune: by size drops the oldest until it fits", prunePlan(L, [], { days: 0, gb: 3 }, T0).paths, ["/c/fav", "/c/c"]);
+check("prune: size counts what age already took", prunePlan(L, [], { days: 100, gb: 4 }, T0).paths, ["/c/fav"]);
+check("prune: size cannot touch a favourite", prunePlan(L, ["/c/fav", "/c/c", "/c/b", "/c/a", "/c/new"], { days: 0, gb: 1 }, T0).count, 0);
+check("prune: a fresh file is never taken", prunePlan([mk("w", 0, GB, { mtime: T0 - 60000 })], [], { days: 0, gb: 0.001 }, T0).count, 0);
+check("prune: an entry with no time is never taken", prunePlan([{ path: "/c/x", size: GB }], [], { days: 1, gb: 0 }, T0).count, 0);
+check("prune: garbage in", prunePlan(null, null, null, T0), { paths: [], bytes: 0, count: 0 });
+check("prune: days are clamped", prunePlan(L, [], { days: -5, gb: 0 }, T0).count, 0);
+check("bytes: gigabytes", bytesText(3.2 * GB), "3.2 GB");
+check("bytes: megabytes", bytesText(412 * MB), "412 MB");
+check("bytes: nothing", bytesText(null), "0 MB");
+
+// ── What was going on ────────────────────────────────────────────────────────
+const call = [{ id: "123456789012345678", name: "Alice" }, { id: "223456789012345678", name: "Bob" },
+              { id: "323456789012345678", name: "Me", isSelf: true }, { id: "423456789012345678", name: "Bot", bot: true },
+              { id: "bad", name: "Mallory" }];
+check("context: song and company", contextOf({ artist: "Daft Punk", title: "Around the World" }, call, true, true),
+      { artist: "Daft Punk", title: "Around the World", with: ["Alice", "Bob"] });
+check("context: yourself, bots and bad ids are not company", contextOf(null, call, false, true).with, ["Alice", "Bob"]);
+check("context: music off", contextOf({ artist: "A", title: "T" }, [], false, true), null);
+check("context: call off", contextOf({ artist: "A", title: "T" }, call, true, false).with, []);
+check("context: nothing playing, nobody there", contextOf({ artist: "", title: "" }, [], true, true), null);
+check("context: a song with no artist", contextOf({ title: "Untitled" }, [], true, true), { artist: "", title: "Untitled", with: [] });
+check("context: control and bidi characters are removed", contextOf({ artist: "A\u202eB", title: "T\u0007" }, [], true, true).artist, "AB");
+check("context: a name is cut at 64", contextOf({ title: "x".repeat(200) }, [], true, true).title.length, 64);
+check("line: both", contextLine({ artist: "A", title: "T", with: ["X", "Y"] }), "♪ A — T  ·  with X, Y");
+check("line: only company", contextLine({ artist: "", title: "", with: ["X"] }), "with X");
+check("line: only a song, no artist", contextLine({ artist: "", title: "T", with: [] }), "♪ T");
+check("line: none", contextLine(null), "");
+check("book: keeps good entries", cleanBook({ paths: { "/a.mp4": { artist: "A", title: "T", with: ["X"] } } }),
+      { "/a.mp4": { artist: "A", title: "T", with: ["X"] } });
+check("book: a relative path is dropped", Object.keys(cleanBook({ paths: { "a.mp4": { title: "T" } } })), []);
+check("book: an empty entry is dropped", Object.keys(cleanBook({ paths: { "/a.mp4": { title: "", with: [] } } })), []);
+check("book: wrong types are dropped", cleanBook({ paths: { "/a.mp4": { title: 5, with: [1, "Z"] } } }), { "/a.mp4": { artist: "", title: "", with: ["Z"] } });
+check("book: garbage", cleanBook("x"), {});
+check("book: people capped at 8", cleanBook({ paths: { "/a": { with: "abcdefghijkl".split("") } } })["/a"].with.length, 8);
+const big = {}; for (let i = 0; i < 5100; i++) big["/p" + i] = { title: "t" };
+check("book: the latest 5000 are kept", [Object.keys(cleanBook({ paths: big })).length, Object.keys(cleanBook({ paths: big }))[0]], [5000, "/p100"]);
+const ctxv = { "/c/a": { artist: "Daft Punk", title: "Around", with: ["Alice"] } };
+check("library: search finds the song", libraryView([mk("a", 1, 1), mk("b", 2, 1)], "daft", "all", [], "newest", "", T0, ctxv).map(c => c.name), ["a"]);
+check("library: search finds the company", libraryView([mk("a", 1, 1), mk("b", 2, 1)], "alice", "all", [], "newest", "", T0, ctxv).map(c => c.name), ["a"]);
+check("library: no context is the old behaviour", libraryView([mk("a", 1, 1), mk("b", 2, 1)], "", "all", [], "newest", "", T0).length, 2);
+
+// ── "Did what I show change" ────────────────────────────────────────────────
+check("sig: same list, same signature", listSig(L, 3), listSig(L.slice(), 3));
+check("sig: a later entry changing is not seen", listSig(L, 2), listSig(L.slice(0, 2).concat([mk("z", 1, 1)]), 2));
+check("sig: a new first entry is", listSig(L, 3) !== listSig([mk("z", 0.1, 1)].concat(L), 3), true);
+check("sig: a thumbnail arriving is", listSig([mk("a", 1, 1)], 1) !== listSig([mk("a", 1, 1, { thumb: "/t.jpg" })], 1), true);
+check("sig: garbage", listSig(null, 3), "");
+
+// ── Rows for a virtual list ──────────────────────────────────────────────────
+const gA = { key: "d1", label: "Today", clips: [1, 2, 3, 4, 5].map(i => ({ path: "/r/" + i, size: GB, duration: 60 })) };
+const gB = { key: "d2", label: "Yesterday", clips: [{ path: "/r/6", size: 0, duration: 0 }] };
+const rows = layoutRows([gA, gB], 2);
+check("rows: a heading, then rows of two, then the next day", rows.map(r => r.kind + ":" + (r.clips ? r.clips.length : r.label)),
+      ["head:Today", "row:2", "row:2", "row:1", "head:Yesterday", "row:1"]);
+check("rows: heading carries the weight", [rows[0].count, rows[0].bytes, rows[0].secs], [5, 5 * GB, 300]);
+check("rows: keys are unique", new Set(rows.map(r => r.key)).size, rows.length);
+check("rows: an unlabelled group has no heading", layoutRows([{ key: "all", label: "", clips: gA.clips }], 3).map(r => r.kind), ["row", "row"]);
+check("rows: a bad column count is one", layoutRows([gB], 0).length, 2);
+check("rows: nothing", layoutRows(null, 3), []);
+check("rows: an empty group is skipped", layoutRows([{ key: "x", label: "Empty", clips: [] }], 3), []);
+check("line: plural", groupLine(5, 5 * GB, 300), "5 clips · 5 GB · 5:00");
+check("line: one, no footage", groupLine(1, 412 * MB, 0), "1 clip · 412 MB");
+
+// ── Tags ─────────────────────────────────────────────────────────────────────
+check("tag: trimmed and collapsed", cleanTag("  to   edit "), "to edit");
+check("tag: cut at 24", cleanTag("x".repeat(40)).length, 24);
+check("tag: control characters go", cleanTag("a\u202eb\u0007"), "ab");
+check("tag: not a string", cleanTag(5), "");
+let tb = withTag({}, ["/a", "/b"], "Clutch");
+check("tag: added to every path", tb, { "/a": ["Clutch"], "/b": ["Clutch"] });
+check("tag: the same tag in another case is the same", withTag(tb, ["/a"], "clutch")["/a"], ["Clutch"]);
+check("tag: six at most", withTag({ "/a": ["1", "2", "3", "4", "5", "6"] }, ["/a"], "7")["/a"].length, 6);
+check("tag: a relative path is ignored", withTag({}, ["a"], "x"), {});
+check("tag: an empty tag changes nothing", withTag(tb, ["/a"], "  "), tb);
+check("tag: removed from the ones named", withoutTag(tb, ["/a"], "CLUTCH"), { "/b": ["Clutch"] });
+check("tag: removal leaves other tags", withoutTag({ "/a": ["x", "y"] }, ["/a"], "x"), { "/a": ["y"] });
+check("tag: input is not mutated", tb, { "/a": ["Clutch"], "/b": ["Clutch"] });
+check("tags: a trashed path is gone", withoutAll({ "/a": ["x"], "/b": ["y"] }, ["/a"]), { "/b": ["y"] });
+check("tags: counted, most first", tagCounts({ "/a": ["x", "y"], "/b": ["y"] }, null), [{ tag: "y", count: 2 }, { tag: "x", count: 1 }]);
+check("tags: counted for a selection", tagCounts({ "/a": ["x", "y"], "/b": ["y"] }, ["/a"]).map(t => t.tag), ["x", "y"]);
+check("tags: cleaned at the door", cleanTagBook({ paths: { "/a": ["ok", "OK", "", 5, "\u0007"], "b": ["no"], "/c": "x" } }), { "/a": ["ok"] });
+check("tags: garbage", cleanTagBook(7), {});
+const tview = [mk("a", 1, 1), mk("b", 2, 1), mk("c", 3, 1)];
+const tbook = { "/c/a": ["clutch"], "/c/b": ["funny", "clutch"] };
+check("library: filter by tag", libraryView(tview, "", "all", [], "newest", "", T0, null, { tag: "clutch", tags: tbook }).map(c => c.name), ["a", "b"]);
+check("library: search finds a tag", libraryView(tview, "fun", "all", [], "newest", "", T0, null, { tags: tbook }).map(c => c.name), ["b"]);
+const sbook = { "/c/a": { artist: "A", title: "T", with: [] }, "/c/b": { artist: "", title: "", with: ["X"] } };
+check("library: only clips with a song", libraryView(tview, "", "all", [], "newest", "", T0, sbook, { stamp: "music" }).map(c => c.name), ["a"]);
+check("library: only clips with company", libraryView(tview, "", "all", [], "newest", "", T0, sbook, { stamp: "call" }).map(c => c.name), ["b"]);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

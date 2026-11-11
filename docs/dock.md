@@ -7,7 +7,7 @@ Moved from CLAUDE.md; the project rules there still apply.
 `services/Taskbar.qml` (logic in `services/dock.js`, `bun scripts/test-dock.js`) →
 `components/DockIconStrip.qml` → `modules/bar/DockHost.qml` (persistent, welded) with a
 `components/DockPreview.qml` beside it (`modules/overview/OverviewDock.qml` was the
-overview's own copy; the overview dropped it 2026-10-04 — unused, flagged). Settings › Dock (`DockPage`) configures it.
+overview's own copy; the overview dropped it 2026-10-04 — unused, flagged). Its settings are the module inspector's `DockOptions` (Bar › Modules, the dock picked) since 2026-11-08; `DockPage` is gone.
 
 - **Windows' rules.** One list — pins in pin order, then unpinned running apps in
   first-seen order. Click: launch / most recently focused window / (already focused)
@@ -164,3 +164,29 @@ icons and a leaving app's ghost become single-colour silhouettes in the screen's
 `root.tinted`, so it costs nothing while the setting is off. The icon glyphs (Trash, Downloads,
 the start button) were already palette-coloured. Not done: the preview card's header icon and
 the window-list icons in `DockPreview`.
+
+## The dock on the bar (2026-11-08)
+
+The dock is a bar module too (the user's pick: "full, bar-sized, no magnification"), one place
+at a time like every module. `widgets/DockPill` is the same `DockIconStrip` with
+`edge: "top"`, `buttonSize: Config.barPillHeight`, `barFeedback`, `magnifyAllowed: false`,
+`iiAllowed: false` and the bar's roundness. `edge: "top"` puts the pip, dots and level bars on
+the windows' side (below), lifts and drag-off point downward (DockAppButton), and anchors menus
+under a button. What hangs off it lives in `modules/bar/BarDockPopups` (fills Bar.qml's window):
+a floating `DockPreview` (`edge: "top"`, never fused — the bar's own panels own the lobes under
+it), the jump list (`ContextMenu`), and SUPER+T / SUPER+ALT+n for the focused monitor, as
+DockHost does for the sidebar. The pill registers its strip there (`popups.strip`).
+
+`Config.dockEnabled` still means "the dock on the SIDEBAR" (DockHost, the reserve, the window
+cell, the launcher's drag-to-dock); `Config.dockPlaced` is either surface (LauncherEntry's badge
+feed). Not on the bar: magnification, the "ii" style, dragging an app from the launcher onto it,
+the unpin poof.
+
+**Later the same day.** Magnification grows the icons only: `DockHost.magnifyRects` is
+always `[]`, so the blob's outline no longer swells under them (the user's call); the icons
+rise into the reveal's `headroom`. The dock groups like any module on the sidebar: the rail
+still hosts it apart (`dock.js sideGroups`), but `sideJoins` marks the pieces of its layout
+group and `sideRail` lays them gapless (`joined`), and SideRegionPills draws one island round
+them (no divider inside). The dock's own right-click menu is surface-aware: "Move to the
+sidebar" on the bar, "Move to the bar" on the sidebar (`Config.placeModule`).
+

@@ -113,7 +113,8 @@ PanelWindow {
                     from: 0; to: 360
                     duration: win.heldState === "thinking" ? 1600 : 9000
                     loops: Animation.Infinite
-                    running: win.shown && Config.motionEnabled
+                    // The 9 s idle turn is decoration; "thinking" is a busy indicator and keeps going.
+                    running: win.shown && Config.motionEnabled && (Motion.ambientOn || win.heldState === "thinking")
                 }
             }
             MaterialIcon {

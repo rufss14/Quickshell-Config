@@ -1,105 +1,7 @@
 {
   "presets": [
     {
-      "name": "Quicktest 1#",
-      "config": {
-        "barShape": false,
-        "barThickness": 58,
-        "barRoundness": 17,
-        "barInset": 4,
-        "barBorderWidth": 2,
-        "barOpacity": 0.98,
-        "barCentreAnchor": true,
-        "barFontScale": 1.18,
-        "barIconScale": 1.32,
-        "barInnerPill": true,
-        "screenFrame": true,
-        "barLayout": "unifiedAnchored",
-        "frameThickness": 12,
-        "frameRoundness": 22,
-        "frameBorderWidth": 2,
-        "motionEnabled": true,
-        "barHoverGrow": true,
-        "motionScale": 1,
-        "layout": {
-          "left": [
-            [
-              "overview"
-            ],
-            [
-              "wallpaper",
-              "palette"
-            ],
-            [
-              "volume"
-            ],
-            [
-              "visualizer"
-            ]
-          ],
-          "centre": [
-            [
-              "update"
-            ],
-            [
-              "workspaces"
-            ],
-            [
-              "reload"
-            ]
-          ],
-          "right": [
-            [
-              "tray",
-              "keyboard",
-              "privacy",
-              "notifications",
-              "gamemode",
-              "bluetooth",
-              "wifi"
-            ],
-            [
-              "clock"
-            ],
-            [
-              "settings"
-            ],
-            [
-              "battery"
-            ]
-          ]
-        },
-        "moduleSettings": {
-          "bluetooth": {
-            "rightPersist": true,
-            "rightState": true,
-            "innerPill": false
-          },
-          "wifi": {
-            "rightPersist": true,
-            "rightState": true,
-            "innerPill": false
-          },
-          "tray": {
-            "innerPill": false
-          },
-          "keyboard": {
-            "innerPill": false
-          },
-          "privacy": {
-            "innerPill": false
-          },
-          "notifications": {
-            "innerPill": false
-          },
-          "gamemode": {
-            "innerPill": false
-          }
-        }
-      }
-    },
-    {
-      "name": "Quicktest 2#",
+      "name": "Quicktest",
       "config": {
         "barShape": false,
         "barThickness": 58,
@@ -180,6 +82,9 @@
           },
           "notifications": {
             "showOnlyDnd": false
+          },
+          "tray": {
+            "innerPill": true
           }
         },
         "groupSettings": {
@@ -191,10 +96,51 @@
           }
         },
         "panelPlacement": {
-          "media": "center",
-          "clock": "center"
+          "clock": "center",
+          "media": "right"
         },
-        "panelZoom": {}
+        "panelZoom": {
+          "media": 1.196,
+          "wallpaper": 1.05,
+          "colorScheme": 1.103,
+          "update": 1.195
+        },
+        "barHero": "",
+        "sidebarHero": "",
+        "sidebarLayout": {
+          "start": [
+            [
+              "tasks",
+              "screentime",
+              "claude"
+            ],
+            [
+              "voice",
+              "clips"
+            ]
+          ],
+          "centre": [
+            [
+              "dock"
+            ]
+          ],
+          "end": [
+            [
+              "timer",
+              "colour",
+              "clipboard",
+              "stats"
+            ],
+            [
+              "idle",
+              "inactivity",
+              "power"
+            ]
+          ]
+        },
+        "sidebarStyle": {},
+        "sidebarIslands": true,
+        "barMusicReact": true
       }
     }
   ]

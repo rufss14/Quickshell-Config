@@ -15,3 +15,5 @@ PrivacyPill 1.0 PrivacyPill.qml
 WindowPill 1.0 WindowPill.qml
 LocksPill 1.0 LocksPill.qml
 SideModulePill 1.0 SideModulePill.qml
+NowPlayingPill 1.0 NowPlayingPill.qml
+DockPill 1.0 DockPill.qml

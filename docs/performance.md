@@ -60,8 +60,9 @@ summed, `other` the rest, `helpers` the shell's child processes (cava, music-pul
 ## check-qml-hotpaths.py
 
 Lists every FrameAnimation, repeating Timer ≤ 33 ms, `onFrameSwapped` and `Animation.Infinite` with the
-`running:` that stops it; UNGATED = no gate, or `true`. `check-all.sh` prints the count (not gated). Known:
-`CookieCover`'s spin, only mounted while covering. A spring started and stopped by hand counts as gated.
+`running:` that stops it; UNGATED = no gate, or `true`. `check-all.sh` fails on any UNGATED one. A spring
+started and stopped by hand counts as gated, and so does `running: true` with a non-literal `paused:`
+(`CookieCover`'s turn, paused so it resumes where it stopped).
 
 ## What the first pass found (2026-11-02, music playing, 1080p@165)
 

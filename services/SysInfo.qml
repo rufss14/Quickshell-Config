@@ -40,6 +40,30 @@ Singleton {
         specsQuery.running = false
         specsQuery.running = true
     }
+    // ── Diagnostics (Settings › About, "Copy diagnostics") ────────────────────
+    // scripts/doctor.sh's bug-report text, onto the clipboard through Clipboard.copyText.
+    // `diagnostics` is "" (idle), "running", "copied" or "failed", and falls back to ""
+    // a few seconds after it lands so the button reads normally again.
+    property string diagnostics: ""
+    function copyDiagnostics() {
+        if (doctor.running) return
+        root.diagnostics = "running"
+        doctor.running = true
+    }
+    Process {
+        id: doctor
+        command: ["bash", Quickshell.shellPath("scripts/doctor.sh")]
+        stdout: StdioCollector { id: doctorOut }
+        onExited: function (code) {
+            const text = doctorOut.text
+            const ok = code === 0 && text.trim() !== ""
+            if (ok) Clipboard.copyText(text)
+            root.diagnostics = ok ? "copied" : "failed"
+            diagnosticsReset.restart()
+        }
+    }
+    Timer { id: diagnosticsReset; interval: 4000; onTriggered: root.diagnostics = "" }
+
     Process {
         id: specsQuery
         command: ["bash", Quickshell.shellPath("scripts/specs.sh")]

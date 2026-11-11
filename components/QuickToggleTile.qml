@@ -153,29 +153,16 @@ Item {
 
     HelpTip { id: tileTip; text: root.help }
 
-    // ── Switching on pops the chip ────────────────────────────────────────────
-    // Driven by the CHANGE: a chip that merely ends up lit says "on" (the fill says
-    // that already); one that swells and settles says "you just turned me on". Off
-    // is a small dip — the same gesture, quieter, because it is the less interesting
-    // direction. Same spring as ChipRow's pick.
-    property real _pop: 1.0
-    onActiveChanged: {
-        popAnim.stop()
-        popUp.to = root.active ? 1.22 : 0.88
-        popAnim.start()
-    }
-    SequentialAnimation {
-        id: popAnim
-        NumberAnimation {
-            id: popUp
-            target: root; property: "_pop"
-            duration: Motion.respond; easing.type: Motion.respondCurve
-        }
-        NumberAnimation {
-            target: root; property: "_pop"; to: 1.0
-            duration: Motion.emphasized
-            easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spring
-        }
+    // ── Switching on turns the badge ──────────────────────────────────────────
+    // (M3E, 2026-11-09.) The roomy tile's badge is a disc while the setting is off and MORPHS into `shape` on a
+    // spring that overshoots when it turns on (MorphShape, as ShapeTile does) — the change itself is what says
+    // "you just turned me on", so the old pop-and-settle of a rounded square is gone.
+    // Left alone, each tile gets one of these by its label, so a grid of them is not one shape repeated.
+    property string shape: {
+        const set = ["cookie9", "sunny", "clover", "squircle", "hexagon", "pentagon", "cookie6", "burst"]
+        let h = 0
+        for (let i = 0; i < root.label.length; i++) h = (h * 31 + root.label.charCodeAt(i)) % 997
+        return set[h % set.length]
     }
 
     // ── Compact ───────────────────────────────────────────────────────────────
@@ -232,27 +219,22 @@ Item {
             Layout.fillHeight: false
             spacing: Tokens.spacingMd
 
-            ShapeBox {
+            Item {
                 Layout.alignment: Qt.AlignVCenter
-                implicitWidth:  Tokens.iconXl + Tokens.spacingSm
-                implicitHeight: Tokens.iconXl + Tokens.spacingSm
-                fallback:    "rounded"
-                fillColor:   Colors.of(QsWindow.window).alpha(root.active ? root.accent : Colors.of(QsWindow.window).fgDim,
-                                                              root.active ? 0.24 : 0.14)
-                strokeColor: Colors.of(QsWindow.window).alpha(root.active ? root.accent : Colors.of(QsWindow.window).fgDim,
-                                                              root.active ? 0.40 : 0)
-                Behavior on fillColor { ColorAnimation { duration: Motion.standard } }
-                transform: Scale {
-                    origin.x: (Tokens.iconXl + Tokens.spacingSm) / 2
-                    origin.y: (Tokens.iconXl + Tokens.spacingSm) / 2
-                    xScale: root._pop; yScale: root._pop
-                }
+                implicitWidth:  Tokens.iconXl + Tokens.spacingMd
+                implicitHeight: Tokens.iconXl + Tokens.spacingMd
 
+                MorphShape {
+                    anchors.fill: parent
+                    shape: root.active ? root.shape : "circle"
+                    fillColor: root.active ? root.accent : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fgDim, 0.18)
+                    Behavior on fillColor { ColorAnimation { duration: Motion.standard } }
+                }
                 MaterialIcon {
                     anchors.centerIn: parent
                     name:  root.symbol
                     fill:  root.active ? 1 : 0
-                    color: root.active ? root.accent : Colors.of(QsWindow.window).fgDim
+                    color: root.active ? Colors.of(QsWindow.window).fgOnPrimary : Colors.of(QsWindow.window).fgDim
                     font.pixelSize: Tokens.iconMd
                 }
             }

@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import "../../config"
 import "../../components"
+import "../../services"
 import "../../state"
 
 // ── BarArrange ────────────────────────────────────────────────────────────────
@@ -47,6 +48,15 @@ Item {
 
     // How tall the bar strip is — everything here positions relative to it.
     property real barHeight: Config.barExtent
+
+    // Bar.qml's `blobRing`: the hint card is a lobe of the blob, and the matrix it hands back.
+    property bool fused: false
+    property matrix4x4 deformMatrix
+    // The card's box in this item's (the window's) coordinates, for the blob's lobe.
+    readonly property real blobX: hint.blobW > 0 ? offBar.x + hint.blobX : 0
+    readonly property real blobY: hint.blobW > 0 ? offBar.y + hint.blobY : 0
+    readonly property real blobW: hint.blobW
+    readonly property real blobH: hint.blobH
 
     // How to build a module, for the shelf and the ghost. Bar.qml passes its OWN
     // `moduleFor` — the same factory the bar itself renders from — rather than this
@@ -226,36 +236,36 @@ Item {
             color: Colors.of(QsWindow.window).danger
         }
 
-        // ── The one line that says what is about to happen ────────────────────
-        // At rest it explains the mode. Mid-drag it is taken over by
-        // `BarDrag.description`, which names the exact placement under the pointer —
+        // ── What is about to happen ───────────────────────────────────────────
+        // At rest the card explains the mode; mid-drag it narrows to the one line
+        // `BarDrag.description` gives for the exact placement under the pointer —
         // "Join the volume group · Left" versus "New group of its own · Left".
         //
-        // It is here rather than by the cursor because the ghost is already there —
-        // a tooltip under the ghost is a label on top of the thing it labels.
-        StyledText {
-            anchors.left:  parent.left
-            anchors.right: parent.right
-            anchors.top:   parent.top
-            anchors.leftMargin:  Tokens.spacingXl
-            anchors.rightMargin: Tokens.spacingXl
-            anchors.topMargin:   Tokens.spacingMd
-            horizontalAlignment: Text.AlignHCenter
-
-            text: BarDrag.dragging
-                ? BarDrag.description
-                : "Drag a module along the bar to reorder it, onto another to group "
-                + "them, or down here to take it off"
-
-            variant: "caption"
-            // Both branches stated. `emphasis` is what normally decides the colour,
-            // and assigning `color` at all replaces that binding wholesale — so a
-            // conditional that leaves one branch `undefined` does not fall back to
-            // the emphasis, it hands the Text an invalid colour.
-            color: BarDrag.drop?.kind === "shelf" ? Colors.of(QsWindow.window).danger
-                 : BarDrag.dragging               ? Colors.of(QsWindow.window).focus
-                 :                                  Colors.of(QsWindow.window).fgDim
-            elide: Text.ElideRight
+        // It is here rather than by the cursor because the drag image is already there —
+        // a tooltip under it is a label on top of the thing it labels. Centred in the
+        // band, so it sits under the middle of the bar whatever the screen's width.
+        ArrangeHint {
+            id: hint
+            // Welded, it hangs off the bar's underside and the blob joins the two; floating, it
+            // stands in the middle of the band.
+            fused: root.fused
+            edge: "top"
+            deformMatrix: root.deformMatrix
+            restX: Math.round((offBar.width - hint.implicitWidth) / 2)
+            restY: root.fused ? Config.belowBar - offBar.y
+                              : Math.max(Tokens.spacingXs, Math.round((offBar.height - hint.implicitHeight) / 2))
+            title: Translation.tr("Arranging the bar")
+            subtitle: Translation.tr("Pick a module up, then drop it")
+            steps: [
+                { mode: "move",  symbol: "swap_horiz",  title: Translation.tr("Move"),     detail: Translation.tr("Drag along the bar") },
+                { mode: "group", symbol: "layers",     title: Translation.tr("Group"),    detail: Translation.tr("Drop onto another") },
+                { mode: "off",   symbol: "delete",      title: Translation.tr("Take off"), detail: Translation.tr("Drop down here") }
+            ]
+            dragging: BarDrag.dragging
+            mode: BarDrag.drop?.kind === "chip" ? "group"
+                : BarDrag.drop?.kind === "shelf" ? "off"
+                : BarDrag.drop ? "move" : ""
+            description: BarDrag.description
         }
     }
 

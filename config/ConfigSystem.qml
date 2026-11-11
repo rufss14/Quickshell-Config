@@ -22,6 +22,11 @@ ConfigBarLayout {
     // plain literals, not derived from the design system.
     property real motionScale: 1.0        // 0.5 = twice as fast, 2.0 = half speed
     property bool motionEnabled: true     // false ⇒ every duration collapses to 0
+    // Reduced motion (2026-11-08): between "full" and "off". Fades and state changes stay;
+    // overshoot, parallax, drift, the colour wave and other ambient movement go. Read through
+    // Motion.reduced / Motion.ambientOn, never directly. Deliberately NOT in a bar preset's
+    // snapshot: it is an accessibility choice, not part of how a bar looks.
+    property bool motionReduced: false
     property bool barHoverGrow:  true     // a desktop widget's grow-on-hover (WidgetFrame)
 
     // ── Launcher ──────────────────────────────────────────────────────────────
@@ -157,6 +162,7 @@ ConfigBarLayout {
     function resetMotion() {
         root.motionScale   = 1.0
         root.motionEnabled = true
+        root.motionReduced = false
         root.barHoverGrow  = true
     }
 

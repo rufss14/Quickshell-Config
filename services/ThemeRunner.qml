@@ -214,12 +214,8 @@ Item {
         "steam":         "steam"
     })
 
-    // What has to be true at the moment an app STARTS, run just before it. Steam deletes its
-    // debug-port flag as it reads it, so a restart that didn't put it back would start Steam
-    // closed to the live push (scripts/steam-live.py; a no-op unless the user opted in).
-    readonly property var _beforeLaunch: ({
-        "steam": "python3 '" + Quickshell.shellPath("scripts/steam-live.py").replace(/'/g, "'\\''") + "' flag; "
-    })
+    // What has to be true at the moment an app STARTS, run just before it (none need it now).
+    readonly property var _beforeLaunch: ({})
 
     function restartAll() {
         if (restartProc.running || root._restartApps.length === 0) return

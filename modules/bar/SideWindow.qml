@@ -61,7 +61,7 @@ Item {
     // The dock's icon size: the cell is an app icon alone now (2026-10-31: the name under it
     // went, the user's pick for a quieter sidebar — the hover card still names it).
     readonly property int iconPx: Config.sidebarIconPx
-    readonly property color ink: feedback.hovered || root.open ? Colors.of(QsWindow.window).primary
+    readonly property color ink: feedback.hovered || root.open ? Config.moduleAccent("window", Colors.of(QsWindow.window).primary)
         : root.shown ? Colors.of(QsWindow.window).stateIdleFg : Colors.of(QsWindow.window).fgDim
 
     CellFeedback {

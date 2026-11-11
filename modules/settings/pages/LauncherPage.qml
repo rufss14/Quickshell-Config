@@ -320,7 +320,7 @@ Item {
             glyph:    "󰆍"
             title:    Translation.tr("Run & search")
             accent:   Colors.of(QsWindow.window).primary
-            help:     "> runs a command in a terminal. A search that finds no app offers the web search instead."
+            help:     Translation.tr("> runs a command in a terminal. A search that finds no app offers the web search instead.")
 
             SettingRow {
                 label:  Translation.tr("Terminal")
@@ -391,7 +391,7 @@ Item {
             title:    Translation.tr("Site shortcuts")
             subtitle: Translation.tr("Type a key, a space, then what to search")
             accent:   Colors.of(QsWindow.window).primary
-            help:     "yt cats opens YouTube's search for “cats”. The address needs https:// (or http://) and %s where the search goes."
+            help:     Translation.tr("yt cats opens YouTube's search for “cats”. The address needs https:// (or http://) and %s where the search goes.")
 
             Repeater {
                 model: root.shortcutRows

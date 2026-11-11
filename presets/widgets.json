@@ -1,8 +1,8 @@
 {
   "presets": {
-    "Quicktest 1#": [
+    "Quicktest": [
       {
-        "id": 12,
+        "id": 1,
         "type": "clock",
         "screen": "DP-2",
         "x": 16,
@@ -15,7 +15,7 @@
         }
       },
       {
-        "id": 13,
+        "id": 2,
         "type": "calendar",
         "screen": "DP-2",
         "x": 200,
@@ -24,102 +24,103 @@
         "opts": {}
       },
       {
-        "id": 15,
+        "id": 3,
         "type": "sysmon",
         "screen": "DP-2",
-        "x": 1540,
+        "x": 560,
         "y": 200,
         "size": "small",
         "opts": {}
       },
       {
-        "id": 16,
+        "id": 4,
         "type": "weather",
         "screen": "DP-2",
-        "x": 1720,
+        "x": 380,
         "y": 200,
         "size": "small",
         "opts": {}
       },
       {
-        "id": 17,
+        "id": 5,
         "type": "updates",
         "screen": "DP-2",
-        "x": 1540,
-        "y": 20,
+        "x": 1300,
+        "y": 420,
         "size": "medium",
         "opts": {}
       },
       {
-        "id": 19,
+        "id": 6,
         "type": "lyrics",
         "screen": "DP-2",
-        "x": 16,
+        "x": 380,
+        "y": 20,
+        "size": "medium",
+        "opts": {
+          "bare": false,
+          "colors": "wallpaper",
+          "player": "Spotify"
+        }
+      },
+      {
+        "id": 7,
+        "type": "nowplaying",
+        "screen": "DP-2",
+        "x": 20,
         "y": 200,
         "size": "medium",
         "opts": {
-          "bare": true,
+          "player": "Spotify",
           "colors": "wallpaper"
         }
       },
       {
-        "id": 20,
-        "type": "clock",
-        "screen": "HDMI-A-1",
-        "x": 16,
-        "y": 16,
+        "id": 8,
+        "type": "toggles",
+        "screen": "DP-2",
+        "x": 1668,
+        "y": 420,
         "size": "small",
         "opts": {
-          "seconds": false,
-          "hour24": true,
-          "face": "analog"
+          "toggles": [
+            "wifi",
+            "bluetooth",
+            "dnd",
+            "nightlight",
+            "awake",
+            "gamemode",
+            "mute",
+            "micMute"
+          ]
         }
       },
       {
-        "id": 21,
-        "type": "calendar",
-        "screen": "HDMI-A-1",
-        "x": 200,
-        "y": 20,
-        "size": "small",
-        "opts": {}
-      },
-      {
-        "id": 23,
-        "type": "sysmon",
-        "screen": "HDMI-A-1",
-        "x": 1540,
-        "y": 200,
-        "size": "small",
-        "opts": {}
-      },
-      {
-        "id": 24,
-        "type": "weather",
-        "screen": "HDMI-A-1",
-        "x": 1720,
-        "y": 200,
-        "size": "small",
-        "opts": {}
-      },
-      {
-        "id": 25,
-        "type": "updates",
-        "screen": "HDMI-A-1",
-        "x": 1540,
-        "y": 20,
+        "id": 9,
+        "type": "devices",
+        "screen": "DP-2",
+        "x": 1480,
+        "y": 600,
         "size": "medium",
         "opts": {}
       },
       {
-        "id": 26,
-        "type": "lyrics",
-        "screen": "HDMI-A-1",
-        "x": 16,
-        "y": 200,
-        "size": "medium",
+        "id": 10,
+        "type": "stack",
+        "screen": "DP-2",
+        "x": 1300,
+        "y": 600,
+        "size": "small",
         "opts": {
-          "colors": "wallpaper"
+          "cards": [
+            "weather",
+            "calendar",
+            "sysmon",
+            "nowplaying",
+            "visualizer"
+          ],
+          "smart": true,
+          "rotate": 0
         }
       }
     ],

@@ -259,20 +259,15 @@ PanelWindow {
     // the layer before it renders. At 0.004 over a wallpaper that is already showing the
     // same picture, it is not a thing anyone can see.
     //
-    // `sourceSize` caps the decode at the screen's own size. Without it a 4K picture on a
-    // 1080p screen decodes at 4K and costs four times the memory to sample from.
-    Image {
+    // The picture is drawn by `WallBackdrop`, which frames it as this screen's WallpaperView
+    // does (zoom, parallax pan, the workspace's own picture, the crossfade). A plain Image
+    // of the file looked at the wrong part of the wallpaper whenever parallax was on.
+    WallBackdrop {
         id: wallpaperTexture
         anchors.fill: parent
+        screenName: root.screenName
         opacity: 0.004
         z: -100
-        source: Wallpaper.currentPath === "" ? "" : "file://" + Wallpaper.currentPath
-        fillMode: Image.PreserveAspectCrop
-        sourceSize: Qt.size(root.width, root.height)
-        asynchronous: true
-        cache: true
-        layer.enabled: true
-        layer.smooth: true
         // Only worth holding while something will actually sample it.
         visible: Config.widgetGlass
     }
@@ -295,9 +290,7 @@ PanelWindow {
     readonly property Item backdropTexture:
         !Config.widgetGlass ? null
         : Config.wallMaterial ? (materialTexture.item && materialTexture.width > 0 ? materialTexture.item : null)
-        : (wallpaperTexture.status === Image.Ready
-           && wallpaperTexture.width > 0 && wallpaperTexture.height > 0)
-            ? wallpaperTexture : null
+        : wallpaperTexture.ready ? wallpaperTexture : null
 
     // ── Arrange-mode backdrop ─────────────────────────────────────────────────
     // Dims the desktop and draws the snap grid, so you can see where things will land.

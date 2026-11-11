@@ -154,20 +154,18 @@
         "sidebarLayout": {
           "start": [
             [
-              "claude",
-              "tasks"
+              "tasks",
+              "screentime",
+              "claude"
             ],
             [
               "voice",
-              "window"
+              "clips"
             ]
           ],
           "centre": [
             [
               "dock"
-            ],
-            [
-              "clips"
             ]
           ],
           "end": [
@@ -178,6 +176,7 @@
               "stats"
             ],
             [
+              "idle",
               "inactivity",
               "power"
             ]
@@ -185,7 +184,7 @@
         },
         "dockEnabled": true,
         "dockPosition": "left",
-        "dockOverflow": "grow",
+        "dockOverflow": "clip",
         "dockTakesSpace": true,
         "dockIconSize": 28,
         "dockShowLauncher": true,
@@ -198,7 +197,7 @@
         "dockMagnify": false,
         "dockMagnifyScale": 1.45,
         "dockPreviewFuse": true,
-        "dockClipLength": 80,
+        "dockClipLength": 100,
         "dockPeek": true,
         "sidebarAutoHide": false,
         "sidebarDodge": false,
@@ -209,8 +208,8 @@
         "peekColour": true,
         "peekClipboard": true,
         "sidebarIslands": true,
-        "sidebarHero": "claude",
-        "barMusicReact": false,
+        "sidebarHero": "",
+        "barMusicReact": true,
         "karaokeWords": true,
         "karaokeSkipHeadphoneCheck": true,
         "karaokeStayAtEnd": false,
@@ -320,12 +319,12 @@
         "wpeScenePalette": true,
         "themeMode": "dark",
         "wallTheming": true,
-        "albumScheme": false,
+        "albumScheme": true,
         "albumSchemeSystem": true,
         "albumSchemeLock": true,
         "albumScope": "all",
         "albumCardColors": false,
-        "colorizeIcons": true,
+        "colorizeIcons": false,
         "wallTarget": "",
         "wallShuffle": false,
         "wallShuffleMins": 30,
@@ -336,13 +335,13 @@
         ],
         "mixerBoost": true,
         "wallShellRender": true,
-        "wallMaterial": false,
-        "wallMaterialRole": "ramp3",
-        "wallMaterialContrast": 1,
+        "wallMaterial": true,
+        "wallMaterialRole": "ramp2",
+        "wallMaterialContrast": 0.9,
         "wallMaterialSoftness": 1,
         "wallMaterialSize": 1,
         "wallMaterialSeed": 303251,
-        "wallMaterialRole2": "ramp9",
+        "wallMaterialRole2": "ramp5",
         "wallMaterialStack": "",
         "wallMaterialCentre": "",
         "wallMaterialSide": "",
@@ -350,7 +349,7 @@
         "wallMaterialBackdrop": 0,
         "wallMaterialMirror": false,
         "wallMaterialDrift": true,
-        "wallMaterialDriftSpeed": 0.6,
+        "wallMaterialDriftSpeed": 1,
         "wallMaterialSpin": 0.1,
         "wallMaterialFallback": true,
         "wallMaterialSaved": [
@@ -381,18 +380,21 @@
         "wallParallax": true,
         "wallParallaxWorkspace": false,
         "wallFx": true,
-        "wallFxIntensity": 0.55,
+        "wallFxIntensity": 0.25,
         "wallFxMix": {
-          "strobe": 0.2
+          "hats": 0,
+          "loudness": 0.3,
+          "vocals": 0.2,
+          "strobe": 0.3
         },
         "wallFxSyncMs": 0,
-        "cavaBgBlendDir": "across",
+        "cavaBgBlendDir": "up",
         "cavaBgBlend": [
-          "ramp1",
+          "primaryContainer",
           "ramp2",
           "ramp3",
           "ramp4",
-          "ramp5"
+          "fg"
         ],
         "cavaBgOpacity": 0.95,
         "cavaBgMusicOnly": true,
@@ -439,8 +441,8 @@
         "shellUpdateCheck": true,
         "shellUpdateNotified": "",
         "fontFamily": "Adwaita Sans",
-        "fontMonoFamily": "CodeNewRoman Nerd Font",
-        "fontBlockFamily": "CodeNewRoman Nerd Font",
+        "fontMonoFamily": "Adwaita Sans",
+        "fontBlockFamily": "Adwaita Sans",
         "fontScale": 1,
         "densityScale": 1,
         "radiusScale": 1,
@@ -463,6 +465,9 @@
           },
           "notifications": {
             "showOnlyDnd": false
+          },
+          "tray": {
+            "innerPill": true
           }
         },
         "groupSettings": {
@@ -471,9 +476,6 @@
           },
           "bluetooth,gamemode,keyboard,notifications,wifi": {
             "spacing": 16
-          },
-          "palette,wallpaper": {
-            "spacing": 24
           }
         },
         "wallWorkspaces": {},
@@ -481,12 +483,14 @@
         "schemeWorkspaces": {},
         "audioRememberLevels": true,
         "panelPlacement": {
-          "media": "center",
-          "clock": "center"
+          "clock": "center",
+          "media": "right"
         },
         "panelZoom": {
-          "wallpaper": 0.977,
-          "media": 1.144
+          "media": 1.196,
+          "wallpaper": 1.05,
+          "colorScheme": 1.103,
+          "update": 1.195
         },
         "layout": {
           "left": [
@@ -559,6 +563,8 @@
           "privacy",
           "nightlight",
           "clips",
+          "dock",
+          "nowplaying",
           "stats",
           "tools",
           "power",
@@ -575,7 +581,10 @@
           "screentime",
           "inactivity",
           "tasks"
-        ]
+        ],
+        "barHero": "",
+        "barTooltips": true,
+        "sidebarStyle": {}
       }
     }
   ]

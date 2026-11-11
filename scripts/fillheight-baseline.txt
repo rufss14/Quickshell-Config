@@ -1,0 +1,31 @@
+# check-qml-fillheight.py findings per file that are known and not yet triaged (each wants a
+# look at the panel: should this layout take surplus height or not?). check-all.sh fails when a file
+# has MORE than listed here. Fix one, lower its number (or drop the line).
+components/ClipboardList.qml 1
+components/ColorField.qml 1
+components/PanelHeader.qml 1
+modules/lock/parts/LockCentre.qml 2
+modules/lock/parts/LockMediaPair.qml 2
+modules/lock/parts/LockStats.qml 1
+modules/net/NetworkBrowser.qml 6
+modules/notifications/NotificationToast.qml 2
+modules/notifications/ScreenshotToast.qml 1
+modules/overview/CalendarCard.qml 1
+modules/overview/OverviewClipboard.qml 3
+modules/overview/OverviewNowPlaying.qml 2
+modules/panels/BluetoothPanel.qml 1
+modules/panels/CheatsheetPanel.qml 1
+modules/panels/MediaPanel.qml 9
+modules/panels/StatsPanel.qml 1
+modules/panels/WallpaperPanel.qml 3
+modules/panels/wallpaper/WallpaperPanelBody.qml 1
+modules/panels/wallpaper/WallpaperRendererSettings.qml 7
+modules/panels/wallpaper/WallpaperSceneProps.qml 1
+modules/panels/WifiPanel.qml 1
+modules/settings/pages/AboutPage.qml 1
+modules/settings/pages/HyprlandPage.qml 2
+modules/settings/pages/SoundPage.qml 3
+modules/settings/pages/UpdatesPage.qml 13
+modules/settings/pages/wallpaper/WallpaperEngineView.qml 2
+modules/settings/pages/wallpaper/WallpaperGalleryView.qml 3
+modules/settings/pages/wallpaper/WallpaperPropertiesView.qml 2

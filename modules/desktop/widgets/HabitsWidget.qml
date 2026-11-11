@@ -69,7 +69,7 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: root.habits.length === 0
-            text: "Nothing to track yet.\nType a habit below."
+            text: Translation.tr("Nothing to track yet.\nType a habit below.")
             variant: "caption"
             emphasis: "dim"
             wrapMode: Text.WordWrap

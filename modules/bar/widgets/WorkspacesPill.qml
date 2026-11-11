@@ -45,6 +45,19 @@ Item {
 
     property var monitor: null
 
+    // ── On the sidebar (SideWorkspaces) ───────────────────────────────────────
+    // `side` sizes the slots from the sidebar's cell instead of the bar's pill: across,
+    // the cell less its pad; along, the module's run (config/modules.js `cells`) shared
+    // by the five. `vertical` turns the whole row a quarter, so slot 1 is at the top and
+    // the indicator travels down the edge — the same face, turned (2026-11-08); the
+    // numbers and icons turn back upright. Pointer hits map through the turn.
+    property bool side: false
+    property bool vertical: false
+    // The bar's WorkspaceGlance, which this pill reports its hovered slot to. Null (no hover
+    // tracking, no card) on the sidebar and in the settings preview.
+    property var glance: null
+    readonly property int sideCells: Config.sidebarModuleInfo("workspaces")?.cells ?? 4
+
     property color accent: Colors.of(QsWindow.window).primary
 
     // How many slots the pill shows at once. Not a literal at the use sites any
@@ -69,15 +82,17 @@ Item {
     // Width is wider than tall on purpose — a square slot read as cramped next
     // to the bar's other pills once height started tracking barPillHeight, so
     // width scales from the same number rather than matching it 1:1.
-    readonly property int dotH:  Config.barPillHeight - Tokens.spacingXs * 2
-    readonly property int slotW: Math.round(root.dotH * 1.35)
+    readonly property int dotH:  root.side ? Config.sidebarCell - Tokens.spacingSm * 2
+                                           : Config.barPillHeight - Tokens.spacingXs * 2
+    readonly property int slotW: root.side ? Math.floor(Config.sidebarRun(root.sideCells) / root.shown)
+                                           : Math.round(root.dotH * 1.35)
     // The corner of everything that spans a slot (the indicator, an occupied run, the drop
     // mark): concentric with the inner pill round the module, which sits spacingSm off it
     // (its own spacingXs past the pill's height, plus the slots' spacingXs inset) — so at a
     // low bar roundness the indicator follows the pill's curve instead of staying a capsule
     // inside a rounder-cornered box. The empty dots stay round: they are dots.
     readonly property real slotRadius: Tokens.corner(Config.barShape,
-        Math.min(root.dotH / 2, Math.max(0, Config.barRoundness - Tokens.spacingSm)))
+        Math.min(root.dotH / 2, Math.max(0, (root.side ? Config.sideRoundness : Config.barRoundness) - Tokens.spacingSm)))
     // An empty workspace: a small dot centred in its slot, Material's page indicator (the
     // user's pick, 2026-10-31 — a full-size faint disc read as a hole in the pill).
     readonly property int emptyDot: Math.max(Tokens.spacingSm, Math.round(root.dotH / 4))
@@ -124,8 +139,9 @@ Item {
     // dragging a whole window, not an aimed click.
     function slotAt(x, y) {
         const p = slotRow.mapFromItem(null, x, y)
-        const top = slotRow.mapFromItem(root, 0, 0).y
-        if (p.y < top || p.y > top + root.height || p.x < 0) return -1
+        // The whole pill across, not only the dots (slotRow is the dots' height).
+        const slack = ((root.vertical ? root.width : root.height) - root.dotH) / 2
+        if (p.y < -slack || p.y > root.dotH + slack || p.x < 0) return -1
         const i = Math.floor(p.x / root.slotW)
         return i < root.shown ? i : -1
     }
@@ -140,14 +156,20 @@ Item {
         if (root.tracking) Pointer.acquireFast(); else Pointer.releaseFast()
         root._tracked = root.tracking
     }
-    Component.onDestruction: if (root._tracked) Pointer.releaseFast()
+    Component.onDestruction: {
+        if (root._tracked) Pointer.releaseFast()
+        // A rebuilt bar mustn't leave the glance thinking the pointer is still on a slot.
+        if (root.glance) root.glance.hover(0, null, 0, 0)
+    }
 
     readonly property int dropIndex: root.tracking
         ? root.slotAt(Pointer.pos.x - (root.monitor?.x ?? 0), Pointer.pos.y - (root.monitor?.y ?? 0))
         : -1
 
-    implicitWidth:  root.slotW * root.shown + Tokens.pillPadding * 2
-    implicitHeight: Config.barPillHeight
+    implicitWidth:  !root.side ? root.slotW * root.shown + Tokens.pillPadding * 2
+                  : root.vertical ? Config.sidebarCell : Config.sidebarRun(root.sideCells)
+    implicitHeight: !root.side ? Config.barPillHeight
+                  : root.vertical ? Config.sidebarRun(root.sideCells) : Config.sidebarCell
 
     // No pill of its own — the enclosing BarGroup already draws one around
     // every module in it (see BarGroup.qml / IconButton.container).
@@ -157,6 +179,7 @@ Item {
         anchors.centerIn: parent
         width:  root.slotW * root.shown
         height: root.dotH
+        rotation: root.vertical ? 90 : 0
 
         // ── Occupied runs ─────────────────────────────────────────────────────
         // One pill per contiguous run, drawn by the run's HEAD slot (the first
@@ -351,7 +374,8 @@ Item {
                     text:    root.slots[numeral.index].id
                     color:   numeral.ink
                     variant:   "micro"
-                    sizeScale: Config.barIconScale
+                    sizeScale: root.side ? Config.sideIconScale : Config.barIconScale
+                    rotation:  root.vertical ? -90 : 0
                     Behavior on color { ColorAnimation { duration: Motion.fast } }
                 }
                 MaterialIcon {
@@ -360,7 +384,8 @@ Item {
                     name: visible ? numeral.icon : "star"
                     fill: 1
                     color: numeral.ink
-                    font.pixelSize: Math.round(Tokens.fontMicro * Config.barIconScale)
+                    font.pixelSize: Math.round(Tokens.fontMicro * (root.side ? Config.sideIconScale : Config.barIconScale))
+                    rotation: root.vertical ? -90 : 0
                     Behavior on color { ColorAnimation { duration: Motion.fast } }
                 }
             }
@@ -369,15 +394,27 @@ Item {
         // One MouseArea over the row rather than one per slot: the slots are a fixed
         // grid now, so which one was hit is arithmetic.
         MouseArea {
+            id: slotMouse
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
+            hoverEnabled: root.glance !== null
+
+            // The slot under the pointer, for the glance (WorkspaceGlance) — the bar's pill only;
+            // on the sidebar the row is turned and there is no card to hang off it.
+            readonly property int hoverSlot: slotMouse.containsMouse && !root.side
+                ? Math.min(root.shown - 1, Math.floor(slotMouse.mouseX / root.slotW)) : -1
+            onHoverSlotChanged: root.glance?.hover(slotMouse.hoverSlot >= 0 ? root.slots[slotMouse.hoverSlot].id : 0,
+                                                   slotRow, (slotMouse.hoverSlot + 0.5) * root.slotW, root.slotW)
 
             // Through the service, not a hand-rolled dispatch string. Hyprland
             // silently drops a dispatch with an unrecognised key, so a second copy
             // of that syntax is a second thing that can rot without ever saying so.
             onClicked: function (m) {
                 const i = Math.floor(m.x / root.slotW)
-                if (i >= 0 && i < root.shown) Hypr.focusWorkspace(root.slots[i].id)
+                if (i >= 0 && i < root.shown) {
+                    root.glance?.closePreview()
+                    Hypr.focusWorkspace(root.slots[i].id)
+                }
             }
         }
 

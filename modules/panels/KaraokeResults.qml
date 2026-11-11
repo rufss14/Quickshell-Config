@@ -227,7 +227,7 @@ Item {
                                 Text {
                                     id: bestText
                                     anchors.centerIn: parent
-                                    text: "NEW BEST"
+                                    text: Translation.tr("NEW BEST")
                                     color: root.ink
                                     font.family: Tokens.fontFamily
                                     font.bold: true
@@ -309,7 +309,7 @@ Item {
                                 Text {
                                     id: fcText
                                     anchors.centerIn: parent
-                                    text: "FULL COMBO"
+                                    text: Translation.tr("FULL COMBO")
                                     color: root.pal.success
                                     font.family: Tokens.fontFamily
                                     font.bold: true

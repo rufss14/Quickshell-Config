@@ -85,7 +85,7 @@ Item {
     id: root
 
     implicitWidth: 660
-    readonly property int margin: Tokens.spacingLg + 2
+    readonly property int margin: Tokens.spacingXl
     implicitHeight: content.implicitHeight + root.margin * 2
 
     readonly property color accent: Config.moduleAccent("clock", Colors.of(QsWindow.window).primary)

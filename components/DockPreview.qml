@@ -41,7 +41,7 @@ Item {
 
     // ══ Set by the host ═══════════════════════════════════════════════════════
     property var    strip: null               // the DockIconStrip this previews for
-    property string edge:  "bottom"           // the screen edge the dock is on
+    property string edge:  "bottom"           // the screen edge the dock is on; "top": the bar's dock (DockPill), the card below the bar
 
     // In THIS item's coordinates: the previewed button's centre along the dock,
     // and the dock's inner edge — the side facing into the screen, which the
@@ -185,17 +185,26 @@ Item {
     }
 
     // The strip's view — a per-monitor dock previews only this screen's windows.
+    // A workspace's glance (modules/bar/WorkspaceGlance): the key is `__ws:<id>`, the strip answers
+    // `groupFor` with that workspace's windows in any app, so each tile names and icons its OWN app.
+    readonly property bool workspaceMode: root.key.startsWith("__ws:")
+    readonly property int  workspaceId: root.workspaceMode ? parseInt(root.key.slice(5)) : 0
+    function keyOf(t) {
+        if (!root.workspaceMode) return root.key
+        return Taskbar.keyFor(t.wayland ? t.wayland.appId : (t.lastIpcObject?.["class"] ?? ""))
+    }
     readonly property var group: root.strip && !root.special ? root.strip.groupFor(root.key) : null
     readonly property bool thumbnails: Config.dockPreviews && root.group !== null
     // Thumbnails off: Windows' fallback — a list of the app's windows by title.
     readonly property bool windowList: !Config.dockPreviews && root.group !== null
 
     // The dock's own buttons (launcher, Downloads, Trash) borrow the label.
-    readonly property bool special: root.key.startsWith("__")
+    readonly property bool special: root.key.startsWith("__") && !root.workspaceMode
     readonly property var labelFile: root.strip && root.key.startsWith("__file:")
         ? root.strip.fileFor(root.key) : null
     readonly property string labelName:
-          root.labelFile             ? root.labelFile.name
+          root.workspaceMode         ? Translation.tr("Workspace") + " " + root.workspaceId
+        : root.labelFile             ? root.labelFile.name
         : root.key === "__pin"       ? "Pin to dock"
         : root.key === "__launcher"  ? "Apps"
         : root.key === "__keep"      ? (UiState.dockRevealed ? Translation.tr("Dock kept out") : Translation.tr("Keep dock out"))
@@ -215,6 +224,7 @@ Item {
             ? Places.trashCount + (Places.trashCount === 1 ? " item" : " items") + " · drop files here"
             : "Empty · drop files here to throw them away"
         if (root.group) return root.group.count === 1 ? "1 window" : root.group.count + " windows"
+        if (root.workspaceMode) return Translation.tr("Empty")
         return Taskbar.canPin(root.key) ? "Not running · click to open" : "Can't launch — no desktop entry"
     }
 
@@ -361,6 +371,7 @@ Item {
         readonly property real restY: root.vertical
             ? (root.contained ? root._alongClamp(root.main - root.cardH / 2, root.cardH)
                               : root._clamp(root.main - root.cardH / 2, root.margin, root.height - root.cardH - root.margin))
+            : root.edge === "top" ? root.dockInner + root.standOff
             : root.dockInner - root.standOff - root.cardH
 
         // …and, fused, how much of that has grown out of the dock's side (depth,
@@ -379,6 +390,7 @@ Item {
          : root.vertical ? card.restX : card.alongPos
         y: !root.fused ? card.restY
          : root.vertical ? card.alongPos
+         : root.edge === "top" ? card.restY
          : card.restY + root.cardH * (1 - root.grow)
 
         transform: Matrix4x4 { matrix: root.deformMatrix }
@@ -397,6 +409,7 @@ Item {
         // Grows out of the dock, not out of its own middle.
         transformOrigin: root.edge === "left"  ? Item.Left
                        : root.edge === "right" ? Item.Right
+                       : root.edge === "top"   ? Item.Top
                        :                         Item.Bottom
         visible: root.shown
         // Nothing on a card that's leaving may still take a click.
@@ -594,7 +607,7 @@ Item {
             anchors.left: parent.left
             anchors.leftMargin: Tokens.spacingMd
             anchors.verticalCenter: parent.verticalCenter
-            source: Taskbar.iconFor(root.key)
+            source: Taskbar.iconFor(root.keyOf(wrow.modelData))
             visible: source.toString() !== ""
             width:  Tokens.iconMd
             height: Tokens.iconMd
@@ -740,7 +753,7 @@ Item {
 
             Image {
                 anchors.verticalCenter: parent.verticalCenter
-                source: Taskbar.iconFor(root.key)
+                source: Taskbar.iconFor(root.keyOf(tile.modelData))
                 visible: source.toString() !== ""
                 width:  Tokens.iconMd
                 height: Tokens.iconMd
@@ -752,7 +765,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: header.width - Tokens.iconMd - header.spacing
                 text: tile.modelData.title !== "" ? tile.modelData.title
-                                                  : Taskbar.nameFor(root.key)
+                                                  : Taskbar.nameFor(root.keyOf(tile.modelData))
                 variant: "caption"
                 emphasis: tile.active ? "normal" : "muted"
                 elide: Text.ElideRight
@@ -798,7 +811,7 @@ Item {
             Image {
                 anchors.centerIn: parent
                 visible: !view.hasContent && source.toString() !== ""
-                source: Taskbar.iconFor(root.key)
+                source: Taskbar.iconFor(root.keyOf(tile.modelData))
                 width:  Tokens.iconXl
                 height: Tokens.iconXl
                 sourceSize: Qt.size(Tokens.iconXl, Tokens.iconXl)
@@ -853,7 +866,7 @@ Item {
                 anchors.right:  shot.right
                 anchors.bottom: shot.bottom
                 anchors.margins: Tokens.spacingXs
-                visible: view.hasContent && (tile.modelData.workspace?.id ?? 0) > 0
+                visible: !root.workspaceMode && view.hasContent && (tile.modelData.workspace?.id ?? 0) > 0
                 label: "" + (tile.modelData.workspace?.id ?? "")
                 tint:   tile.active ? Colors.of(QsWindow.window).focus : Colors.of(QsWindow.window).fgMuted
                 filled: true

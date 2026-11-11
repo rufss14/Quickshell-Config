@@ -182,6 +182,30 @@ try:
 
     # ── /canvas: Spotify's clip, re-encoded into something its Chromium can show ──
     good = "https://canvaz.scdn.co/upload/licensor/7JGw/video/9f5e.cnvs.mp4"
+    # ── Who may talk to it ─────────────────────────────────────────────────
+    T = bridge.trusted_request
+    check("trust: curl / scripts (no Origin)", T("127.0.0.1:47821", None))
+    check("trust: localhost and [::1]", T("localhost:1", None) and T("[::1]:1", None))
+    check("trust: Spotify's renderer", T("127.0.0.1:1", "https://xpui.app.spotify.com"))
+    check("refuse: a web page", not T("127.0.0.1:1", "https://evil.example"))
+    check("refuse: lookalike host", not T("127.0.0.1:1", "https://evilspotify.com"))
+    check("refuse: http spotify", not T("127.0.0.1:1", "http://xpui.app.spotify.com"))
+    check("refuse: sandboxed iframe", not T("127.0.0.1:1", "null"))
+    check("refuse: DNS rebinding (Host)", not T("evil.example:47821", None))
+    check("refuse: no Host", not T(None, None))
+    def refused(method, path, origin=None, host=None):
+        req = urllib.request.Request(base + path, data=b"{}" if method == "POST" else None, method=method)
+        if origin: req.add_header("Origin", origin)
+        if host: req.add_header("Host", host)
+        try:
+            urllib.request.urlopen(req, timeout=10)
+            return False
+        except urllib.error.HTTPError as e:
+            return e.code == 403
+    check("live: web page POST /play refused", refused("POST", "/play", origin="https://evil.example"))
+    check("live: web page GET /events refused", refused("GET", "/events", origin="https://evil.example"))
+    check("live: rebound GET refused", refused("GET", "/", host="evil.example:%d" % port))
+    check("live: plain GET still answers", get("/")[0] == 200)
     check("canvas: a canvaz clip is accepted", bridge.canvas_source(good) == good)
     check("canvas: query and fragment dropped", bridge.canvas_source(good + "?a=1#b") == good)
     for bad in ["http://canvaz.scdn.co/a.mp4", "https://canvaz.scdn.co.evil.com/a.mp4",

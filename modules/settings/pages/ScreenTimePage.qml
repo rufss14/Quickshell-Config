@@ -7,7 +7,7 @@ import "../../../config"
 import "../../../components"
 import "../../../services"
 
-// ── ScreenTimePage — Sidebar & dock › Screen time ─────────────────────────────
+// ── ScreenTimePage — Apps & tools › Screen time ───────────────────────────────
 // services/ScreenTime: whether it counts, how long it keeps what it counted, when you
 // count as away, the history (components/ScreenTimeView — the sidebar panel's own view,
 // with more apps), and forgetting it all.
@@ -83,6 +83,18 @@ Item {
                 readout: Config.screenTimeIdleMinutes + " min"
                 numberWidth: 52
                 onCommit: function (v) { Config.screenTimeIdleMinutes = Math.round(v) }
+            }
+
+            SliderRow {
+                label: Translation.tr("Daily goal")
+                help:  Translation.tr("A limit for the day, in hours. The panel draws a ring round today's card toward it and counts the days you stayed under. Off: no ring, and the run is just days in a row.")
+                from:  0
+                to:    960
+                step:  15
+                value: Config.screenTimeGoalMinutes
+                readout: Config.screenTimeGoalMinutes === 0 ? "Off" : ScreenTime.duration(Config.screenTimeGoalMinutes * 60)
+                numberWidth: 72
+                onCommit: function (v) { Config.screenTimeGoalMinutes = Math.round(v) }
             }
         }
 

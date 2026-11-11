@@ -46,15 +46,7 @@ ColumnLayout {
 
     // ── What the tints mean ───────────────────────────────────────────────────
     // The week's three biggest apps, whole week, so a colour stands for one app in every bar.
-    readonly property var weekApps: {
-        const tot = ({})
-        for (const d of ScreenTime.week) {
-            const m = ScreenTime.dayFor(d.key)
-            for (const k in m) tot[k] = (tot[k] || 0) + m[k]
-        }
-        return Object.keys(tot).map(k => ({ app: k, seconds: tot[k] }))
-                     .sort((a, b) => b.seconds - a.seconds).slice(0, 3)
-    }
+    readonly property var weekApps: ScreenTime.weekApps
     // The accent at three strengths: monochrome-safe (the palette may well be grey), and
     // one family rather than three hues fighting for the eye.
     readonly property var tints: [1.0, 0.62, 0.36]
@@ -65,28 +57,11 @@ ColumnLayout {
     function rankOf(app) { return root.weekApps.findIndex(a => a.app === app) }
 
     // One day cut into its stack, bottom first: [{ rank, seconds, from }].
-    function segments(key) {
-        const day = ScreenTime.dayFor(key)
-        let total = 0
-        for (const k in day) total += day[k]
-        const out = []
-        let from = 0
-        for (let i = 0; i < root.weekApps.length; i++) {
-            const s = day[root.weekApps[i].app] || 0
-            if (s <= 0) continue
-            out.push({ rank: i, seconds: s, from: from })
-            from += s
-        }
-        if (total - from > 0) out.push({ rank: 3, seconds: total - from, from: from })
-        return out
-    }
+    function segments(key) { return ScreenTime.segments(key) }
 
     // What an app is called in a list: a Steam game by its title, anything else by its
     // desktop entry, failing that as the window class said it.
-    function label(app) {
-        const g = ScreenTime.nameOf(app)
-        return g !== "" ? g : (Icons.nameForAppId(app) || app)
-    }
+    function label(app) { return ScreenTime.labelOf(app) }
 
     spacing: Tokens.spacingMd
 

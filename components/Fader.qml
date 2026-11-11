@@ -70,7 +70,8 @@ ColumnLayout {
 
     ValueSlider {
         Layout.fillWidth: true
-        thickness: 14
+        thickness: 16
+        expressive: true
         accent: root.accent
         maximum: 1.0
         value: root.to > root.from ? (root.value - root.from) / (root.to - root.from) : 0

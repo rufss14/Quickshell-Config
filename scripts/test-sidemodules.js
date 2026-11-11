@@ -16,7 +16,7 @@ const src = readFileSync(join(here, "..", "services", "sidemodules.js"), "utf8")
     .replace(/^\s*\.pragma\s+library\s*$/m, "");
 const S = new Function(src + `
     return { MAX_FACES, MAX_SWATCHES, HISTORY, voiceLayout, stackCells, windowCells, parseHex, remember, clean,
-             forget, colourCells, MAX_STATS, statsCells };`)();
+             forget, colourCells, MAX_STATS, statsCells, innerRuns };`)();
 
 let pass = 0;
 const failures = [];
@@ -71,6 +71,19 @@ check("stats: a ring per metric", S.statsCells(3), 3);
 check("stats: capped", S.statsCells(9), S.MAX_STATS);
 check("stats: nothing readable is still one cell", S.statsCells(0), 1);
 check("stats: nonsense is one cell", S.statsCells(undefined), 1);
+
+// ── innerRuns: the sidebar pill split round modules without one ───────────────
+// Three cells of 40 with a 4 gap, padded 6 at each end of a 136 pill.
+const M = on => [{ at: 6, len: 40, on: on[0] }, { at: 50, len: 40, on: on[1] }, { at: 94, len: 40, on: on[2] }];
+check("innerRuns: all on is the whole pill", S.innerRuns(M([true, true, true]), 140), [{ from: 0, to: 140 }]);
+check("innerRuns: all off is none", S.innerRuns(M([false, false, false]), 140), []);
+check("innerRuns: middle off splits in two, padded, not into it",
+      S.innerRuns(M([true, false, true]), 140), [{ from: 0, to: 50 }, { from: 90, to: 140 }]);
+check("innerRuns: first off: one piece from its end",
+      S.innerRuns(M([false, true, true]), 140), [{ from: 46, to: 140 }]);
+check("innerRuns: last off: one piece to its start",
+      S.innerRuns(M([true, true, false]), 140), [{ from: 0, to: 94 }]);
+check("innerRuns: nothing is none", S.innerRuns(undefined, 10), []);
 
 const total = pass + failures.length;
 console.log(`${pass}/${total} passed`);

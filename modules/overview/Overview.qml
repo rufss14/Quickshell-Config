@@ -283,7 +283,9 @@ PanelWindow {
     // sends a window. Only the focused monitor's overview answers (one handler per screen would clash).
     IpcHandler {
         target: "overviewdebug"
-        enabled: root.monitorFocused
+        // Only while this one is open: the focus moving between monitors would otherwise have two
+        // handlers enabled for a moment, and Quickshell warns that one of them will not be used.
+        enabled: root.monitorFocused && root.shown
 
         function go(name: string, arg: string): string {
             if (!root.shown) return "overview is not open"
@@ -532,7 +534,7 @@ PanelWindow {
     // shift (UiState.overviewDrift), so a cookie crossing into a card stays one cookie.
     // Motion off, or the pointer off the overview: no shift.
     HoverHandler { id: pointer; enabled: root.shown }
-    readonly property real reach: Config.motionEnabled ? Tokens.spacingXl : 0
+    readonly property real reach: Motion.ambientOn ? Tokens.spacingXl : 0
     property real driftX: pointer.hovered && root.width > 0 ? -(pointer.point.position.x / root.width - 0.5) * 2 * root.reach : 0
     property real driftY: pointer.hovered && root.height > 0 ? -(pointer.point.position.y / root.height - 0.5) * 2 * root.reach : 0
     Behavior on driftX { NumberAnimation { duration: Motion.glide; easing.type: Motion.travel } }

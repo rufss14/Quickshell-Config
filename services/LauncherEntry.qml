@@ -30,7 +30,7 @@ Singleton {
 
     property var _parser: UnityEntry.createParser()
 
-    readonly property bool wanted: Config.dockEnabled
+    readonly property bool wanted: Config.dockPlaced
     // False for the few seconds after the monitor died, then true to relaunch it.
     // A flag the binding reads, never an assignment to `running` — that would
     // break the binding, and turning the dock off would no longer stop it.

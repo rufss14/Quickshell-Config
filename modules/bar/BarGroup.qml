@@ -223,12 +223,12 @@ Item {
             cornerRadius: Config.barRoundness
             borderWidth:  0
             castsShadow:  false
-            fillOpacity:  Config.barOpacity
+            fillOpacity:  Tokens.barOpacity
             // The hero's chip is the accent's container; the module puts its text on it in
             // fgOnPrimaryContainer (BarGroupRow tells it).
             color: Colors.of(QsWindow.window).fade(modelData.hero
                        ? Colors.of(QsWindow.window).primaryContainer
-                       : Colors.of(QsWindow.window).surfaceFor(Tokens.elevationNested), Config.barOpacity)
+                       : Colors.of(QsWindow.window).surfaceFor(Tokens.elevationNested), Tokens.barOpacity)
             Behavior on color { ColorAnimation { duration: Motion.respond } }
 
             // The settings cards' light, quieter and tighter: a soft glow under the pointer

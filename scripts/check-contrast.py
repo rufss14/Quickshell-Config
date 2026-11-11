@@ -39,9 +39,11 @@ def ratio(a, b):
 src = open(os.path.join(ROOT, "config", "PaletteRoles.qml")).read()
 # role -> {"target": T, "dark": floor alpha, "light": floor alpha}, from
 #   Contrast.alphaFor(text, surfaceHigh, T, root._lightMode ? L : D)   or   (…, T, A)
+# where T may be `root._hc ? H : T`: high contrast's own target, then the one measured here
+# (this checks the default palette; high contrast only raises the targets).
 floors = {}
 for role, prop in (("fgMuted", "_mutedAlpha"), ("fgDim", "_dimAlpha")):
-    m = re.search(r"%s:[^\n]*?Contrast\.alphaFor\(text, surfaceHigh, ([\d.]+), (?:root\._lightMode \? ([\d.]+) : ([\d.]+)|([\d.]+))\)" % prop, src, re.S)
+    m = re.search(r"%s:[^\n]*?Contrast\.alphaFor\(text, surfaceHigh, (?:root\._hc \? [\d.]+ : )?([\d.]+),\s*(?:root\._lightMode \? ([\d.]+) : ([\d.]+)|([\d.]+))\)" % prop, src, re.S)
     if not m:
         sys.exit("could not read the %s guard from PaletteRoles.qml" % role)
     dark = float(m.group(3) or m.group(4))

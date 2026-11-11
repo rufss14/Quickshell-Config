@@ -190,7 +190,7 @@ Section {
                 // Clock
                 SettingRow {
                     visible: page.selected && page.selected.type === "clock"
-                    label: "24-hour clock"
+                    label: Translation.tr("24-hour clock")
                     Toggle {
                         accent: Colors.of(QsWindow.window).primary
                         checked: !!page.selected && page.selected.opts.hour24 !== false
@@ -564,7 +564,7 @@ Section {
                     spacing: Tokens.spacingXs
 
                     SettingRow {
-                        label: "24-hour clock"
+                        label: Translation.tr("24-hour clock")
                         Toggle {
                             accent: Colors.of(QsWindow.window).primary
                             checked: !!page.selected && page.selected.opts.hour24 !== false

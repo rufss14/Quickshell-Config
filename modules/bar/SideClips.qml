@@ -77,7 +77,8 @@ Item {
         function onSaved() {
             root.pulse = 1
             pulseTimer.restart()
-            if (Config.clipsPeek && root.focusedHere && root.shown && UiState.sidePanel === "")
+            if (Config.clipsPeek && root.focusedHere && root.shown && UiState.sidePanel === ""
+                    && Config.surfaceOf("clips") === "side")
                 UiState.openSidePanel("clipsPeek", "clips", root.screen)
         }
     }
@@ -232,7 +233,7 @@ Item {
             weight: Config.sidebarGlyphWeight
             font.pixelSize: root.innerGlyphPx
             color: Clips.recording || mouse.containsMouse || root.open
-                ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).stateIdleFg
+                ? Config.moduleAccent("clips", Colors.of(QsWindow.window).primary) : Colors.of(QsWindow.window).stateIdleFg
             opacity: gauge.number ? 0 : Math.max(0, 1 - root.charge * 2.5) * (Clips.paused ? 0.5 : 1)
             Behavior on opacity { enabled: root.charge < 0.01; NumberAnimation { duration: Motion.respond } }
             Behavior on color { ColorAnimation { duration: Motion.respond } }

@@ -69,7 +69,7 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: root.items.length === 0
-            text: "Nothing yet.\nType below to add one."
+            text: Translation.tr("Nothing yet.\nType below to add one.")
             variant: "caption"
             emphasis: "dim"
             wrapMode: Text.WordWrap

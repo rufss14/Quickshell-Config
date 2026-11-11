@@ -925,77 +925,9 @@ Surface {
     //
     // The window and the docked panel are two cards reading one UiState, so the tip
     // only follows a control that is inside THIS card.
-    function _owns(item) {
-        for (let it = item; it; it = it.parent)
-            if (it === root) return true
-        return false
-    }
-
-    Rectangle {
-        id: tip
+    TipBubble {
+        host: root
         z: 60
-
-        readonly property QtObject source: UiState.tipSource
-        property bool shown: false
-        readonly property int maxWidth: 300
-
-        function place() {
-            const src = UiState.tipSource
-            if (!src || !src.parent) return
-            const p = src.parent.mapToItem(root, src.point.position.x, src.point.position.y)
-            const gap = Tokens.spacingXl
-            let x = p.x + Tokens.spacingSm
-            let y = p.y + gap
-            if (x + tip.width > root.width - Tokens.spacingMd) x = root.width - Tokens.spacingMd - tip.width
-            if (y + tip.height > root.height - Tokens.spacingMd) y = p.y - Tokens.spacingSm - tip.height
-            tip.x = Math.max(Tokens.spacingMd, x)
-            tip.y = Math.max(Tokens.spacingMd, y)
-        }
-
-        onSourceChanged: {
-            const src = tip.source
-            if (!src || !src.parent || !root._owns(src.parent)) {
-                tipDelay.stop()
-                tip.shown = false
-                return
-            }
-            if (tip.shown) tip.place()
-            else tipDelay.restart()
-        }
-
-        Timer {
-            id: tipDelay
-            interval: 550
-            onTriggered: {
-                tip.place()
-                tip.shown = true
-            }
-        }
-
-        width:  Math.min(tipText.implicitWidth, tip.maxWidth) + Tokens.spacingMd * 2
-        height: tipText.implicitHeight + Tokens.spacingSm * 2 + 2
-        radius: Tokens.radiusSm
-        color:        Colors.of(QsWindow.window).surfaceFor(Tokens.elevationPopup)
-        border.width: Tokens.borderWidth
-        border.color: Colors.of(QsWindow.window).outlineFor(Tokens.elevationPopup)
-
-        visible: tip.opacity > 0.01
-        opacity: tip.shown ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Motion.fast } }
-        // Rises the last few pixels into place, so it reads as arriving, not blinking.
-        transform: Translate {
-            y: tip.shown ? 0 : 4
-            Behavior on y { NumberAnimation { duration: Motion.standard; easing.type: Motion.travel } }
-        }
-
-        StyledText {
-            id: tipText
-            anchors.centerIn: parent
-            width: Math.min(tipText.implicitWidth, tip.maxWidth)
-            text: UiState.tipText
-            variant: "caption"
-            wrapMode: Text.WordWrap
-        }
     }
 
     // ── The way out, and the pin ─────────────────────────────────────────────

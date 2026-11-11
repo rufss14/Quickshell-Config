@@ -20,19 +20,31 @@ import "../../services/clips.js" as ClipsJs
 //   player /  ClipEditor: "Play" opens it view-only (the clip plays in THIS shell — never the
 //   editor    system's video app); "Edit" flips it to the editor: cut it, export it.
 //
-// ── Restyled (2026-10-18) to the media / colours panels' look ─────────────────
+// ── The look: the media / colours panels' ─────────────────────────────────────
 // ChipTray headers and toolbars, a SegmentSwitch for the filter, flat `section` cards (no outline),
 // tiles and cards arriving on a spring (PopIn), a CookieButton for play. The clear controls are
 // big on purpose: a disc as tall as the search field clears it, and a selection shows a banner with a
 // full-size "Clear selection" button.
 //
-// ── Added 2026-10-18 ──────────────────────────────────────────────────────────
+// ── What else it does ─────────────────────────────────────────────────────────
 //   · Today — the library opens on it when there is something from today, else on All;
 //   · a game filter (clips are named after the window: clips.js gameOf), once there are two games;
 //   · multi-select: Ctrl-click or the tick on a tile, Shift-click for a range, Ctrl+A for all — then a
 //     bulk pane: star, copy as files, shrink to a Discord size (one after another), delete (asks);
 //   · drag a clip OUT (the handle on its thumbnail) into a chat or a file manager, as a file;
-//   · `Clips.editRequest`: the peek / panel's "edit" opens this on a clip, in the editor.
+//   · `Clips.editRequest`: the peek / panel's "edit" opens this on a clip, in the editor;
+//   · search also matches the song and the people a clip was stamped with (Clips.contexts) and your tags;
+//   · narrow by "With music" / "In a call" (the stamp) and by one of your tags (`Clips.tags`, put on a
+//     selection from the bar: a field to add, a chip to take one off);
+//   · rest on a clip and the pointer's x scrubs through it (the editor's cached filmstrip);
+//   · a heading per day says how many clips, how many bytes and how much footage it holds, and a chip in
+//     the header appears when the limits in Settings › Clips name something to trash.
+//
+// ── What it keeps cheap ───────────────────────────────────────────────────────
+// The list is a virtualised ListView of HEADINGS and ROWS (clips.js layoutRows), not a Grid per day, so a
+// day with a hundred clips builds a screenful. What rides a frame on hover (tick, chips, drag handle, play
+// disc, scrub) lives behind a Loader that is active only while the pointer is on the tile, something is
+// selected, or just after it leaves — a tile at rest is a picture and a caption.
 //
 // The panel recipe: PanelHeader + ActionGroup, tokens throughout, shared widgets.
 // Everything real is services/Clips; this shows it and calls it. Hosted by
@@ -72,6 +84,9 @@ Item {
     property string filter: "all"
     property string sort: "newest"
     property string game: ""
+    // Narrowing by what a clip carries: "" | "music" | "call" (its stamp), and one of your tags.
+    property string stamp: ""
+    property string tag: ""
     // The library opens on Today when anything is from today — once, and never over a pick of yours.
     property bool _filterTouched: false
     property bool _filterDefaulted: false
@@ -81,10 +96,20 @@ Item {
         const now = Date.now()
         panel.filter = Clips.clips.some(c => ClipsJs.isToday(c.mtime, now)) ? "today" : "all"
     }
-    Component.onCompleted: { panel._defaultFilter(); panel._consumeRequests() }
+    Component.onCompleted: { panel._defaultFilter(); panel._consumeRequests(); Clips.refreshHealth() }
     readonly property var games: ClipsJs.gamesOf(Clips.clips)
     readonly property var shown: ClipsJs.libraryView(Clips.clips, panel.query, panel.filter,
-                                                     Clips.favourites, panel.sort, panel.game, Date.now())
+                                                     Clips.favourites, panel.sort, panel.game, Date.now(), Clips.contexts,
+                                                     { stamp: panel.stamp, tag: panel.tag, tags: Clips.tags })
+    // What there is to narrow by: stamped clips, and the tags in use (most used first).
+    readonly property bool anyMusic: Object.keys(Clips.contexts).some(k => Clips.contexts[k].title)
+    readonly property bool anyCall: Object.keys(Clips.contexts).some(k => (Clips.contexts[k].with ?? []).length > 0)
+    readonly property var tagList: ClipsJs.tagCounts(Clips.tags, null).slice(0, 8)
+    readonly property bool narrowed: panel.query !== "" || panel.filter !== "all" || panel.game !== "" || panel.stamp !== "" || panel.tag !== ""
+    function clearFilters() {
+        search.clear(); panel.query = ""; panel._filterTouched = true
+        panel.filter = "all"; panel.game = ""; panel.stamp = ""; panel.tag = ""
+    }
 
     // ── What is selected ──────────────────────────────────────────────────────
     // A tick on a tile (or Ctrl-click; Shift-click for a range; Ctrl+A for all) selects it, and a bar
@@ -121,6 +146,8 @@ Item {
     // one unlabelled group when sorted by length or size (clips.js groupByDay).
     readonly property bool byDay: panel.sort === "newest" || panel.sort === "oldest"
     readonly property var groups: ClipsJs.groupByDay(panel.shown, Date.now(), panel.byDay)
+    // The same, cut into headings and rows so the list builds only the rows on screen.
+    readonly property var rows: ClipsJs.layoutRows(panel.groups, list.cols)
     readonly property var sorts: [{ value: "newest", label: "Newest" }, { value: "oldest", label: "Oldest" },
                                   { value: "longest", label: "Longest" }, { value: "largest", label: "Largest" }]
     function nextSort() {
@@ -199,7 +226,13 @@ Item {
         id: selLatch
         onConfirmed: { Clips.trashClips(panel.multi); panel.clearSelection() }
     }
-    onMultiChanged: selLatch.disarm()
+    onMultiChanged: { selLatch.disarm(); panel.tagOpen = false }
+    ArmLatch {
+        id: pruneLatch
+        onConfirmed: Clips.prune()
+    }
+    // The tag field in the selection bar.
+    property bool tagOpen: false
 
     ColumnLayout {
         anchors.fill: parent
@@ -215,13 +248,27 @@ Item {
             subtitle:  panel.view === "editor" ? (panel.editing?.name ?? "")
                      : Clips.clips.length === 0 ? panel.tilde(Clips.saveDir)
                      : Clips.clips.length + (Clips.clips.length === 1 ? " clip" : " clips")
-                       + "  ·  " + NetStats.bytes(panel.totalBytes) + "  ·  " + panel.tilde(Clips.saveDir)
+                       + "  ·  " + NetStats.bytes(panel.totalBytes)
+                       + (Clips.health.diskFreeMiB > 0 ? " (" + ClipsJs.bytesText(Clips.health.diskFreeMiB * 1048576) + " free)" : "")
+                       + "  ·  " + panel.tilde(Clips.saveDir)
 
             BusyDot {
                 Layout.alignment: Qt.AlignVCenter
                 running: Clips.indexing || Clips.acting || Clips.exporting
             }
 
+            // The limits in Settings › Clips name something to trash: two taps, to the trash.
+            ChipTray {
+                groupShown: panel.view === "library" && Clips.prunePreview.count > 0
+                ChipButton {
+                    symbol: "cleaning_services"
+                    label: pruneLatch.armed ? Translation.tr("Trash") + " " + Clips.prunePreview.count + "?"
+                                            : Translation.tr("Free") + " " + ClipsJs.bytesText(Clips.prunePreview.bytes)
+                    on: pruneLatch.armed
+                    tint: Colors.of(QsWindow.window).warning
+                    onActivated: pruneLatch.trigger()
+                }
+            }
             // What the recorder is doing, one tap away: clipping on/off, record.
             ChipTray {
                 ChipButton {
@@ -330,15 +377,50 @@ Item {
                     }
                 }
             }
-            // The games in the library (a clip is named after the window it was cut in).
+            // Narrow it: the games (a clip is named after the window it was cut in), the clips that know what
+            // was playing or who was there, and your tags. One row each, only when there is something to pick.
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+                visible: panel.games.length >= 2 || panel.anyMusic || panel.anyCall
+                spacing: Tokens.spacingMd
+                ChipRow {
+                    Layout.fillWidth: true
+                    visible: panel.games.length >= 2
+                    accent: Colors.of(QsWindow.window).primary
+                    model: [{ value: "", label: "All games" }].concat(panel.games.slice(0, 7).map(g => ({ value: g.game, label: g.game + "  " + g.count })))
+                    current: panel.game
+                    onPicked: function (v) { panel.game = v }
+                }
+                Item { Layout.fillWidth: true; visible: panel.games.length < 2 }
+                ChipTray {
+                    groupShown: panel.anyMusic || panel.anyCall
+                    ChipButton {
+                        visible: panel.anyMusic
+                        symbol: "music_note"
+                        label: Translation.tr("With music")
+                        on: panel.stamp === "music"
+                        tint: Colors.of(QsWindow.window).primary
+                        onActivated: panel.stamp = panel.stamp === "music" ? "" : "music"
+                    }
+                    ChipButton {
+                        visible: panel.anyCall
+                        symbol: "group"
+                        label: Translation.tr("In a call")
+                        on: panel.stamp === "call"
+                        tint: Colors.of(QsWindow.window).primary
+                        onActivated: panel.stamp = panel.stamp === "call" ? "" : "call"
+                    }
+                }
+            }
             ChipRow {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
-                visible: panel.games.length >= 2
+                visible: panel.tagList.length > 0
                 accent: Colors.of(QsWindow.window).primary
-                model: [{ value: "", label: "All games" }].concat(panel.games.slice(0, 7).map(g => ({ value: g.game, label: g.game + "  " + g.count })))
-                current: panel.game
-                onPicked: function (v) { panel.game = v }
+                model: [{ value: "", label: "All tags" }].concat(panel.tagList.map(t => ({ value: t.tag, label: "#" + t.tag + "  " + t.count })))
+                current: panel.tag
+                onPicked: function (v) { panel.tag = v }
             }
             // The last thing that went wrong, or the last thing done.
             StyledText {
@@ -362,7 +444,7 @@ Item {
                     id: list
                     anchors.fill: parent
                     clip: true
-                    spacing: Tokens.spacingLg
+                    spacing: Tokens.spacingMd
                     cacheBuffer: 600
                     boundsBehavior: Flickable.StopAtBounds
                     // Room for the selection bar, so it never covers the last row.
@@ -375,40 +457,46 @@ Item {
                     readonly property int cols: Math.max(2, Math.floor((list.usable + list.gap) / (Tokens.sideCardUnit * 5.2 + list.gap)))
                     readonly property real tileW: Math.floor((list.usable - list.gap * (list.cols - 1)) / list.cols)
 
-                    // Keyed by day: a refresh keeps each group's tiles and their images.
-                    model: ScriptModel { values: panel.groups; objectProp: "key" }
+                    // Headings and rows (clips.js layoutRows), keyed: only the rows near the screen exist, and a
+                    // refresh keeps the rows (and their pictures) it can.
+                    model: ScriptModel { values: panel.rows; objectProp: "key" }
 
-                    delegate: Column {
-                        id: group
+                    delegate: Item {
+                        id: rowItem
                         required property var modelData
+                        readonly property bool isHead: rowItem.modelData.kind === "head"
                         width: list.usable
-                        spacing: Tokens.spacingSm
+                        height: rowItem.isHead ? headRow.implicitHeight + Tokens.spacingMd : tilesRow.implicitHeight
 
                         // The day, and how much of it there is.
                         RowLayout {
-                            width: parent.width
-                            visible: group.modelData.label !== ""
+                            id: headRow
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            visible: rowItem.isHead
                             spacing: Tokens.spacingSm
                             StyledText {
-                                text: group.modelData.label
+                                text: rowItem.modelData.label ?? ""
                                 variant: "title"
                                 font.weight: Font.DemiBold
                             }
                             StyledText {
                                 Layout.alignment: Qt.AlignBottom
-                                text: group.modelData.clips.length + (group.modelData.clips.length === 1 ? " clip" : " clips")
+                                text: rowItem.isHead ? ClipsJs.groupLine(rowItem.modelData.count, rowItem.modelData.bytes, rowItem.modelData.secs) : ""
                                 variant: "caption"
                                 emphasis: "dim"
                             }
                             Item { Layout.fillWidth: true }
                         }
 
-                        Grid {
-                            columns: list.cols
+                        Row {
+                            id: tilesRow
+                            visible: !rowItem.isHead
                             spacing: list.gap
 
                             Repeater {
-                                model: group.modelData.clips
+                                model: rowItem.isHead ? [] : rowItem.modelData.clips
 
                                 delegate: Item {
                                     id: tile
@@ -420,11 +508,22 @@ Item {
                                     // The pointer is on the tile or on anything riding it (a chip).
                                     readonly property bool hot: tileHover.hovered
                                     readonly property bool ready: tile.modelData.ok
+                                    readonly property string context: ClipsJs.contextLine(Clips.contextOf(tile.modelData.path))
+                                    readonly property var labels: Clips.tagsOf(tile.modelData.path)
+
+                                    // What rides the frame (the tick, the chips, the handle, the scrub) is built only
+                                    // while the pointer is on the tile, or something is selected, and for a beat after
+                                    // it leaves so it can fade: a library of a hundred clips would otherwise carry
+                                    // hundreds of buttons, each with its own springs and handlers, doing nothing.
+                                    property bool _warm: false
+                                    readonly property bool chrome: tile.hot || tile.selected || panel.hasSelection || tile._warm
+                                    onHotChanged: { if (tile.hot) { tile._warm = true; cool.stop() } else cool.restart() }
+                                    Timer { id: cool; interval: Motion.standard + Motion.respond; onTriggered: tile._warm = false }
 
                                     width: list.tileW
                                     height: thumb.height + info.height + Tokens.spacingSm
 
-                                    // Arrives on a spring, a beat after the one before (the first screenful only).
+                                    // Arrives on a spring, a beat after the one before it in its row.
                                     PopIn { id: pop; active: true; index: tile.index; cap: 8; step: Motion.stagger }
                                     opacity: pop.opacity
                                     scale:   pop.scale
@@ -443,25 +542,12 @@ Item {
                                         Behavior on scale { NumberAnimation { duration: Motion.respond; easing.type: Motion.respondCurve } }
                                         // The chosen ones: a ring in the accent.
                                         Rectangle {
+                                            visible: tile.selected
                                             anchors.fill: parent
                                             radius: thumb.radius
-                                            color: tile.selected ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.18) : "transparent"
-                                            border.width: tile.selected ? Tokens.borderChrome + 1 : 0
+                                            color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.18)
+                                            border.width: Tokens.borderChrome + 1
                                             border.color: Colors.of(QsWindow.window).primary
-                                            Behavior on color { ColorAnimation { duration: Motion.respond } }
-                                        }
-                                        // A scrim for what rides the foot of the frame.
-                                        Rectangle {
-                                            anchors.left: parent.left
-                                            anchors.right: parent.right
-                                            anchors.bottom: parent.bottom
-                                            height: parent.height * 0.5
-                                            opacity: tile.hot ? 1 : 0
-                                            Behavior on opacity { NumberAnimation { duration: Motion.respond } }
-                                            gradient: Gradient {
-                                                GradientStop { position: 0.0; color: "transparent" }
-                                                GradientStop { position: 1.0; color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).shadow, 0.7) }
-                                            }
                                         }
                                         // A tag where a clip is not the original: Trimmed, Edited, GIF.
                                         Rectangle {
@@ -492,26 +578,6 @@ Item {
                                             color: Colors.of(QsWindow.window).primary
                                             variant: "label"
                                         }
-                                        // Pointed at: a play disc — one click plays it, here in the shell.
-                                        Rectangle {
-                                            anchors.centerIn: parent
-                                            width: Tokens.iconXl * 2.2
-                                            height: width
-                                            radius: width / 2
-                                            color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.92)
-                                            opacity: tile.hot && tile.ready && !panel.hasSelection ? 1 : 0
-                                            scale: opacity > 0.5 ? 1 : 0.8
-                                            visible: opacity > 0.01
-                                            Behavior on opacity { NumberAnimation { duration: Motion.respond } }
-                                            Behavior on scale { NumberAnimation { duration: Motion.standard; easing.type: Motion.travel } }
-                                            MaterialIcon {
-                                                anchors.centerIn: parent
-                                                name: "play_arrow"
-                                                fill: 1
-                                                font.pixelSize: Tokens.iconXl
-                                                color: Colors.of(QsWindow.window).fgOnPrimary
-                                            }
-                                        }
                                     }
 
                                     // Click: play it — or, with something selected (or Ctrl / Shift), choose it.
@@ -525,90 +591,166 @@ Item {
                                         }
                                     }
 
-                                    // The tick: choose it without a modifier key. Always there once anything is chosen.
-                                    Rectangle {
-                                        x: Tokens.spacingSm
-                                        y: Tokens.spacingSm
-                                        width: Tokens.iconLg + Tokens.spacingXs
-                                        height: width
-                                        radius: width / 2
-                                        opacity: tile.hot || tile.selected || panel.hasSelection ? 1 : 0
-                                        visible: opacity > 0.01
-                                        Behavior on opacity { NumberAnimation { duration: Motion.respond } }
-                                        color: tile.selected ? Colors.of(QsWindow.window).primary
-                                             : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).shadow, 0.55)
-                                        border.width: Tokens.borderWidth * 2
-                                        border.color: tile.selected ? Colors.of(QsWindow.window).primary
-                                                                    : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.7)
-                                        Behavior on color { ColorAnimation { duration: Motion.respond } }
-                                        MaterialIcon {
-                                            anchors.centerIn: parent
-                                            name: "check"
-                                            visible: tile.selected
-                                            variant: "caption"
-                                            color: Colors.of(QsWindow.window).fgOnPrimary
-                                        }
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            anchors.margins: -Tokens.spacingXs
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: panel.toggleMulti(tile.modelData.path)
-                                        }
-                                    }
+                                    // The pointer's tile: scrub, scrim, play disc, tick, chips, handle.
+                                    Loader {
+                                        anchors.fill: thumb
+                                        active: tile.chrome
+                                        sourceComponent: Item {
+                                            id: chrome
+                                            // Scrubbing: rest on a clip a moment and the pointer's x walks through it, a frame
+                                            // from the filmstrip (the editor's, cached on disk — one ffmpeg run the first time).
+                                            readonly property int frameCount: 10
+                                            readonly property var frames: Clips.strip.path === tile.modelData.path ? Clips.strip.frames : []
+                                            property bool dwelled: false
+                                            readonly property bool scrubbing: chrome.dwelled && tile.hot && tile.ready && !panel.hasSelection
+                                                                              && chrome.frames.length > 0
+                                            readonly property int frameAt: Math.max(0, Math.min(chrome.frameCount - 1,
+                                                Math.floor(scrubHover.point.position.x / Math.max(1, chrome.width) * chrome.frameCount)))
+                                            HoverHandler { id: scrubHover }
+                                            Timer {
+                                                interval: 450
+                                                running: tile.hot && tile.ready && !panel.hasSelection && !chrome.dwelled
+                                                onTriggered: { chrome.dwelled = true; Clips.loadStrip(tile.modelData.path, chrome.frameCount) }
+                                            }
+                                            Connections {
+                                                target: tile
+                                                function onHotChanged() { if (!tile.hot) chrome.dwelled = false }
+                                            }
 
-                                    // What you most often do to one, on the frame while you are on it.
-                                    ChipTray {
-                                        x: Tokens.spacingSm
-                                        y: thumb.height - height - Tokens.spacingSm
-                                        opacity: tile.hot && !panel.hasSelection ? 1 : 0
-                                        visible: opacity > 0.01
-                                        Behavior on opacity { NumberAnimation { duration: Motion.respond } }
-                                        ChipButton {
-                                            symbol: "star"
-                                            on: tile.fav
-                                            tint: Colors.of(QsWindow.window).primary
-                                            onActivated: Clips.toggleFavourite(tile.modelData.path)
-                                        }
-                                        ChipButton {
-                                            symbol: "content_cut"
-                                            tint: Colors.of(QsWindow.window).primary
-                                            enabled: tile.ready
-                                            onActivated: panel.openEditor(tile.modelData)
-                                        }
-                                        ChipButton {
-                                            symbol: "content_copy"
-                                            tint: Colors.of(QsWindow.window).primary
-                                            onActivated: Clips.copyClip(tile.modelData.path)
-                                        }
-                                    }
+                                            Image {
+                                                anchors.fill: parent
+                                                visible: chrome.scrubbing && (chrome.frames[chrome.frameAt] ?? "") !== ""
+                                                source: chrome.scrubbing && (chrome.frames[chrome.frameAt] ?? "") !== "" ? "file://" + chrome.frames[chrome.frameAt] : ""
+                                                fillMode: Image.PreserveAspectCrop
+                                                smooth: true
+                                                asynchronous: true
+                                            }
+                                            // Where in the clip the pointer is.
+                                            Rectangle {
+                                                visible: chrome.scrubbing
+                                                anchors.left: parent.left
+                                                anchors.bottom: parent.bottom
+                                                height: Tokens.spacingXs
+                                                width: parent.width * (chrome.frameAt + 0.5) / chrome.frameCount
+                                                color: Colors.of(QsWindow.window).primary
+                                            }
+                                            // A scrim for what rides the foot of the frame.
+                                            Rectangle {
+                                                anchors.left: parent.left
+                                                anchors.right: parent.right
+                                                anchors.bottom: parent.bottom
+                                                height: parent.height * 0.5
+                                                opacity: tile.hot ? 1 : 0
+                                                Behavior on opacity { NumberAnimation { duration: Motion.respond } }
+                                                gradient: Gradient {
+                                                    GradientStop { position: 0.0; color: "transparent" }
+                                                    GradientStop { position: 1.0; color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).shadow, 0.7) }
+                                                }
+                                            }
+                                            // Pointed at: a play disc — one click plays it, here in the shell.
+                                            Rectangle {
+                                                anchors.centerIn: parent
+                                                width: Tokens.iconXl * 2.2
+                                                height: width
+                                                radius: width / 2
+                                                color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.92)
+                                                opacity: tile.hot && tile.ready && !panel.hasSelection && !chrome.scrubbing ? 1 : 0
+                                                scale: opacity > 0.5 ? 1 : 0.8
+                                                visible: opacity > 0.01
+                                                Behavior on opacity { NumberAnimation { duration: Motion.respond } }
+                                                Behavior on scale { NumberAnimation { duration: Motion.standard; easing.type: Motion.travel } }
+                                                MaterialIcon {
+                                                    anchors.centerIn: parent
+                                                    name: "play_arrow"
+                                                    fill: 1
+                                                    font.pixelSize: Tokens.iconXl
+                                                    color: Colors.of(QsWindow.window).fgOnPrimary
+                                                }
+                                            }
 
-                                    // The handle: drag a clip OUT — into a chat, a file manager, a browser upload — as a
-                                    // file. Only from here, so a drag on a tile still scrolls the list. (Qt's own drag,
-                                    // text/uri-list; whether another app takes it is up to that app.)
-                                    Rectangle {
-                                        id: handle
-                                        x: thumb.width - width - Tokens.spacingSm
-                                        y: Tokens.spacingSm
-                                        width: Tokens.iconLg + Tokens.spacingXs
-                                        height: width
-                                        radius: width / 2
-                                        visible: opacity > 0.01 && tile.ready
-                                        opacity: tile.hot || dragOut.active ? 1 : 0
-                                        Behavior on opacity { NumberAnimation { duration: Motion.respond } }
-                                        color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).shadow, 0.55)
-                                        MaterialIcon {
-                                            anchors.centerIn: parent
-                                            name: "drag_indicator"
-                                            variant: "caption"
-                                            color: Colors.of(QsWindow.window).fg
+                                            // The tick: choose it without a modifier key. Always there once anything is chosen.
+                                            Rectangle {
+                                                x: Tokens.spacingSm
+                                                y: Tokens.spacingSm
+                                                width: Tokens.iconLg + Tokens.spacingXs
+                                                height: width
+                                                radius: width / 2
+                                                color: tile.selected ? Colors.of(QsWindow.window).primary
+                                                     : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).shadow, 0.55)
+                                                border.width: Tokens.borderWidth * 2
+                                                border.color: tile.selected ? Colors.of(QsWindow.window).primary
+                                                                            : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.7)
+                                                Behavior on color { ColorAnimation { duration: Motion.respond } }
+                                                MaterialIcon {
+                                                    anchors.centerIn: parent
+                                                    name: "check"
+                                                    visible: tile.selected
+                                                    variant: "caption"
+                                                    color: Colors.of(QsWindow.window).fgOnPrimary
+                                                }
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    anchors.margins: -Tokens.spacingXs
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: panel.toggleMulti(tile.modelData.path)
+                                                }
+                                            }
+
+                                            // What you most often do to one, on the frame while you are on it.
+                                            ChipTray {
+                                                x: Tokens.spacingSm
+                                                y: chrome.height - height - Tokens.spacingSm
+                                                opacity: tile.hot && !panel.hasSelection ? 1 : 0
+                                                visible: opacity > 0.01
+                                                Behavior on opacity { NumberAnimation { duration: Motion.respond } }
+                                                ChipButton {
+                                                    symbol: "star"
+                                                    on: tile.fav
+                                                    tint: Colors.of(QsWindow.window).primary
+                                                    onActivated: Clips.toggleFavourite(tile.modelData.path)
+                                                }
+                                                ChipButton {
+                                                    symbol: "content_cut"
+                                                    tint: Colors.of(QsWindow.window).primary
+                                                    enabled: tile.ready
+                                                    onActivated: panel.openEditor(tile.modelData)
+                                                }
+                                                ChipButton {
+                                                    symbol: "content_copy"
+                                                    tint: Colors.of(QsWindow.window).primary
+                                                    onActivated: Clips.copyClip(tile.modelData.path)
+                                                }
+                                            }
+
+                                            // The handle: drag a clip OUT — into a chat, a file manager, a browser upload — as a
+                                            // file. Only from here, so a drag on a tile still scrolls the list. (Qt's own drag,
+                                            // text/uri-list; whether another app takes it is up to that app.)
+                                            Rectangle {
+                                                id: handle
+                                                x: chrome.width - width - Tokens.spacingSm
+                                                y: Tokens.spacingSm
+                                                width: Tokens.iconLg + Tokens.spacingXs
+                                                height: width
+                                                radius: width / 2
+                                                visible: opacity > 0.01 && tile.ready
+                                                opacity: tile.hot || dragOut.active ? 1 : 0
+                                                Behavior on opacity { NumberAnimation { duration: Motion.respond } }
+                                                color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).shadow, 0.55)
+                                                MaterialIcon {
+                                                    anchors.centerIn: parent
+                                                    name: "drag_indicator"
+                                                    variant: "caption"
+                                                    color: Colors.of(QsWindow.window).fg
+                                                }
+                                                HoverHandler { cursorShape: dragOut.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor }
+                                                DragHandler { id: dragOut; target: null }
+                                                Drag.active: dragOut.active
+                                                Drag.dragType: Drag.Automatic
+                                                Drag.supportedActions: Qt.CopyAction
+                                                Drag.mimeData: ({ "text/uri-list": Clips.uriList(panel.dragPaths(tile.modelData.path)) })
+                                                Drag.imageSource: tile.modelData.thumb ? "file://" + tile.modelData.thumb : ""
+                                            }
                                         }
-                                        HoverHandler { cursorShape: dragOut.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor }
-                                        DragHandler { id: dragOut; target: null }
-                                        Drag.active: dragOut.active
-                                        Drag.dragType: Drag.Automatic
-                                        Drag.supportedActions: Qt.CopyAction
-                                        Drag.mimeData: ({ "text/uri-list": Clips.uriList(panel.dragPaths(tile.modelData.path)) })
-                                        Drag.imageSource: tile.modelData.thumb ? "file://" + tile.modelData.thumb : ""
                                     }
 
                                     // What it is, in words: its title, and when it was and how big.
@@ -632,6 +774,24 @@ Item {
                                             emphasis: "dim"
                                             text: !tile.ready ? "Still being written…"
                                                 : tile.pretty.time + "  ·  " + NetStats.bytes(tile.modelData.size)
+                                        }
+                                        // The song that was playing and who was in the call, when stamped.
+                                        StyledText {
+                                            width: parent.width
+                                            visible: tile.context !== ""
+                                            elide: Text.ElideRight
+                                            variant: "micro"
+                                            emphasis: "dim"
+                                            text: tile.context
+                                        }
+                                        // Your tags.
+                                        StyledText {
+                                            width: parent.width
+                                            visible: tile.labels.length > 0
+                                            elide: Text.ElideRight
+                                            variant: "micro"
+                                            color: Colors.of(QsWindow.window).primary
+                                            text: tile.labels.map(t => "#" + t).join("  ")
                                         }
                                     }
                                 }
@@ -660,7 +820,7 @@ Item {
                         text: panel.query !== "" ? "Nothing matches “" + panel.query + "”"
                             : panel.filter === "today" ? "Nothing from today yet"
                             : panel.filter === "favourites" ? "Nothing starred yet"
-                            : panel.filter !== "all" || panel.game !== "" ? "Nothing here yet"
+                            : panel.narrowed ? "Nothing here yet"
                             : "No clips yet"
                     }
                     StyledText {
@@ -678,13 +838,13 @@ Item {
                     }
                     ChipTray {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        groupShown: panel.query !== "" || panel.filter !== "all" || panel.game !== ""
+                        groupShown: panel.narrowed
                         ChipButton {
                             symbol: "close"
                             label: Translation.tr("Clear filters")
                             on: true
                             tint: Colors.of(QsWindow.window).primary
-                            onActivated: { search.clear(); panel.query = ""; panel._filterTouched = true; panel.filter = "all"; panel.game = "" }
+                            onActivated: panel.clearFilters()
                         }
                     }
                 }
@@ -784,6 +944,40 @@ Item {
                                 symbol: "folder_open"
                                 tint: Colors.of(QsWindow.window).primary
                                 onActivated: Clips.showInFolder(panel.multi[0])
+                            }
+                        }
+                        // Tags: the ones these carry (a tap takes it off all of them), and a field to put one on all.
+                        ChipTray {
+                            groupShown: !panel.tagOpen
+                            Repeater {
+                                model: panel.hasSelection ? ClipsJs.tagCounts(Clips.tags, panel.multi).slice(0, 2) : []
+                                delegate: ChipButton {
+                                    required property var modelData
+                                    symbol: "close"
+                                    label: "#" + modelData.tag
+                                    on: modelData.count === selBar.count
+                                    tint: Colors.of(QsWindow.window).primary
+                                    onActivated: Clips.removeTag(panel.multi, modelData.tag)
+                                }
+                            }
+                            ChipButton {
+                                symbol: "sell"
+                                tint: Colors.of(QsWindow.window).primary
+                                onActivated: panel.tagOpen = true
+                            }
+                        }
+                        InputField {
+                            id: tagInput
+                            visible: panel.tagOpen
+                            Layout.preferredWidth: Tokens.sideCardUnit * 3
+                            icon: "sell"
+                            cornerRadius: implicitHeight / 2
+                            placeholder: Translation.tr("Add a tag")
+                            onVisibleChanged: if (tagInput.visible) tagInput.forceFocus()
+                            onCommitted: function (v) {
+                                if (v.trim() !== "") Clips.addTag(panel.multi, v)
+                                tagInput.clear()
+                                panel.tagOpen = false
                             }
                         }
                         // Several: shrunk one after another to a size a chat accepts.

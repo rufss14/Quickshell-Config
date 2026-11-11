@@ -6,22 +6,26 @@ import QtQuick.Layouts
 import "../../config"
 import "../../components"
 import "../../services"
+import "../../config/modules.js" as Catalogue
 
 // ── ModuleInspector ───────────────────────────────────────────────────────────
-// What a module is, and everything about it you can change. Selecting a chip in the
-// layout editor — or right-clicking one on the bar preview — points this at it.
+// What a module is, where it stands, and everything about it you can change — for a
+// module on the bar, on the sidebar, or on neither. Pressing one on the real bar or
+// sidebar (armed while Bar › Modules is open) or clicking a library tile points this at it.
 //
-// It replaced a read-only description box. The description was the right instinct
-// (thirteen near-identical pills need naming) but it was a dead end: it told you what
-// the thing did and then offered you nothing to do about it. Same space, same trigger,
-// but now the panel is where the module's settings live.
+// ── One inspector for both surfaces (2026-11-08) ──────────────────────────────
+// It was the bar's alone; the sidebar had a row of on/off chips and a single hero
+// picker. A module has one place (config/modules.js), so it has one set of settings,
+// and they follow it between surfaces: where it stands is a control here like any other
+// (`On`: Bar / Sidebar / Off, then the region on that surface).
 //
-// ── Flat, and two columns when there is room ──────────────────────────────────
-// It was a card inside the "Selected module" card — a second border and fill around
-// rows that already had one — with hand-built label/caption/switch rows and a
-// paragraph under each. Now it is the card's body: what the module is, where it sits
-// and its accent on the left; its switches on the right (SettingRow, the explanation
-// in each row's tip). Below ~640px the two columns stack.
+// Which controls show is the CATALOGUE's answer, not a list kept here: a form's `opts`
+// names the extras that form's widget really reads (spacing, right-click memory, DND,
+// panel header, peeks). A control for something the widget ignores is a slider that
+// moves nothing — so it isn't drawn.
+//
+// The dock and Stats bring their own block (DockOptions, StatsOptions): they were tabs
+// of their own until the user folded them in (2026-11-08).
 //
 // ── Why nothing here is a colour picker ───────────────────────────────────────
 // The accent is chosen from the PALETTE'S ROLES, not from a colour wheel. Every colour
@@ -36,47 +40,50 @@ ColumnLayout {
     // "" ⇒ nothing selected; the panel shows how to pick one instead.
     property string moduleId: ""
 
-    readonly property var info:  Config.moduleInfo(root.moduleId)
+    // The whole module (both forms), and where it stands: "bar" | "side" | "".
+    readonly property var info: root.moduleId !== "" ? Catalogue.info(root.moduleId) : null
+    readonly property string where: {
+        void Config.layout; void Config.sidebarLayout
+        return root.moduleId !== "" ? Config.surfaceOf(root.moduleId) : ""
+    }
+    readonly property bool placed: root.where !== ""
+    // The form that describes it: where it stands, else where "+ Add" would put it.
+    readonly property string formSurface: root.where !== "" ? root.where : (root.info ? root.info.native : "bar")
+    readonly property var form: root.info ? root.info[root.formSurface] : null
+    function opt(key) { return root.where !== "" && Catalogue.hasOpt(root.moduleId, root.where, key) }
+
+    readonly property string blocker: root.moduleId !== "" ? BarModules.blocker(root.moduleId) : ""
+
     // `rightInfo`, not `right`: Item.right is an ANCHOR LINE, and shadowing it would
-    // quietly break anchoring for this whole component. Third instance of this trap in
-    // the codebase after `state` and `enabled` — qmllint catches it every time.
+    // quietly break anchoring for this whole component.
     readonly property var rightInfo: Config.rightClickInfo(root.moduleId)
-    readonly property bool placed: root.moduleId !== "" && Config.isPlaced(root.moduleId)
 
-    // Which modules actually read Config.groupSpacing back. The control is hidden
-    // everywhere else rather than shown and silently doing nothing, and it needs at
-    // least one neighbour to mean anything.
-    //
-    // Two groups, and the first one grew: every BarIconPill module honours spacing now,
-    // because the base wires `spacing: Config.groupSpacing(moduleId)` once instead of
-    // each of the ten inline entries in Bar.qml repeating it (seven did, the rest
-    // didn't — which is how this list came to be a list). The second group is the three
-    // widgets that lay themselves out by hand and read it for their own padding:
-    // TrayPill, BluetoothPill, WifiPill.
-    //
-    // Still a list rather than a derived fact, because what it encodes is "the widget
-    // consumes this", and only the widget knows. A module added here that does NOT read
-    // it is a slider that moves nothing — check the widget before adding a row.
-    readonly property var _spacingSupported: [
-        // BarIconPill-based
-        "shapeToggle", "modeToggle", "palette", "wallpaper", "keyboard", "notifications",
-        "idle", "nightlight", "gamemode", "overview", "settings", "privacy",
-        // Hand-laid-out
-        "tray", "bluetooth", "wifi"]
-    readonly property var  groupMembers: root.moduleId !== "" ? Config.groupMembers(root.moduleId) : []
-    readonly property bool spacingSupported:
-        root._spacingSupported.indexOf(root.moduleId) !== -1 && root.groupMembers.length > 1
-
-    // What the slider shows before the group has ever been touched: today's
-    // effective padding on each side of a plain icon (Tokens.pillPadding), doubled
-    // — i.e. exactly what an untouched group already looks like, so dragging the
-    // slider starts from "no visible change" rather than jumping the icons on
-    // first touch.
+    // Group spacing is per GROUP: who else a change moves.
+    readonly property var  groupMembers: root.placed ? Config.groupMembers(root.moduleId) : []
+    readonly property bool spacingSupported: root.opt("spacing") && root.groupMembers.length > 1
+    // What an untouched group already looks like (Tokens.pillPadding each side), so the
+    // first touch of the slider moves nothing.
     readonly property int _defaultSpacing: Tokens.pillPadding * 2
     readonly property int groupSpacingValue: {
         const v = root.moduleId !== "" ? Config.groupSpacing(root.moduleId) : -1
         return v >= 0 ? v : root._defaultSpacing
     }
+
+    // The accent and the inner pill follow a module onto either surface: the sidebar's
+    // cells read moduleAccent (SideCell.moduleId) and its pills split round a module
+    // that opted out (SideRegionPills). The dock draws app icons, so no accent of its own.
+    readonly property bool accentWorks: root.moduleId !== "dock"
+    readonly property bool innerPillWorks: root.where === "bar" || root.where === "side"
+
+    // Hero: one per surface. Which module it would take the chip from.
+    readonly property string heroNow: root.where === "bar" ? Config.barHero : root.where === "side" ? Config.sidebarHero : ""
+    readonly property string heroOther: root.heroNow !== "" && root.heroNow !== root.moduleId
+        && Config.surfaceOf(root.heroNow) === root.where ? root.heroNow : ""
+
+    // Peeks: one switch each, in Config under its own name.
+    readonly property var _peekKey: ({ timer: "peekTimer", claude: "peekClaude", colour: "peekColour",
+                                       clipboard: "peekClipboard", clips: "clipsPeek" })
+    readonly property string peekKey: root._peekKey[root.moduleId] ?? ""
 
     // Anything the page's Reset button would undo: the module's own settings, or its
     // group's spacing (stored per group, so resetModule alone leaves it behind).
@@ -86,6 +93,8 @@ ColumnLayout {
         Config.resetModule(root.moduleId)
         Config.clearGroupSpacing(root.moduleId)
     }
+
+    function _label(id) { return Catalogue.info(id)?.label ?? id }
 
     readonly property bool wide: root.width >= 640
 
@@ -107,6 +116,7 @@ ColumnLayout {
         }
         ColumnLayout {
             Layout.fillWidth: true
+            Layout.fillHeight: false
             spacing: 0
             StyledText {
                 text: Translation.tr("Nothing selected")
@@ -115,7 +125,7 @@ ColumnLayout {
             }
             StyledText {
                 Layout.fillWidth: true
-                text: Translation.tr("Press Arrange, then click a module on the bar — or press one above")
+                text: Translation.tr("Press a module on the bar or the sidebar, or one in the library below")
                 variant: "caption"
                 emphasis: "dim"
                 wrapMode: Text.WordWrap
@@ -132,9 +142,10 @@ ColumnLayout {
         columnSpacing: Tokens.spacingXxl
         rowSpacing: Tokens.spacingMd
 
-        // ── What it is, where it sits, its colour ─────────────────────────────
+        // ── What it is, where it stands, its colour ───────────────────────────
         ColumnLayout {
             Layout.fillWidth: true
+            Layout.fillHeight: false
             Layout.preferredWidth: 0
             Layout.alignment: Qt.AlignTop
             spacing: Tokens.spacingMd
@@ -143,76 +154,71 @@ ColumnLayout {
                 Layout.fillWidth: true
                 visible: text !== ""
                 rich: true
-                text: root.info ? root.info.description : ""
+                text: root.form ? root.form.description : ""
                 variant:  "caption"
                 emphasis: "dim"
                 wrapMode: Text.WordWrap
             }
 
-            // ── Where it sits ─────────────────────────────────────────────────
-            // A control rather than a chip reading "Left", for a reason that is not
-            // tidiness: placing a module was drag-ONLY. That gesture crosses two
-            // Wayland surfaces (ModuleTray's header records how), it needs a steady
-            // hand at pill scale, and it is the only way in for someone on a
-            // trackball, a touchpad, or a compositor that fumbles the drag.
-            //
-            // Three buttons and a cross are not a replacement for dragging — you
-            // still cannot say WHICH group or WHERE in the row from here, which is
-            // exactly what the bar's own editor is for. They are the floor: every
-            // module can be put in a region and taken off the bar without a drag.
-            RowLayout {
+            // A missing tool: said once, here, and the surfaces can't be picked.
+            StyledText {
                 Layout.fillWidth: true
-                Layout.fillHeight: false
-                spacing: Tokens.spacingSm
+                visible: root.blocker !== "" && !root.placed
+                text: root.blocker
+                variant: "caption"
+                color: Colors.of(QsWindow.window).warning
+                wrapMode: Text.WordWrap
+            }
 
-                StyledText {
-                    text: root.placed ? "Where" : "Not on the bar"
-                    variant: "body"
-                    font.weight: Font.Medium
-                }
-
-                Item { Layout.fillWidth: true }
-
-                TabStrip {
-                    visible: root.placed
-                    Layout.preferredWidth: 126
+            // ── Where it stands ───────────────────────────────────────────────
+            // Clicks, not only drags: dragging crosses Wayland surfaces and wants a
+            // steady hand at pill scale, and it's the only way in for a trackball, a
+            // touchpad or a compositor that fumbles the drag. These are the floor —
+            // every module can be put on either surface, in a region, or taken off,
+            // without one. (WHICH group and where in it is dragging's job.)
+            SettingRow {
+                label: Translation.tr("On")
+                detail: !root.info ? ""
+                      : !root.info.bar ? Translation.tr("Only the sidebar has a form for it")
+                      : !root.info.side ? Translation.tr("Only the bar has a form for it")
+                      : ""
+                SegmentSwitch {
+                    implicitWidth: 260
+                    enabled: root.placed || root.blocker === ""
                     accent: Colors.of(QsWindow.window).primary
-                    model: [
-                        { value: "left",   label: "", icon: "chevron_left" },
-                        { value: "centre", label: "", icon: "circle" },
-                        { value: "right",  label: "", icon: "chevron_right" }
-                    ]
+                    model: (root.info && root.info.bar ? [{ value: "bar", label: "Bar", icon: "dashboard" }] : [])
+                        .concat(root.info && root.info.side ? [{ value: "side", label: "Sidebar", icon: "view_quilt" }] : [])
+                        .concat([{ value: "", label: "Off", icon: "block" }])
+                    current: root.where
+                    onPicked: function (v) { Config.placeModule(root.moduleId, v) }
+                }
+            }
+
+            SettingRow {
+                visible: root.placed
+                label: Translation.tr("Region")
+                SegmentSwitch {
+                    implicitWidth: 260
+                    accent: Colors.of(QsWindow.window).primary
+                    model: root.where === "bar"
+                        ? [{ value: "left",   label: "Left",   icon: "chevron_left" },
+                           { value: "centre", label: "Centre", icon: "circle" },
+                           { value: "right",  label: "Right",  icon: "chevron_right" }]
+                        : Config.sidebarRegionIds.map(r => ({ value: r, label: Config.sidebarRegionLabel(r),
+                                                              icon: r === "start" ? "keyboard_arrow_up"
+                                                                  : r === "centre" ? "circle"
+                                                                  : "keyboard_arrow_down" }))
                     current: {
-                        const at = Config.locate(root.moduleId)
-                        return at ? at.region : ""
+                        void Config.layout; void Config.sidebarLayout
+                        return root.where === "bar" ? (Config.locate(root.moduleId)?.region ?? "")
+                             : root.where === "side" ? Config.sidebarRegionOf(root.moduleId) : ""
                     }
-                    // Its own group at the end of that region — the same landing
-                    // `addModule` gives a returning module, rather than silently
-                    // joining whatever cluster happens to be there.
+                    // Its own group at the end of that region — the landing a returning
+                    // module gets, rather than silently joining whatever is there.
                     onPicked: function (v) {
-                        Config.moveToOwnGroup(root.moduleId, v, 9999)
+                        if (root.where === "bar") Config.moveToOwnGroup(root.moduleId, v, 9999)
+                        else Config.sidebarMoveToOwnGroup(root.moduleId, v, 9999)
                     }
-                }
-
-                PanelButton {
-                    capsule: true
-                    visible: root.placed
-                    variant: "ghost"
-                    symbol:  "close"
-                    accent:  Colors.of(QsWindow.window).danger
-                    // No confirm and no undo bar: the module lands in "Not on the
-                    // bar" one card away, and putting it back is one click.
-                    onActivated: Config.removeModule(root.moduleId)
-                }
-
-                PanelButton {
-                    capsule: true
-                    visible: !root.placed && root.moduleId !== ""
-                    variant: "primary"
-                    accent:  Colors.of(QsWindow.window).primary
-                    symbol:  "add"
-                    label:   Translation.tr("Add to bar")
-                    onActivated: Config.addModule(root.moduleId)
                 }
             }
 
@@ -220,13 +226,14 @@ ColumnLayout {
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
+                visible: root.accentWorks
                 spacing: Tokens.spacingSm
 
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.fillHeight: false
                     spacing: Tokens.spacingSm
-                    HelpTip { id: accentTip; text: "Picked from the palette by role, so it follows the next wallpaper." }
+                    HelpTip { id: accentTip; text: Translation.tr("Picked from the palette by role, so it follows the next wallpaper.") }
                     StyledText { text: "Accent"; variant: "body"; font.weight: Font.Medium }
                     MaterialIcon {
                         name: "info"
@@ -251,12 +258,12 @@ ColumnLayout {
 
                             readonly property bool isCurrent:
                                 Config.moduleAccentRole(root.moduleId) === swatch.modelData.id
-                            // "" is Default — it has no colour of its own, so it draws
-                            // as an outlined chip rather than a lying swatch.
+                            // "" is Default — no colour of its own, so an outlined chip
+                            // rather than a lying swatch.
                             readonly property bool isDefault: swatch.modelData.id === ""
 
-                            implicitWidth:  swatch.isDefault ? defaultLabel.implicitWidth + Tokens.spacingMd * 2 : 28
-                            implicitHeight: 28
+                            implicitWidth:  swatch.isDefault ? defaultLabel.implicitWidth + Tokens.spacingMd * 2 : Tokens.iconXl
+                            implicitHeight: Tokens.iconXl
                             radius: Tokens.radiusSm
 
                             color: swatch.isDefault
@@ -289,8 +296,7 @@ ColumnLayout {
 
                             HoverHandler { id: swatchHover; cursorShape: Qt.PointingHandCursor }
                             TapHandler {
-                                onTapped: Config.setModuleSetting(root.moduleId, "accent",
-                                                                  swatch.modelData.id)
+                                onTapped: Config.setModuleSetting(root.moduleId, "accent", swatch.modelData.id)
                             }
                         }
                     }
@@ -301,42 +307,44 @@ ColumnLayout {
         // ── Its switches ──────────────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true
+            Layout.fillHeight: false
             Layout.preferredWidth: 0
             Layout.alignment: Qt.AlignTop
             spacing: Tokens.spacingSm
 
             SettingRow {
+                visible: root.innerPillWorks
                 label: Translation.tr("Inner pill")
                 detail: Config.moduleInnerPill(root.moduleId) ? "On its own lighter chip" : "Straight on the group's pill"
                 help: Translation.tr("Off sits this module directly on the group's own pill instead of the lighter shared chip.")
                 Toggle {
                     checked: Config.moduleInnerPill(root.moduleId)
-                    onToggled: Config.setModuleInnerPill(root.moduleId,
-                                                         !Config.moduleInnerPill(root.moduleId))
+                    onToggled: Config.setModuleInnerPill(root.moduleId, !Config.moduleInnerPill(root.moduleId))
                 }
             }
 
-            // Only for a module that can be the hero (its bar form says so, config/modules.js).
+            // One hero per surface (Config.barHero / sidebarHero): turning it on here
+            // takes the chip from the module that has it, and the row says which.
             SettingRow {
-                visible: root.info?.hero === true
+                visible: root.info?.heroable === true && root.placed
                 label: Translation.tr("Hero")
-                detail: Config.moduleHero(root.moduleId) ? "On the accent's container" : "Like the rest of the bar"
-                help: Translation.tr("Puts this module on a tinted chip in your accent, the bar's one emphasised pill — as a desktop widget's hero.")
+                detail: Config.moduleHero(root.moduleId) ? "On the accent's container"
+                      : root.heroOther !== "" ? "Takes it from " + root._label(root.heroOther)
+                      : "Like the rest of the " + (root.where === "bar" ? "bar" : "sidebar")
+                help: Translation.tr("Puts this module on a tinted chip in your accent — the surface's one emphasised pill, as a desktop widget's hero. Each surface has one.")
                 Toggle {
                     checked: Config.moduleHero(root.moduleId)
                     onToggled: Config.setModuleHero(root.moduleId, !Config.moduleHero(root.moduleId))
                 }
             }
 
-            // Per-GROUP, not per-module (Config.groupSpacing) — editing it from any
-            // one member changes the whole cluster, which is why the tip names every
-            // member rather than just this one. Only where it actually does something
-            // — see spacingSupported above.
+            // Per-GROUP, not per-module (Config.groupSpacing) — editing it from any one
+            // member changes the whole cluster, which is why the tip names every member.
             SliderRow {
                 visible: root.spacingSupported
                 label: Translation.tr("Group spacing")
                 help: Translation.tr("Distance between icons in this group: ")
-                    + root.groupMembers.map(id => Config.moduleInfo(id).label).join(", ") + "."
+                    + root.groupMembers.map(id => root._label(id)).join(", ") + "."
                 from: 0
                 to:   32
                 step: 1
@@ -346,9 +354,9 @@ ColumnLayout {
                 onCommit: function (v) { Config.setGroupSpacing(root.moduleId, v) }
             }
 
-            // ── Right-click: only the three modules that have a second face ───
+            // ── Right-click: the modules with a second face ───────────────────
             SettingRow {
-                visible: root.rightInfo !== null
+                visible: root.opt("rightClick") && root.rightInfo !== null
                 label: Translation.tr("Remember right-click")
                 detail: Config.modulePersist(root.moduleId) ? "Kept across reloads" : "Resets on reload"
                 help: root.rightInfo
@@ -357,16 +365,13 @@ ColumnLayout {
                     : ""
                 Toggle {
                     checked: Config.modulePersist(root.moduleId)
-                    onToggled: Config.setModulePersist(root.moduleId,
-                                                       !Config.modulePersist(root.moduleId))
+                    onToggled: Config.setModulePersist(root.moduleId, !Config.modulePersist(root.moduleId))
                 }
             }
-
-            // Which state to remember. Only meaningful once you've opted in — and
-            // it's disabled rather than hidden, so the switch above visibly has a
-            // consequence instead of appearing to do nothing.
+            // Which state to remember. Disabled rather than hidden, so the switch above
+            // visibly has a consequence.
             SettingRow {
-                visible: root.rightInfo !== null
+                visible: root.opt("rightClick") && root.rightInfo !== null
                 enabled: Config.modulePersist(root.moduleId)
                 opacity: enabled ? 1.0 : 0.4
                 Layout.leftMargin: Tokens.spacingLg
@@ -376,14 +381,12 @@ ColumnLayout {
                     : ""
                 Toggle {
                     checked: Config.moduleRightState(root.moduleId)
-                    onToggled: Config.setModuleRightState(root.moduleId,
-                                                          !Config.moduleRightState(root.moduleId))
+                    onToggled: Config.setModuleRightState(root.moduleId, !Config.moduleRightState(root.moduleId))
                 }
             }
 
-            // ── Notifications: show only while Do Not Disturb is on ─────────────
             SettingRow {
-                visible: root.moduleId === "notifications"
+                visible: root.opt("dndOnly")
                 label: Translation.tr("Only while Do Not Disturb")
                 detail: Config.notifShowOnlyDnd() ? "A quiet “DND is on” sign" : "Always shown"
                 help: Translation.tr("Hides the bell unless Do Not Disturb is on, so it reads as a discreet indicator rather than a permanent icon.")
@@ -393,41 +396,39 @@ ColumnLayout {
                 }
             }
 
-            // ── Game mode: the panel's title row ──────────────────────────────
+            // ── The module's panel: its title row ─────────────────────────────
             SettingRow {
-                visible: root.moduleId === "gamemode"
+                visible: root.opt("panelHeader")
                 label: Translation.tr("Panel header")
-                detail: Config.gamemodePanelHeader() ? "Icon and title on top" : "Straight onto the pages"
-                help: Translation.tr("The title row at the top of the Game Mode panel. Off, the panel opens straight onto its Play / Effects / Tune / Setup pages.")
+                detail: Config.panelHeader(root.moduleId) ? Translation.tr("Icon and title on top") : Translation.tr("Straight onto the panel")
+                help: Translation.tr("The title row at the top of this module's panel. Off, the panel opens straight onto its content and is a little shorter.")
                 Toggle {
-                    checked: Config.gamemodePanelHeader()
-                    onToggled: Config.setGamemodePanelHeader(!Config.gamemodePanelHeader())
+                    checked: Config.panelHeader(root.moduleId)
+                    onToggled: Config.setPanelHeader(root.moduleId, !Config.panelHeader(root.moduleId))
                 }
             }
 
-            // ── Volume: the mixer panel's title row ───────────────────────────
+            // ── Peek: a card beside it when something happens (EventPeek) ─────
             SettingRow {
-                visible: root.moduleId === "volume"
-                label: Translation.tr("Panel header")
-                detail: Config.mixerPanelHeader() ? "Icon and title on top" : "Straight onto the pages"
-                help: Translation.tr("The title row at the top of the Audio Mixer panel. Off, the panel opens straight onto its Mix / Devices / Mic / Presets pages.")
+                visible: root.opt("peek") && root.peekKey !== ""
+                label: Translation.tr("Peek")
+                detail: Config[root.peekKey] ? "A card beside it when something happens" : "Off"
+                help: Translation.tr("When something happens to it, a card opens beside it for a moment — on the monitor you're on, and never over a panel you opened.")
                 Toggle {
-                    checked: Config.mixerPanelHeader()
-                    onToggled: Config.setMixerPanelHeader(!Config.mixerPanelHeader())
-                }
-            }
-
-            // ── Clock: the panel's header card ────────────────────────────────
-            SettingRow {
-                visible: root.moduleId === "clock"
-                label: Translation.tr("Panel header")
-                detail: Config.clockPanelHeader() ? "Icon, title and place on top" : "Straight onto the tabs"
-                help: Translation.tr("The card at the top of the clock panel — its icon, title and place. Off, the panel opens straight onto its tabs.")
-                Toggle {
-                    checked: Config.clockPanelHeader()
-                    onToggled: Config.setClockPanelHeader(!Config.clockPanelHeader())
+                    checked: Config[root.peekKey] === true
+                    onToggled: Config[root.peekKey] = !Config[root.peekKey]
                 }
             }
         }
+    }
+
+    // ── The two modules with settings of their own ────────────────────────────
+    DockOptions {
+        visible: root.moduleId === "dock"
+        Layout.topMargin: Tokens.spacingSm
+    }
+    StatsOptions {
+        visible: root.moduleId === "stats"
+        Layout.topMargin: Tokens.spacingSm
     }
 }

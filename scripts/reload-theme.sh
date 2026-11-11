@@ -23,7 +23,7 @@
 #   --committed   apply-wallpaper.sh has already merged your edits and committed
 #                 the palette (and played the wave); only fan it out.
 #   --app NAME [--staged]
-#                 recolour ONE app, now: `discord`, `browser`, `spotify` or `steam`.
+#                 recolour ONE app, now: `discord`, `browser` or `spotify`.
 #                 services/Contagion.qml calls this while the app's windows are under
 #                 the wave's curtain. With --staged it only SHOWS what the run staged
 #                 before the freeze (apps-lib.sh) — exit 0 — or exits 3 when nothing is
@@ -136,14 +136,14 @@ unless_done() {   # unless_done <app> <step id> <recolor function>
 
 if [[ "$PROBE" == 1 ]]; then
     reachable=()
-    for a in discord browser spotify steam; do can_recolor "$a" && reachable+=("$a"); done
+    for a in discord browser spotify; do can_recolor "$a" && reachable+=("$a"); done
     echo "APPS=${reachable[*]}"
     exit 0
 fi
 
 if [[ -n "$APP" ]]; then
     case "$APP" in
-        discord|browser|spotify|steam) ;;
+        discord|browser|spotify) ;;
         *) echo "STEP=args|fail|Unknown app $APP"; exit 2 ;;
     esac
     mkdir -p "$STAGE"
@@ -361,63 +361,26 @@ else
     skip cava "cava config not found"
 fi
 
-# ── Steam (Millennium / simply-dark) ─────────────────────────────────────────
-# The theme's colour inputs live in Millennium's config.json (`themes.themeColors`,
-# what "Settings -> Themes -> Edit colors" writes), injected as a :root block that
-# cascades OVER the theme's own colors.css. So that block is what has to follow the
-# palette, or Steam keeps whatever was baked in last, no matter how many times wal
-# regenerates its files -- the "manual intervention" this replaces.
-#
-# The stock theme does NOT read the pywal names (--color0..15): its inputs are its own
-# greys (--color-dark, --grey, --white, ...). This step used to bake the pywal names and
-# so recoloured nothing on a theme installed from the Millennium store; steam-colors.py
-# maps the theme's own variables onto the palette (and still writes the pywal names, for
-# a local copy whose colors.css does read them). scripts/test-steam-colors.py guards it.
-#
-# Only touches the block if simply-dark is the ACTIVE theme, so switching to a
-# different Millennium theme later doesn't leave this silently overwriting
-# colors that belong to something else. Config is backed up first, same
-# discipline as hypr-config.py -- the newest five, since this runs on every change.
-#
-# A running Steam doesn't repaint from this: Millennium injects the block when a window
-# loads (the restart prompt below covers it).
-MILLENNIUM_CFG="$HOME/.config/millennium/config.json"
+# ── Steam (Millennium / Material) ────────────────────────────────────────────
+# Material's "Matugen" colour source reads css/main/colors/matugen.css and re-reads it every
+# 1.5 s in every Steam window, so writing that one file (scripts/steam-colors.py, from the
+# palette, with the shell's own role blends) repaints an OPEN Steam within a couple of seconds:
+# no restart, no debug port, nothing in Millennium's config.json. theme-setup.sh steam installs
+# Material and picks that colour source. Skipped when Material isn't installed.
+STEAM_THEME="${XDG_DATA_HOME:-$HOME/.local/share}/Steam/millennium/themes/Material-Theme"
 steam_recolor() {
-    local active bak="$HOME/.config/millennium/.bak"
-    active=$(python3 -c "
-import json, sys
-try:
-    print(json.load(open(sys.argv[1])).get('themes', {}).get('activeTheme', ''))
-except Exception:
-    pass
-" "$MILLENNIUM_CFG" 2>>"$LOG")
-    if [[ "$active" != "simply-dark" ]]; then
-        skip steam "simply-dark isn't the active Millennium theme"
-        return 0
-    fi
-    mkdir -p "$bak"
-    cp "$MILLENNIUM_CFG" "$bak/config.json.$(date +%Y%m%d%H%M%S)" 2>>"$LOG"
-    ls -1t "$bak"/config.json.* 2>/dev/null | tail -n +6 | xargs -r rm -f --
     step steam "Recolouring Steam" -- python3 "$SHELL_DIR/scripts/steam-colors.py" \
-        "$MILLENNIUM_CFG" "$WAL_CACHE/colors.json"
+        "$WAL_CACHE/colors.json" --theme-dir "$STEAM_THEME"
 }
-if [[ -f "$MILLENNIUM_CFG" ]] && load_palette; then
+if [[ -d "$STEAM_THEME" ]] && load_palette; then
     bg steam_recolor
 else
-    skip steam "Millennium config not found"
+    skip steam "Material isn't installed for Steam"
 fi
 
 bg unless_done spotify spotify recolor_spotify
 bg unless_done discord discord recolor_discord
 bg unless_done browser firefox recolor_browser
-# Steam's debug-port flag is consumed at every start; a theme run puts it back for the next one
-# (opt-in, see steam-live.py). Then the live push, unless Contagion already did it under the curtain.
-( python3 "$STEAM_LIVE" flag >/dev/null 2>&1 & )
-bg unless_done steam steamlive recolor_steam
-# Steam's own blues/greens/tinted greys are recoloured from a scan of its stylesheets (steam-accent.py);
-# redo it only when they changed — a Steam update — or there has been none yet. After the wave, in the
-# background: the check is one cheap read, a real scan a few seconds.
-( python3 "$STEAM_LIVE" scan --if-needed >/dev/null 2>&1 & )
 
 # ── 11. Zen browser chrome ───────────────────────────────────────────────────
 # Writes userChrome.css only. It is NOT applied to a running Zen and the browser
@@ -443,9 +406,7 @@ fi
 #   · Nautilus and Mission Center are libadwaita, which does not follow the
 #     gtk-theme key — so the toggle in step 7 reaches GTK3 apps but not these.
 #     That is why the original pipeline resorted to killing Nautilus outright.
-#   · Steam/Millennium bakes colours into config.json (see the steam step
-#     above); whether an already-open window repaints from that write alone is
-#     unverified, so it gets the same "ask, don't assume" prompt as the rest.
+#   · Steam repaints itself (the steam step above), so it is not asked about.
 #
 # The shell shows ONE prompt for whatever is in this list, rather than naming a
 # single app as though it were the only one that mattered. One `ps` read for all four
@@ -471,7 +432,6 @@ restart_if_running() {
 restart_if_running zen-bin       "Zen"
 restart_if_running nautilus      "Files"
 restart_if_running missioncenter "Mission Center"
-restart_if_running steam         "Steam"
 
 wait
 echo "--- [fan-out] $(( $(elapsed_ms) - FAN_T0 )) ms, run total $(elapsed_ms) ms" >> "$LOG"

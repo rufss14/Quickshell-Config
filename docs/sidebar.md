@@ -4,8 +4,13 @@ Moved from CLAUDE.md; the project rules there still apply.
 
 ## The sidebar (dock edge)
 
-Settings › Sidebar groups everything on the edge the bar doesn't own: Dock
-(`DockPage`), Stats (`SidebarStatsPage`) and Clips (`ClipsPage`).
+Since 2026-11-08 what stands on the edge is arranged on Settings › Bar › Modules
+(`BarPage`: one inspector and one library — `ModuleInspector`, `ModuleLibrary` — with the
+REAL bar and sidebar armed while it's open, so pressing a module there picks it; a scaled map
+of both surfaces was tried for a round and dropped). The dock and the stats are modules like the
+rest; their old tabs (`DockPage`, `SidebarStatsPage`) are gone and their settings are the
+inspector's `DockOptions` / `StatsOptions` (`UiState.openSettingsTo` still accepts the old
+page names and picks the module). Settings › Sidebar keeps the edge, size, auto-hide and look.
 
 - **What's on the edge is `Config.sidebarLayout`** — the top bar's `layout` shape (region →
   groups → ids) and the same `layout.js` algebra, over `start` / `centre` / `end` along the
@@ -28,22 +33,26 @@ Settings › Sidebar groups everything on the edge the bar doesn't own: Dock
   The top bar's add still starts a group of its own.
   `qs ipc … call sidebar status | place <id> <region> | remove <id>`.
 - **Arranging it is the top bar's arrange mode, on the edge** (the user's ask, 2026-09-29):
-  Sidebar › Layout open IS `UiState.sidebarArrange` (on construction, off on destruction;
-  its header button toggles it). `modules/bar/SideArrange` (behind a Loader in Bar.qml, z
+  `UiState.arrange` arms the bar AND the sidebar together since 2026-11-08 (`barArrange` /
+  `sidebarArrange` are readonly mirrors); the Arrange button toggles it, leaving the page
+  clears it. `modules/bar/SideArrange` (behind a Loader in Bar.qml, z
   60, over the modules) puts a handle over every module — drag it along the edge, onto
   another (which HALF: before/after, into that group), into a gap between groups (a
   group of its own; a hollow outline, vs the insertion bar), onto an empty region's
   outline, or out into the room beside the sidebar to take it off — with one line saying
-  what the drop will do (`SideDrag.description`). `state/SideDrag` is BarDrag's twin with
-  its OWN mime (`application/x-quickshell-sidemodule`), so neither surface's targets light
-  up for the other's modules; commits happen in `onDropped` only. Targets come from the
+  what the drop will do (`SideDrag.description`). `state/SideDrag` is BarDrag's twin for the
+  sidebar's targets; the gesture itself is `state/ModuleDrag` (one mime,
+  `application/x-quickshell-module`, one `dragId`, `begin`/`end`), so a module dragged off
+  the bar lands on the sidebar and back — Config's mutators take it off the other surface.
+  Each surface's `dragging` is true only for a module with a form there, so no target opens
+  for a drag it would refuse; commits happen in `onDropped` only. Targets come from the
   rail and the layout (`rail.at`, `allLengths`, `Config.sidebarLayout`), never from the
   module items; the drag image IS the module, grabbed on press from `rail.items` (the
   hosts register theirs). Modules are disabled and the dragged one dims while arranging.
   The dock never shares a group: `Config.sidebarMoveIntoGroup` turns such a drop into a
-  group of its own beside it. The settings side is `modules/settings/SideModuleTray` (the
-  unplaced modules as glyph+label chips — not live copies, which would sample — drag out,
-  click to add, drop one back to take it off). Arranging keeps the sidebar out, even
+  group of its own beside it. The settings side is Bar › Modules' library
+  (`ModuleLibrary`, real cells inert, by `modules/bar/sidecells.js`) — drag out, Add, drop
+  one back to take it off. Arranging keeps the sidebar out, even
   empty (`SideBarHost.live`), and closes its panel. `layout.js moveToOwnGroup` names gaps
   in the layout as it WAS, and adjusts for a lone module's own group vanishing (this used
   to move it one group too far, on the top bar too; tested).
@@ -192,7 +201,14 @@ Settings › Sidebar groups everything on the edge the bar doesn't own: Dock
   alarm (day / night tone), "Next Tue 07:30 · in 7 h 12 min" heads the list. Faces slide in the direction of the tab picked (all four sit in one
   box, `stage`, as tall as the face shown; `enabled` — not `visible` — switches them, because a hidden layout's height is stale for a frame when it
   returns); the banner and the exact-time box unroll; trays fade in as they become possible. Unverified by eye, and the dial can be rendered offscreen
-  to look at it — ask first (CLAUDE.md). **Voice**: a face (or the "+n") opens
+  to look at it — ask first (CLAUDE.md).
+  **Round 3 (2026-11-11, "simpler, M3E style"):** the cookie dial, sliding stage and bespoke cards are gone from the PANEL (`TimerDial` stays: the
+  desktop `TimerWidget` draws it). One `PanelHero` per face with the time as a `display` headline (`PanelHero.titleVariant`), the one capsule
+  button on its right and the small controls (presets, stop / skip / +1 / +5, lap / reset / copy) in its footer; it takes `primaryContainer` while
+  something runs. A ringing / finished alert is a `warn` hero on top. Laps and alarms are `PanelRow`s (the fastest lap lit; an alarm row is tapped
+  to switch it, with repeat and delete chips); "New alarm" is a `PanelRow` with its steppers and day chips in `below`. Turn-to-set is gone: the
+  presets set-and-start, "Exact time" opens the steppers. The accent is `primary` (it was `focus`). Unverified by eye.
+  **Voice**: a face (or the "+n") opens
   `modules/panels/VoicePanel` beside it — everyone in the call, mute/deafen/leave; a
   RIGHT-click opens it on that person (`UiState.sidePanelArg`, the one generic "what was
   this opened on" slot): their volume 0–200% and a real per-person mute, for you
@@ -446,8 +462,8 @@ IPC: `qs ipc … call bar add <id>` / `bar remove <id>` (the sidebar's `place`/`
 
 ### Every module on either surface (2026-10-07)
 
-Every catalogue entry now has both forms except the four that are rows of live things
-(workspaces, tray, visualizer) or the sidebar itself (dock). The missing forms are two
+Every catalogue entry then had both forms except the four that are rows of live things
+(workspaces, tray, visualizer) or the sidebar itself (dock) — see "Same face, turned" below. The missing forms are two
 generic files keyed by `moduleId`, not one file each:
 
 - `modules/bar/SideBarModule.qml` — a bar module as a sidebar cell: glyph/symbol (SideCell
@@ -459,6 +475,30 @@ generic files keyed by `moduleId`, not one file each:
   panels (stats, clipboard, timer, claude, screentime, clips) are registered in
   `BarPanelDock`; voice's pill is the mute switch (its panel follows the sidebar's call
   faces). ClipsPanel's target button opens Settings › Clips when not in the sidebar.
+
+**Same face, turned (2026-11-08).** The user found modules "change so much" between the
+surfaces and picked one face for both, laid out for the direction:
+
+- `SideModulePill` draws the module's REAL sidebar cell (`sidecells.js`), `vertical: false`,
+  inert, scaled by `glyphSize / sidebarGlyphPx`; the pill keeps every click (tools: the right
+  half is the cheatsheet). `SidePeek.fire` and SideClips' peek refuse unless the module stands
+  on the sidebar (`Config.surfaceOf`), so a cell drawn on the bar or in the library never peeks.
+- The sidebar copies the bar: `SideClock` (HH / mm / ss / date / temperature), the bar pills'
+  symbols in `SideBarModule`, `SideBrightness`, `SideLayout`, `SideNotifications`; the
+  keyboard's and the locks' WORDS (`SideCell.label`, elided), the update count
+  (`SideCell.badge`), wifi/bluetooth/battery captions (following `detailOn`). The focused
+  window stays icon-only (the 2026-10-31 call).
+- Every catalogue entry has both forms except the dock (no bar form yet):
+  `SideWorkspaces` (WorkspacesPill with `side` + `vertical` — a quarter turn, labels turned
+  back), `SideTray` (a cell per icon, 0 cells when empty; `BarContextMenu.open(…, beside)`
+  opens the menu beside the cell, unwelded), `SideVisualizer` (SideNowPlaying as the cover
+  with `moduleId: "visualizer"` + a turned Spectrum), and `NowPlayingPill` on the bar (the
+  cover cell via SideModulePill + previous / play-pause / next).
+- Per-module accent and inner pill follow the module onto the sidebar: `SideCell.moduleId`
+  (defaults to `hoverKind`) → `Config.moduleAccent` / `moduleHero`; `moduleInnerPill` reads
+  the module's surface's switch, and `SideRegionPills` splits a pill round an opted-out
+  module (`sidemodules.js innerRuns`, tested). Group spacing stays bar-only: a sidebar cell
+  is a fixed dock-sized square.
 
 `UiState.closePanel(name)` closes the panel in EITHER dock. **Upgrade trap, fixed:** the
 bar's reconcile appends modules missing from `knownModules`, so the first load after a
@@ -595,8 +635,9 @@ an outline when clipping is off, breathing while recording; the catalogue alread
 - **Event peeks** (`modules/panels/EventPeek`, side panel "peek"; `components/SidePeek`): the clips peek's rules for
   every module — focused monitor only, a free slot (a hover chip gives way), not over the bar's panel column, not
   while arranging or sunk; a peek already up keeps its place. Kinds: timer (finished / alarm ringing; Dismiss, Snooze
-  5 min; 6 s), claude (needs you / finished a turn — the newest of `fresh`; "Go to it"; 6 s; counted against the last
-  count so the session list loading isn't an event), colour (swatch in the picked colour + hex; 2.6 s; the copy the
+  5 min; 6 s), claude (needs you / finished a turn — the newest of `fresh`; 6 s; counted against the last
+  count so the session list loading isn't an event; 2026-11-11: a vivid primary shape, the question or the reply it finished with quoted in a tonal block,
+  "project · model · context" and "+n more" under it, chips Go to it (filled) / Copy reply / ✕), colour (swatch in the picked colour + hex; 2.6 s; the copy the
   pick makes then finds the slot taken), clipboard (an image or the first three lines in mono; 2 s; password
   managers' copies never reach the store — `clip-store.py is_secret`). Each has a switch: `Config.peekTimer /
   peekClaude / peekColour / peekClipboard` (Settings › Sidebar › Peeks).

@@ -42,6 +42,28 @@ toggles real mute — ask first.
   `xdotool` (XTEST); native Wayland needs `wtype`. The choice comes from
   `Hypr.windows[].xwayland` — never assume.
 
+### Call log and the scoreboard (2026-11-08)
+
+`services/calllog.js` (pure, `bun scripts/test-calllog.js`) → `services/CallLog.qml` (eager in shell.qml, `Config.callLog`,
+default ON — the user chose "keep until I forget") → the **Board** tab of `modules/panels/VoicePanel` (`voice/VoiceBoardView`),
+and a "Call log" card on Settings › Discord (toggle, count, Forget everyone behind an ArmLatch).
+
+- **Counts** everyone in your current channel who isn't you and isn't a bot (`Discord.users`, from the helper's VOICE_STATE_*
+  events — no helper change). Time together is credited every 30 s and whenever the set of people changes (a speaking flicker
+  changes `Discord.users` but not the ids, and is ignored); a span over two ticks is clipped like Screen time's. Each arrival is
+  one more call together. A call that ends is saved at once, else once a minute.
+- **No friends list.** Discord's RPC doesn't expose one (only the channel), so the board ranks everyone who shared a call —
+  the user accepted that over a "mark as friend" star. The eye on a row HIDES a person (still recorded, so they don't come
+  back); with the hidden shown a row can be restored or deleted for good (two taps). Forget everyone is in Settings.
+- **Kept** in `statePath("call-log.json")`: `{ version, people: { id: { name, avatar, seconds, calls, last, hidden } } }` — names
+  and numbers only: no channel or server name, no time of any call. Until forgotten (the user's choice). Not a secret file
+  (not in `secrets/`), but personal: don't commit it, it lives under XDG_STATE_HOME outside the repo.
+- **Validated at the door** (`calllog.js`): an id must be 5–25 digits; a display name is whatever a stranger typed, so control
+  and bidi characters are stripped and it's cut at 64 and only ever drawn as plain text; an avatar is kept only if it's
+  `https://cdn.discordapp.com/…`. A hand-edited file goes through the same `clean` (2000 people at most, the biggest kept).
+- **Unverified live:** nothing here has seen a real call. The helper's `isSelf`/`bot` flags and `avatar` URL are what the
+  People tab already relies on. `qs ipc -c ~/.config/quicktest call calllog status` answers with counts only.
+
 ### Rich presence (two separate cards, two separate daemons)
 
 Both follow `claude-presence.py`'s design exactly — a `setsid`-detached daemon the
@@ -89,9 +111,10 @@ It replaces Midnight, which Setup used to download and recolour with `pywal-midn
 Midnight and leaves its file alone; a client that has only Midnight is still recoloured (`discord_themes`),
 and `pywal-midnight.py` stays until the user says to remove it.
 
-- **Same translation as QuickSpice.** The Tokens block (radii, spacing, curves, shadow dp) and the role
-  mixes (`surface`, `container`, `high`, the state ladder) are copied from `spicetify/Themes/QuickSpice/user.css`,
-  which took them from `Tokens.qml` / `PaletteRoles.qml`. Two copies of ~60 lines; if one changes, change both.
+- **Same translation as the shell.** The Tokens block (radii, spacing, curves, shadow dp) and the role
+  mixes (`surface`, `container`, `high`, the state ladder) are copied from `Tokens.qml` / `PaletteRoles.qml`
+  (they were first copied from the Spotify theme QuickSpice, which the shell no longer ships: QuickZiro replaced it).
+  Copies of ~60 lines; if the shell's change, change this.
 - **It follows Settings → Type & Shape (2026-10-24).** `services/DiscordTheme.qml` reads the RESOLVED
   `Tokens`/`Motion` values (spacing, the five radii — so roundness, square corners and the "Rounder" ladder
   are already applied — the text/numerals faces after the installed-font check, the six durations, the card
@@ -118,7 +141,7 @@ and `pywal-midnight.py` stays until the user says to remove it.
   every Discord slider is WaveSlider's sine up to a thin playhead and a flat rail after it — it travels only
   while the Spotify plugin's pause icon is showing (`#vc-spotify-player:has(.vc-spotify-pause)`, plugin classes,
   stable) and is a flat line when paused; and the title bar's two clusters are capsule trays like the bar's. The cookie
-  and clover outlines are generated (`scallop_polygon`, tested against QuickSpice's `--qs-mark`).
+  and clover outlines are generated (`scallop_polygon`, the shell's Scallop outline).
 - **Five inputs, one block.** `--qs-base/text/primary/focus/on-primary` sit between `qs-palette:begin/end`
   markers; the script imports `pwspice.py` for `_mix`/`_legible`, so primary and focus are the colours the bar
   wears (floored at 4.5:1). It writes nothing when the block is unchanged — Vencord re-parses the theme on
@@ -143,7 +166,7 @@ and `pywal-midnight.py` stays until the user says to remove it.
   (it looked like "the page scrolls", but nothing scrolled: an `overflow: clip` on the page changed nothing and was removed).
   Turn BetterFolders → "Display servers from folder on a sidebar" OFF and a folder expands inside the one
   rail. The theme does not try to handle the clone: it is a plugin's DOM, and hiding it would hide the folder.
-- **Not done, on purpose.** Cookie-clipped server icons (QuickSpice's `clip-path`): Discord masks guild icons
+- **Not done, on purpose.** Cookie-clipped server icons (as QuickSpice did, with a `clip-path`): Discord masks guild icons
   with an SVG `foreignObject` that animates its own squircle, so a `clip-path` would fight it. List-item
   stagger and message fade-in: both replay on every virtualised mount, which reads as flicker while scrolling.
 - **Unverified (nothing here has rendered in Discord):** the geometry of the top rail and the Settings modal

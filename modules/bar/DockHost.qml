@@ -91,9 +91,11 @@ Item {
     readonly property bool wantsExclusiveFocus: body.item?.wantsExclusiveFocus ?? false
 
 
-    // Where magnified icons swell past the dock, as blob boxes in window
-    // coordinates — [] unless welded and magnifying.
-    readonly property var magnifyRects: body.item?.magnifyRects ?? []
+    // Where magnified icons would swell the dock's outline (blob boxes in window
+    // coordinates). Always [] since 2026-11-08: magnification grows the ICONS only and
+    // the border stays put (the user's call) — the icons rise past the face into the
+    // headroom the reveal keeps for them. The blob still takes the list, for a revert.
+    readonly property var magnifyRects: []
 
     // The fused preview's lobe (Config.dockPreviewFuse); zero otherwise.
     readonly property real previewBlobX: body.item?.previewBlobX ?? 0
@@ -293,18 +295,6 @@ Item {
             visible: reveal.cross > 0.5
         }
 
-        // The band's origin in window coordinates (it rides the lobe: flush with
-        // its inner side on a left dock, its origin otherwise), then the strip's
-        // offset inside the band — so the strip's boxes can be moved into window
-        // space by addition, with no mapToItem in a binding.
-        readonly property real cardX: dock.edge === "left" ? lobe.x + lobe.width - dock.depth : lobe.x
-        readonly property real cardY: lobe.y
-        readonly property var magnifyRects: {
-            if (!dock.blobWeld) return []
-            const ox = dock.cardX + dockStrip.x
-            const oy = dock.cardY + dockStrip.y
-            return dockStrip.magnifyBoxes.map(b => ({ x: ox + b.x, y: oy + b.y, w: b.w, h: b.h }))
-        }
 
         // The preview's lobe — or the melted menu's, which takes the slot while it's
         // out (the two are never open together; the menu has priority).
@@ -408,7 +398,7 @@ Item {
                     previewHovered: preview.hovered
                     scope:          Config.dockScope
                     // The dock's rounded ends — its pill's — reach this far into the strip.
-                    swellInset:     Math.max(0, Math.min(Tokens.corner(Config.barShape, Config.barRoundness),
+                    swellInset:     Math.max(0, Math.min(Tokens.corner(Config.barShape, Config.sideRoundness),
                                                          Config.sidebarPillCross / 2) - dock.pad)
                 }
             }

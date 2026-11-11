@@ -249,7 +249,7 @@ Item {
                 columnSpacing: Tokens.spacingXl
                 rowSpacing: Tokens.spacingSm
 
-                Heading { text: "Hyprland"; Layout.columnSpan: parent.columns }
+                Heading { text: Translation.tr("Hyprland"); Layout.columnSpan: parent.columns }
                 Check {
                     label:  Translation.tr("Starts with your session")
                     status: Setup.autostart ? "" : "Not started"
@@ -291,7 +291,7 @@ Item {
                     fix:    "killall " + Setup.rivalAgents.join(" ") + "   — then drop it from your autostart"
                 }
 
-                Heading { text: "Tools"; Layout.columnSpan: parent.columns }
+                Heading { text: Translation.tr("Tools"); Layout.columnSpan: parent.columns }
                 Repeater {
                     model: root.packages
 
@@ -307,7 +307,7 @@ Item {
                     }
                 }
 
-                Heading { text: "Spotify lyrics"; Layout.columnSpan: parent.columns }
+                Heading { text: Translation.tr("Spotify lyrics"); Layout.columnSpan: parent.columns }
                 Check {
                     label:  Translation.tr("Spicetify")
                     status: SpotifyBridge.spicetifyPresent ? "" : "Missing"
@@ -336,7 +336,7 @@ Item {
                           : SpotifyBridge.state === "error"    ? SpotifyBridge.lastError : "Off"
                 }
 
-                Heading { text: "Accounts"; Layout.columnSpan: parent.columns }
+                Heading { text: Translation.tr("Accounts"); Layout.columnSpan: parent.columns }
                 Check {
                     label:  Translation.tr("Secrets")
                     status: Secrets.keyring === "running" ? "In the keyring"

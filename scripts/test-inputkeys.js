@@ -38,7 +38,8 @@ check("no two keys overlap in a row",
       K.KEYS.filter(a => K.KEYS.some(b => a !== b && a.y === b.y && a.x < b.x + b.w && b.x < a.x + a.w)).map(k => k.id), []);
 
 // ── The layouts ───────────────────────────────────────────────────────────────
-check("five layouts, the default first", K.LAYOUT_IDS, ["wasd", "gaming", "compact", "tkl", "full"]);
+check("six layouts, the default first", K.LAYOUT_IDS, ["wasd", "gaming", "osu4k", "compact", "tkl", "full"]);
+check("osu4k is D F J K in one row, naming only those", [K.layoutOf("osu4k").keys.map(k => k.id), K.layoutOf("osu4k").rows, K.layoutOf("osu4k").exposes], [["d", "f", "j", "k"], 1, "few"]);
 check("the default is the old three-row board", [K.layoutOf("wasd").keys.length, K.layoutOf("wasd").cols, K.layoutOf("wasd").rows], [12, 5.75, 3]);
 check("an unknown layout is the default", K.layoutOf("nope").id, "wasd");
 check("isLayout", [K.isLayout("full"), K.isLayout("x"), K.isLayout(undefined)], [true, false, false]);

@@ -97,11 +97,12 @@ Things that bit us and are cheap to re-check:
   `parent.someProp` reads `undefined` ("Unable to assign [undefined] to QUrl"). Use an id.
 - **`signal set(…)` makes the file unparseable, silently.** `qmlformat` prints nothing
   and outputs 0 bytes — the syntax idiom's only tell. `set`/`get` are contextual
-  keywords; name the signal something else (VoicePanel's `Level.chosen`).
+  keywords; name the signal something else (VoicePanel's `Level.chosen`). `check-qml-final.py`
+  catches it.
 - **An `id` may not shadow a JavaScript global.** `id: gc` (inside an inline
   `component`, even) is `ID illegally masks global JavaScript property` — a hard load
-  failure that cascades to `Bar` unavailable, and passes both the syntax sweep and
-  every static checker. `gc`, `print`, `escape`, `isNaN`, `console`, `Math`… are all
+  failure that cascades to `Bar` unavailable, and passes the syntax sweep
+  (`check-qml-final.py` lists it as `illegal-names`). `gc`, `print`, `escape`, `isNaN`, `console`, `Math`… are all
   taken. Bit BluetoothPanel's `GlyphChip`.
 - **`Quickshell.env()` returns a QVariant, so an unset variable is `undefined` —
   not `""`.** Never test with `!== ""`: `undefined !== ""` is TRUE, so the check

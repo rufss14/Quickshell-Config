@@ -25,11 +25,11 @@ const src = readFileSync(join(here, "..", "services", "dock.js"), "utf8")
 const { dedupe, order, group, next, cycle, dropTarget, shift, fit, tileSize,
         idCandidates, audioByKey, playerByKey, badgeCounts, badgeText,
         overlaps, groupPerMonitor, stepFocus, execArgv, fileUrlToPath, pathToFileUrl,
-        insertTarget, downloadDir, magnify, groupBy, parseGioInfo, magnifyBoxes, magnifyBell, sideRail, sideGroups, sideSurface, railAvoid, thumbAspect } =
+        insertTarget, downloadDir, magnify, groupBy, parseGioInfo, magnifyBoxes, magnifyBell, sideRail, sideGroups, sideJoins, sideSurface, railAvoid, thumbAspect } =
     new Function(src + "\nreturn { dedupe, order, group, next, cycle, dropTarget, shift, fit, " +
                  "tileSize, idCandidates, audioByKey, playerByKey, badgeCounts, badgeText, " +
                  "overlaps, groupPerMonitor, stepFocus, execArgv, fileUrlToPath, pathToFileUrl, " +
-                 "insertTarget, downloadDir, magnify, groupBy, parseGioInfo, magnifyBoxes, magnifyBell, sideRail, sideGroups, sideSurface, railAvoid, thumbAspect };")();
+                 "insertTarget, downloadDir, magnify, groupBy, parseGioInfo, magnifyBoxes, magnifyBell, sideRail, sideGroups, sideJoins, sideSurface, railAvoid, thumbAspect };")();
 
 let pass = 0;
 let fail = 0;
@@ -448,6 +448,34 @@ check("gio: an error is null",
     check("groups: the dock alone beside a button group",
           sideGroups({ start: [], centre: [["dock", "stats"]], end: [] }, big),
           { start: [], centre: [["dock"], ["stats"]], end: [] });
+
+    // ── sideJoins: which pieces were one group (the dock grouped like any module) ──
+    check("joins: aligned with sideGroups, first piece of each group not joined",
+          sideJoins({ start: [["tools", "dock", "power"], ["clips"]], centre: [["dock", "stats"]], end: [["stats"]] }, big),
+          { start: [false, true, true, false], centre: [false, true], end: [false] });
+    check("joins: a group without the dock is one unjoined piece",
+          sideJoins({ start: [["clips", "tools"]], centre: [], end: [] }, big),
+          { start: [false], centre: [], end: [] });
+    {
+        const L = { start: [["clips", "dock", "power"]], centre: [], end: [] };
+        const r = sideRail({ start: 0, end: 1000, margin: 50, gap: 20, near: 0, corner: 1000, avoid: 0, collapsed: false,
+                             layout: sideGroups(L, big), joined: sideJoins(L, big),
+                             lengths: { clips: 60, dock: 300, power: 40 } });
+        check("rail: joined pieces butt together (no group gap)", r.at, { clips: 0, dock: 60, power: 360 });
+        check("rail: pieces say which are joined", r.groups.map(g => !!g.joined), [false, true, true]);
+        const e = sideRail({ start: 0, end: 1000, margin: 50, gap: 20, near: 0, corner: 1000, avoid: 0, collapsed: false,
+                             layout: { start: [], centre: [], end: sideGroups({ end: [["dock", "power"]] }, big).end },
+                             joined: { end: [false, true] }, lengths: { dock: 300, power: 40 } });
+        check("rail: joined in the far corner too", e.at, { dock: 660, power: 960 });
+        const c = sideRail({ start: 0, end: 1000, margin: 50, gap: 20, near: 0, corner: 1000, avoid: 0, collapsed: false,
+                             layout: { start: [], centre: [["dock"], ["power"]], end: [] },
+                             joined: { centre: [false, true] }, lengths: { dock: 300, power: 40 } });
+        check("rail: joined in the centre: one block, centred", c.at, { dock: 330, power: 630 });
+        const a = sideRail({ start: 0, end: 1000, margin: 50, gap: 20, near: 0, corner: 1000, avoid: 0, collapsed: false,
+                             layout: { start: [["clips"], ["dock"], ["power"]], centre: [], end: [] },
+                             joined: { start: [false, true, true] }, lengths: { clips: 60, dock: 0, power: 40 } });
+        check("rail: a joined piece after an absent one takes the gap", a.at, { clips: 0, power: 80 });
+    }
     check("groups: a missing region is empty", sideGroups({ centre: [["dock"]] }, big),
           { start: [], centre: [["dock"]], end: [] });
 

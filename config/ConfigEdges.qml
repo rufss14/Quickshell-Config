@@ -3,6 +3,7 @@ import Quickshell.Io
 import QtQuick
 import "layout.js" as Layout
 import "modules.js" as Catalogue
+import "surfaces.js" as Surfaces
 // ConfigEdges — part of Config, split out of Config.qml by area (2026-11-08). The parts form
 // one inheritance chain (ConfigShell ← ConfigEdges ← ConfigBarLayout ← ConfigSystem ←
 // ConfigDesktop ← Config), so every property still lives on the one `Config` singleton
@@ -130,7 +131,26 @@ ConfigShell {
     readonly property int sidebarDepth:     root.sidebarPillCross + Tokens.spacingMd * 2
     // The corner every sidebar surface wears: the top bar's. The blob's sidebar
     // lobes and the cards melted out of them round to it too, so the two agree.
-    readonly property int sidebarRadius: Tokens.corner(root.barShape, root.barRoundness)
+    readonly property int sidebarRadius: Tokens.corner(root.barShape, root.sideRoundness)
+
+    // ── The sidebar's look: the bar's, unless unlinked (2026-11-08) ───────────
+    // Bar & sidebar › Style is one set of knobs; each is "Sidebar: same as bar" until
+    // unlinked there. `sidebarStyle` holds only the unlinked values (surfaces.js
+    // STYLE_KEYS — cleaned on load, clamped on write), so a linked knob follows the bar
+    // live. Every sidebar surface reads the `side*` values below, never the bar's.
+    // Square corners stay shell-wide (Tokens.corner's `barShape`), on purpose.
+    property var sidebarStyle: ({})
+    function sideLinked(key)       { return root.sidebarStyle[key] === undefined }
+    function setSideStyle(key, v)  { root.sidebarStyle = Surfaces.setOverride(root.sidebarStyle, key, v) }
+    function linkSideStyle(key)    { root.sidebarStyle = Surfaces.clearOverride(root.sidebarStyle, key) }
+    readonly property int  sideRoundness:     root.sidebarStyle.roundness  ?? root.barRoundness
+    readonly property real sideOpacity:       root.sidebarStyle.opacity    ?? root.barOpacity
+    readonly property bool sideInnerPill:     root.sidebarStyle.innerPill  ?? root.barInnerPill
+    readonly property bool sideMusicReact:    root.sidebarStyle.musicReact ?? root.barMusicReact
+    readonly property real sideFontScalePref: root.sidebarStyle.fontScale  ?? root.barFontScalePref
+    readonly property real sideIconScalePref: root.sidebarStyle.iconScale  ?? root.barIconScalePref
+    readonly property real sideFontScale: root.sideFontScalePref * root.resScale
+    readonly property real sideIconScale: root.sideIconScalePref * root.resScale
     // Each pill sits this far in from the bar's ENDS along the edge — the top bar's
     // first inner pill stands the same spacingSm off the screen's side.
     readonly property int sidebarInset: Tokens.spacingSm
@@ -170,8 +190,8 @@ ConfigShell {
     // `small`: a few cells, drawn by SideGroupHost — any number of them can share a
     // pill, the way the top bar's modules share a group. The stats and the clips are
     // small too: a bar-style button each, whose panel opens beside it (SidePanelDock).
-    // The dock is a host of its own (previews, menus) and always stands alone; the
-    // rail splits a group round it (dock.js sideGroups). `cells` is how many a small
+    // The dock is a host of its own (previews, menus); the rail splits a group round it
+    // (dock.js sideGroups) and lays the pieces as one group (sideJoins). `cells` is how many a small
     // one takes along the edge; `glyph`, how the settings tray draws it.
     readonly property var sidebarModuleList: Catalogue.forSurface("side")
 
@@ -191,8 +211,28 @@ ConfigShell {
     // it off the other, so the pool never shows a module placed twice. Called by every
     // mutator that can insert — a settings-tray drop goes through moveIntoGroup and
     // never addModule — and a no-op for a module that only has one form.
-    function _leaveBar(id)     { if (root.isPlaced(id))        root.removeModule(id) }
-    function _leaveSidebar(id) { if (root.sidebarPlaced(id))   root.sidebarRemove(id) }
+    // A hero crossing over takes its chip along unless the destination already has a
+    // hero standing on it (surfaces.js moveHero; Config.barHero / sidebarHero).
+    function _leaveBar(id) {
+        if (!root.isPlaced(id)) return
+        root._moveHero(id, "side")
+        root.removeModule(id)
+    }
+    function _leaveSidebar(id) {
+        if (!root.sidebarPlaced(id)) return
+        root._moveHero(id, "bar")
+        root.sidebarRemove(id)
+    }
+    function _moveHero(id, to) {
+        const dest = to === "bar" ? root.barHero : root.sidebarHero
+        const destHas = dest !== "" && dest !== id
+                     && (to === "bar" ? root.isPlaced(dest) : root.sidebarPlaced(dest))
+        const h = { bar: root.barHero, side: root.sidebarHero }
+        const n = Surfaces.moveHero(h, id, to, destHas)
+        if (n === h) return
+        root.barHero = n.bar
+        root.sidebarHero = n.side
+    }
 
     // UI text, like regionLabel(): which end is which depends on the edge (the near
     // end is under the bar on a side, the left end along the bottom).
@@ -226,16 +266,11 @@ ConfigShell {
         root.sidebarLayout = Layout.moveToOwnGroup(root.sidebarLayout, id, region, groupIndex,
                                                    root.sidebarRegionIds)
     }
-    // Into a group, at `index` among its modules (arranging, SideDrag). The dock never
-    // shares one — the rail would only split it back out (dock.js sideGroups) — so a
-    // drop that would put it in one, or another module in its, lands beside it instead.
+    // Into a group, at `index` among its modules (arranging, SideDrag). The dock groups
+    // like any module since 2026-11-08: the rail still hosts it on its own (dock.js
+    // sideGroups) but lays the pieces of its group gapless, one island (sideJoins).
     function sidebarMoveIntoGroup(id, region, groupIndex, index) {
         if (root.sidebarRegionIds.indexOf(region) === -1 || !root.sidebarModuleInfo(id)) return
-        const group = (root.sidebarLayout[region] ?? [])[groupIndex] ?? []
-        if (!root.sidebarIsSmall(id) || group.some(m => !root.sidebarIsSmall(m))) {
-            root.sidebarMoveToOwnGroup(id, region, index <= 0 ? groupIndex : groupIndex + 1)
-            return
-        }
         root._leaveBar(id)
         root.sidebarLayout = Layout.moveIntoGroup(root.sidebarLayout, id, region, groupIndex, index,
                                                   root.sidebarRegionIds)
@@ -294,6 +329,8 @@ ConfigShell {
     property bool   sidebarIslands: true
     property string sidebarHero: "claude"
     property bool   barMusicReact: true
+    //   barTooltips        resting on a bar pill says what it is and what it is doing (ModuleGlance)
+    property bool   barTooltips: true
 
     // ── Karaoke (services/Karaoke) ────────────────────────────────────────────
     // Whether it is ON is deliberately NOT here: the microphone is never opened from a saved
@@ -416,4 +453,15 @@ ConfigShell {
     property int    clipsAhead: 0
     // "Stop after…" for a recording: "off", "5m", "10m", "30m", "1g", "2g" or "4g" (clips.js RECORD_LIMITS).
     property string clipsRecordLimit: "off"
+    // Stamp a saved clip with the song playing (any MPRIS player, Spotify included) and, separately, with who is in
+    // your Discord call, so the library can show and search it. Names go in a file, so the call one is off.
+    property bool   clipsStampMusic: true
+    property bool   clipsStampCall: false
+    // The upload cap "send to Discord" shrinks a clip under, in MB (10 is the free tier's; 25, 50 and 500 follow Nitro).
+    property int    clipsDiscordMB: 10
+    // Clean-up limits (0 = none): clips older than this many days, and the library's size in GB. Only ever a button.
+    property int    clipsPruneDays: 0
+    property int    clipsPruneGB: 0
+    // When the Clips panel was last open (ms): a clip saved after it wears a "new" dot.
+    property real   clipsSeenAt: 0
 }

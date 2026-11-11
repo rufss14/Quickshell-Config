@@ -93,3 +93,31 @@ var MAX_STATS = 4;
 function statsCells(metrics, maxStats) {
     return Math.max(1, Math.min(metrics | 0, maxStats || MAX_STATS));
 }
+
+// ── The inner pill, per module ────────────────────────────────────────────────
+// A module can opt out of its inner pill (Bar & sidebar › Modules, Config.moduleInnerPill);
+// on the bar it then sits straight on the bar (BarGroup splits the run). On the sidebar the
+// pill under a group or region is split the same way: one piece per run of modules that keep
+// theirs. `mods` are the pill's modules in order along the edge, [{ at, len, on }], `at`
+// relative to the pill's start; `span` is the pill's length. A run that reaches an end of
+// the pill keeps the pill's own end (its padding); one that stops short of a module that
+// opted out keeps the pill's end padding round its cells, never reaching into that module. All on: one piece, the whole pill. All off: none.
+function innerRuns(mods, span) {
+    const list = Array.isArray(mods) ? mods : [];
+    if (list.length === 0) return [];
+    if (list.every(m => m.on)) return [{ from: 0, to: span }];
+    const pad = Math.max(0, list[0].at);
+    const out = [];
+    let start = -1;
+    for (let i = 0; i <= list.length; i++) {
+        const m = list[i];
+        if (m && m.on) { if (start < 0) start = i; continue; }
+        if (start < 0) continue;
+        const first = list[start], last = list[i - 1];
+        const prev = list[start - 1];
+        out.push({ from: start === 0 ? 0 : Math.max(prev.at + prev.len, first.at - pad),
+                   to:   i === list.length ? span : Math.min(m.at, last.at + last.len + pad) });
+        start = -1;
+    }
+    return out;
+}

@@ -52,6 +52,8 @@ Item {
     property real   spin:      Config.wallMaterialSpin
     property real   backdrop:  Config.wallMaterialBackdrop
     property bool   mirror:    Config.wallMaterialMirror
+    // A panel editing one slot's form dims every other shape, so the part being chosen for stands out.
+    property string highlightSlot: ""
     readonly property var forms: ({
         stack:  Config.wallMaterialStack,
         centre: Config.wallMaterialCentre,
@@ -87,7 +89,8 @@ Item {
 
     // ── The clock ─────────────────────────────────────────────────────────────
     property real t: 0
-    readonly property bool animated: root.running && (root.drift || root.spin > 0)
+    // `!Motion.reduced`, not `ambientOn`: "animations off" never stopped this, and stays as it was.
+    readonly property bool animated: root.running && !Motion.reduced && (root.drift || root.spin > 0)
     FrameAnimation {
         running: root.animated
         onTriggered: root.t += frameTime * root.driftSpeed
@@ -140,6 +143,9 @@ Item {
                             required property var modelData
 
                             readonly property var sway: root.drift ? MW.wander(shape.index, root.t) : null
+
+                            opacity: root.highlightSlot === "" || shape.modelData.slot === root.highlightSlot ? 1 : 0.25
+                            Behavior on opacity { NumberAnimation { duration: Motion.respond } }
 
                             x: shape.modelData.x + (shape.sway ? shape.sway.x * root.height : 0)
                             y: shape.modelData.y + (shape.sway ? shape.sway.y * root.height : 0)

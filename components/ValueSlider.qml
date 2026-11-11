@@ -38,6 +38,13 @@ Item {
     // rail doesn't end up with a pinhead knob.
     property int thickness: 3
 
+    // Material 3 Expressive's slider (2026-11-09): a thick active track that stops short of a thin vertical
+    // handle, the rest of the track starting on its far side. The handle narrows under the finger. Opt-in, so the
+    // bar and the mixer keep their hairline; the settings Fader and SliderRow turn it on.
+    property bool expressive: false
+    readonly property real _gapPx: Tokens.spacingXs + 2
+    readonly property real _handleX: root.width * root._fraction
+
     // The accent can be overridden per-row (the mixer tints a boosted stream to
     // warn, and a muted one to grey it out). Defaults to the focus role, because
     // a slider shows you WHERE YOU ARE — it isn't a control you press.
@@ -70,12 +77,26 @@ Item {
     readonly property real _fraction: Math.max(0, Math.min(1, value / maximum))
     readonly property color _accent: root.accent
 
+    // The part of the track past the handle, expressive mode only.
+    Rectangle {
+        visible: root.expressive
+        anchors.verticalCenter: parent.verticalCenter
+        x: Math.min(root.width, root._handleX + root._gapPx)
+        width: Math.max(0, root.width - x)
+        height: root.thickness
+        radius: height / 2
+        color:  Colors.of(QsWindow.window).alpha(root._accent, 0.22)
+        Behavior on x { NumberAnimation { duration: root.pressed ? 0 : Motion.track; easing.type: Motion.trackCurve } }
+    }
+
     Rectangle {
         id: rail
         anchors.verticalCenter: parent.verticalCenter
         width:  parent.width
         height: root.thickness
         radius: height / 2
+        // Expressive: the track is drawn in two pieces around the handle (above and `fill`).
+        opacity: root.expressive ? 0 : 1
         color:  Colors.of(QsWindow.window).alpha(root._accent, 0.22)
 
         Rectangle {
@@ -98,7 +119,7 @@ Item {
         color:  root._accent
         // Never narrower than its own rounding, or the fill degenerates into a
         // lopsided dot at low values.
-        width:  Math.max(rail.radius * 2, rail.width * root._fraction)
+        width:  root.expressive ? Math.max(0, root._handleX - root._gapPx) : Math.max(rail.radius * 2, rail.width * root._fraction)
 
         // `track`, not the UI motion scale. This follows a LIVE value — the one
         // under the user's cursor. At UI timings (150ms) the fill visibly trails
@@ -121,8 +142,8 @@ Item {
         id: handle
         anchors.verticalCenter: rail.verticalCenter
         readonly property int _rest: Math.max(9, root.thickness + 2)
-        width:  drag.containsMouse || drag.pressed ? _rest + 3 : _rest
-        height: width
+        width:  root.expressive ? (drag.pressed ? 2 : 4) : (drag.containsMouse || drag.pressed ? _rest + 3 : _rest)
+        height: root.expressive ? root.thickness + Tokens.spacingMd : width
         radius: width / 2
         color:  root._accent
 

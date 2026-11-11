@@ -18,9 +18,8 @@ import "../../services/wallpaperlib.js" as Lib
 // by linux-wallpaperengine.
 //
 // ── One gallery, two sources, three views ─────────────────────────────────────
-// The panel used to be images-only, so picking an animated wallpaper meant opening
-// Settings — a full-screen window to do the one thing this panel exists for. It now
-// carries the page's own jobs at panel scale: `gallery` (pick one), `browse` (the
+// Picking an animated wallpaper shouldn't mean opening Settings, a full-screen window
+// for the one thing this panel exists for. So it carries the page's own jobs at panel scale: `gallery` (pick one), `browse` (the
 // in-panel file browser that imports images), and `settings` (the renderer's dozen
 // launch options). The source switch sits in the search row rather than the header,
 // which is already carrying four controls at this width.
@@ -44,15 +43,14 @@ import "../../services/wallpaperlib.js" as Lib
 // more thing you can pick.
 //
 // ── All logic lives in the Wallpaper / WallpaperEngine services ───────────────
-// This file used to own a `Process` whose command was ~110 lines of bash concatenated in
-// QML, with Python heredocs inside it. Closing the panel mid-apply killed the run and left
-// the palette half-written. The pipeline is now `scripts/apply-wallpaper.sh`, driven by the
+// No `Process` here: a pipeline owned by the panel dies when the panel closes mid-apply,
+// leaving the palette half-written. The pipeline is `scripts/apply-wallpaper.sh`, driven by the
 // `Wallpaper` singleton, and this file only shows things and calls functions.
 //
 // ── Progress is shown, not hidden in /tmp ─────────────────────────────────────
-// Applying repaints fourteen applications and takes seconds. The old version wrote its log
-// to /tmp/wallpaper.log, showed nothing, and reported "applied!" even when steps had failed
-// — which is how GTK theming stayed broken for a month. The service parses a step protocol
+// Applying repaints fourteen applications and takes seconds. A log in /tmp and an
+// "applied!" that shows even when steps failed is how GTK theming once stayed broken
+// for a month unnoticed. The service parses a step protocol
 // and this renders it live, including which steps failed. Scenes have no step protocol —
 // they have a stop → start → verify phase — so the same pane reports the phase instead.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -61,6 +59,7 @@ Item {
     // Reached by the view files in wallpaper/.
     property alias browseComponent: browseComponent
     property alias bulkLatch: bulkLatch
+    property alias effectsComponent: effectsComponent
     property alias materialComponent: materialComponent
     property alias propertiesComponent: propertiesComponent
     property alias searchInput: searchInput
@@ -113,7 +112,7 @@ Item {
     property string source: "images"
     readonly property bool isImages: root.source === "images"
 
-    // "gallery" | "browse" | "settings" | "properties" | "material"
+    // "gallery" | "browse" | "settings" | "properties" | "material" | "effects"
     //   material   — the Material Wallpaper's own tab: one wallpaper, drawn live, and its style.
     //                A THIRD tab beside Images and Scenes, but a view rather than a `source`: it has
     //                no library, no search and no thumbnails, so every gallery branch on `source`
@@ -121,6 +120,7 @@ Item {
     //   browse     — the in-panel file browser; images only
     //   settings   — the renderer's launch options; engine only
     //   properties — one scene's author-defined sliders/colours/etc.
+    //   effects    — the wallpaper moved by the music (wallpaper/WallpaperEffects.qml)
     property string view: "gallery"
     readonly property bool isMaterial: root.view === "material"
     // The tab the switch shows, and what the body slides on.
@@ -181,7 +181,7 @@ Item {
     Timer { id: _rescanSpinTimer; interval: 850; onTriggered: root._rescanSpinning = false }
     NumberAnimation {
         target: root; property: "_rescanPhase"
-        from: 0; to: 360; duration: 850
+        from: 0; to: 360; duration: Motion.spin
         loops: Animation.Infinite
         running: root._rescanSpinning
     }
@@ -296,9 +296,9 @@ Item {
     // better as the same weight as its neighbour than as the one migrated icon.
     readonly property var actionEntry: root.isImages
         ? ({ action: "add",    glyph: "󰋺", title: "Add images",
-             caption: "Copy pictures in from any folder" })
+             caption: Translation.tr("Copy pictures in from any folder") })
         : ({ action: "browse", glyph: "󰓓", title: "Browse the Workshop",
-             caption: "Subscribe on Steam, then rescan" })
+             caption: Translation.tr("Subscribe on Steam, then rescan") })
 
     // The action card rides in the model as the FIRST entry, so a delegate reads its glyph and words off
     // the entry like it reads a wallpaper's — no "is this index 0" case in the grid or the list.
@@ -509,7 +509,7 @@ function kbMove(to) {
         ? Wallpaper.lastFailed
         : (WallpaperEngine.lastError !== "" && !WallpaperEngine.busy)
 
-    readonly property bool showProgress: root.view !== "settings" && root.view !== "properties" && !root.isMaterial
+    readonly property bool showProgress: root.view !== "settings" && root.view !== "properties" && root.view !== "effects" && !root.isMaterial
         && (root.applyFailed || (Config.wallApplyDebug && root.applyBusy))
 
     // Debug OFF and an apply is running — the gallery stays, this drives the
@@ -536,6 +536,7 @@ function kbMove(to) {
         if (root.applyingQuiet)       return root.progressTitle
         if (root.view === "browse")     return "Pick pictures to copy in"
         if (root.view === "settings")   return "How the renderer runs"
+        if (root.view === "effects")    return Config.wallFx ? "Moving with the music" : "Music effects are off"
         if (root.view === "properties") return "Customising " + WallpaperEngine.titleFor(root.propertiesForId)
         if (root.isMaterial)
             return Config.wallMaterial ? "On your desktop now"
@@ -792,25 +793,13 @@ function kbMove(to) {
             }
 
             // ── ONE tray: the LIBRARY and how you see it ───────────────────────
-            // Rescan, parallax, the renderer's options (scenes), select, and the layout (+ the Material
-            // tab's lock). What you do to the WALLPAPER (shuffle, stop, undo, restart, cancel) lives on
+            // Rescan, parallax, music effects, the renderer's options (scenes), select, and the layout.
+            // What you do to the WALLPAPER (shuffle, stop, undo, restart, cancel) lives on
             // the hero strip below, next to the picture it acts on. A lit chip IS the on state; the
             // layout chip shows the layout it switches TO. (The apply log's switch lives in the library
             // popover: it is a setting, not an action.)
             ChipTray {
                 groupShown: root.view === "gallery" || root.isMaterial
-
-                // The Material tab's lock, the colours panel's twin: lit when the colour scheme worn
-                // has a look linked to it (services/MaterialPresets); click links the look in use, or lets go.
-                ChipButton {
-                    visible: root.isMaterial
-                    symbol:  MaterialPresets.linkedKey !== "" ? "lock" : "lock_open"
-                    on:      MaterialPresets.linkedKey !== ""
-                    tint:    root.accent
-                    enabled: MaterialPresets.linkBlocker() === ""
-                    onActivated: MaterialPresets.toggleLink()
-                    HoverTip { below: true; text: MaterialPresets.linkedKey !== "" ? "Unlink this look from the colour scheme" : "Link this look to the colour scheme" }
-                }
 
                 ChipButton {
                     visible: !root.isMaterial
@@ -819,7 +808,7 @@ function kbMove(to) {
                     enabled: !root.scanning
                     iconAngle: root._rescanSpinning ? root._rescanPhase : 0
                     onActivated: root.doRescan()
-                    HoverTip { below: true; text: "Rescan the library" }
+                    HoverTip { below: true; text: Translation.tr("Rescan the library") }
                 }
                 // Parallax — ONE button; the two switches (picture / scene, separate settings)
                 // live in the popover below. Lit when either is on.
@@ -828,14 +817,24 @@ function kbMove(to) {
                     on:      Config.wallParallax || Config.wpeParallax
                     tint:    root.accent
                     onActivated: root.popover = root.popover === "parallax" ? "" : "parallax"
-                    HoverTip { below: true; text: "Parallax" }
+                    HoverTip { below: true; text: Translation.tr("Parallax") }
+                }
+                // The wallpaper moved by the music: its own view (Settings has the same controls). Lit
+                // while the effects are on. Not on the Material tab, which they never draw over.
+                ChipButton {
+                    visible: root.view === "gallery"
+                    symbol:  "music_note"
+                    on:      Config.wallFx
+                    tint:    root.accent
+                    onActivated: root.view = "effects"
+                    HoverTip { below: true; text: Translation.tr("Music effects") }
                 }
                 ChipButton {
                     visible: !root.isImages && !root.isMaterial
                     symbol:  "settings"
                     tint:    root.accent
                     onActivated: root.view = "settings"
-                    HoverTip { below: true; text: "Renderer options" }
+                    HoverTip { below: true; text: Translation.tr("Renderer options") }
                 }
                 ChipButton {
                     symbol:  "checklist"
@@ -948,7 +947,7 @@ function kbMove(to) {
                         id: tuneButton
                         symbol: "tune"
                         onClicked: root.popover = root.popover === "library" ? "" : "library"
-                        HoverTip { text: "Sort, filter and shuffle"; below: true }
+                        HoverTip { text: Translation.tr("Sort, filter and shuffle"); below: true }
 
                         Rectangle {
                             width: Tokens.spacingSm
@@ -1053,8 +1052,8 @@ function kbMove(to) {
             RowLayout {
                 anchors.fill: parent
                 // One even inset all round, and the thumbnail's corner CONCENTRIC with the card's
-                // (the card's radius less the inset): it used to sit 2px from the edge with a 4px corner
-                // inside a 23px one, which read as clipped.
+                // (the card's radius less the inset): a 4px corner 2px inside a 23px one reads
+                // as clipped.
                 anchors.margins: Tokens.spacingMd
                 spacing: Tokens.spacingMd
 
@@ -1301,7 +1300,7 @@ function kbMove(to) {
                     on:      true
                     tint:    Colors.of(QsWindow.window).warning
                     onActivated: Wallpaper.restartAll()
-                    HoverTip { below: true; text: "Restart the apps that need it" }
+                    HoverTip { below: true; text: Translation.tr("Restart the apps that need it") }
                 }
                 ChipButton {
                     visible: !root.isMaterial && root.pickingActive
@@ -1328,7 +1327,7 @@ function kbMove(to) {
                     tint:    root.accent
                     enabled: !WallpaperEngine.busy
                     onActivated: WallpaperEngine.stop()
-                    HoverTip { below: true; text: "Stop the scene" }
+                    HoverTip { below: true; text: Translation.tr("Stop the scene") }
                 }
                 ChipButton {
                     visible: !root.isMaterial && !root.sceneOnScreen && Wallpaper.wallpapers.length > 1
@@ -1469,6 +1468,32 @@ function kbMove(to) {
             }
         }
 
+        // ── Effects: back out, and what the beat clock hears ──────────────────
+        WallpaperSubBar {
+            visible: root.view === "effects"
+
+            ChipTray {
+                ChipButton {
+                    symbol: "arrow_left"
+                    label: Translation.tr("Back")
+                    tint: root.accent
+                    onActivated: root.view = "gallery"
+                }
+            }
+            StyledText {
+                Layout.fillWidth: true
+                text: !Config.wallFx ? Translation.tr("Off")
+                    : !MusicPulse.probed ? ""
+                    : !MusicPulse.dspOk ? Translation.tr("Following the bass with cava")
+                    : !MusicPulse.live ? Translation.tr("Listens while music plays")
+                    : MusicPulse.locked ? Translation.tr("In time at ") + Math.round(MusicPulse.bpm) + " BPM"
+                    :                     Translation.tr("Finding the beat…")
+                variant: "caption"
+                emphasis: "dim"
+                elide: Text.ElideRight
+            }
+        }
+
         // ── Properties: back out ───────────────────────────────────────────────
         WallpaperSubBar {
             visible: root.view === "properties"
@@ -1550,6 +1575,12 @@ function kbMove(to) {
     Component {
         id: materialComponent
         WallpaperMaterial { panel: root }
+    }
+
+    // The music effects: wallpaper/WallpaperEffects.qml
+    Component {
+        id: effectsComponent
+        WallpaperEffects { panel: root }
     }
 
     // The renderer's launch options: wallpaper/WallpaperRendererSettings.qml

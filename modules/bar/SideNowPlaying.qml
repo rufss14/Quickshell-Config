@@ -29,6 +29,10 @@ Item {
 
     property bool vertical: true
     property var screen: null
+    // "nowplaying", or "visualizer" when SideVisualizer draws this as its cover: the
+    // hero and accent are that module's, and right-click is the bar visualizer's
+    // (the desktop spectrum on or off) — same face, same buttons (2026-11-08).
+    property string moduleId: "nowplaying"
 
     readonly property var player: MusicPulse.player
     readonly property bool playing: MusicPulse.playing
@@ -55,13 +59,13 @@ Item {
     function _turn() { spin.target += Shapes.turnFor(root.shape) }
     Connections {
         target: MusicPulse
-        enabled: root.playing && Config.barMusicReact
+        enabled: root.playing && Config.sideMusicReact
         function onBeatsChanged() { root._turn() }
     }
     Timer {
         interval: Motion.pulse * 4
         repeat: true
-        running: root.playing && !Config.barMusicReact && Config.motionEnabled && root.visible
+        running: root.playing && !Config.sideMusicReact && Motion.ambientOn && root.visible
         onTriggered: root._turn()
     }
 
@@ -141,8 +145,8 @@ Item {
         fill: root.playing ? 1 : 0
         weight: Config.sidebarGlyphWeight
         font.pixelSize: Math.round(root.ringSize / 2)
-        color: Config.sidebarHero === "nowplaying" ? Colors.of(QsWindow.window).fgOnPrimaryContainer
-             : mouse.containsMouse ? Colors.of(QsWindow.window).primary
+        color: Config.moduleHero(root.moduleId) ? Colors.of(QsWindow.window).fgOnPrimaryContainer
+             : mouse.containsMouse ? Config.moduleAccent(root.moduleId, Colors.of(QsWindow.window).primary)
              : Colors.of(QsWindow.window).stateIdleFg
         scale: feedback.lift
         Behavior on color { ColorAnimation { duration: Motion.respond } }
@@ -150,7 +154,7 @@ Item {
 
     SideHover {
         hovered: mouse.containsMouse
-        from:    "nowplaying"
+        from:    root.moduleId
         arg:     "nowplaying"
         screen:  root.screen
         enabled: !UiState.isOpen("media")
@@ -166,7 +170,10 @@ Item {
         onReleased: feedback.release()
         onCanceled: feedback.release()
         onClicked: function (m) {
-            if (m.button === Qt.RightButton)       UiState.openSettingsTo("SidebarPage.qml")
+            if (m.button === Qt.RightButton) {
+                if (root.moduleId === "visualizer") Config.cavaBg = !Config.cavaBg
+                else                                UiState.openSettingsTo("SidebarPage.qml")
+            }
             else if (m.button === Qt.MiddleButton) { if (root.player) root.player.togglePlaying() }
             else UiState.togglePanel("media")
         }

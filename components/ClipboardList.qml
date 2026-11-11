@@ -36,7 +36,27 @@ ListView {
     boundsBehavior: Flickable.StopAtBounds
     cacheBuffer: 400
 
-    model: Clipboard.entries
+    // What to show of the history: words (any order, over the text, or a link's address) and a kind
+    // ("" all, "text", "image", "link"). Both empty = everything, the history itself.
+    property string query: ""
+    property string kind: ""
+    readonly property var shown: {
+        const words = list.query.toLowerCase().split(/\s+/).filter(w => w !== "")
+        if (words.length === 0 && list.kind === "") return Clipboard.entries
+        return Clipboard.entries.filter(e => {
+            const link = Clipboard.isLink(e)
+            if (list.kind === "image" && e.kind !== "image") return false
+            if (list.kind === "link" && !link) return false
+            if (list.kind === "text" && (e.kind !== "text" || link)) return false
+            if (words.length === 0) return true
+            // A picture has no words to match.
+            if (e.kind === "image") return false
+            const hay = (e.preview || "").toLowerCase()
+            return words.every(w => hay.indexOf(w) !== -1)
+        })
+    }
+
+    model: list.shown
 
     delegate: Surface {
         id: row
@@ -45,7 +65,7 @@ ListView {
         width: list.width
         implicitHeight: body.implicitHeight + Tokens.spacingMd * 2
         elevation:    Tokens.elevationNested
-        cornerRadius: Tokens.radiusSm
+        cornerRadius: Tokens.radiusCard
         focused:      rowMouse.containsMouse || row.expanded
 
         readonly property bool isImage: row.modelData.kind === "image"

@@ -22,7 +22,7 @@ WizardPage {
         anchors.fill: parent
         spacing: Tokens.spacingMd
 
-        readonly property var ids: ["themes", "colours"]
+        readonly property var ids: ["themes", "colours", "discordtheme", "spotifytheme"]
         readonly property var t: wizard.topic(p5.ids)
 
         WizardPageHead {
@@ -101,7 +101,7 @@ WizardPage {
 
         WizardStepGroup { ids: p5.ids; shown: wizard.on(5); base: 3 }
 
-        // Per app: what is there to theme, read-only (the step above does them all).
+        // Per app: what is there to theme, read-only (GTK, Qt and Steam are the "Theme your apps" step above; Discord and Spotify are steps of their own).
         Item {
             Layout.fillWidth: true
             Layout.preferredHeight: appFlow.implicitHeight

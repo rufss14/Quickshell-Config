@@ -8,17 +8,15 @@ import "../../components"
 import "../../services"
 
 // ── TasksPanel ────────────────────────────────────────────────────────────────
-// The to-do list, beside the sidebar's checklist button (SidePanelDock) or under the
-// bar's (BarPanelDock). A field to add one, the open tasks, the finished ones below.
+// The to-do list, beside the sidebar's checklist button (SidePanelDock) or under the bar's (BarPanelDock).
+// In the shell's Material 3 Expressive panel shape:
 //
-// The panel recipe: PanelHeader with an ActionGroup, tokens throughout, the shared
-// InputField and ArmLatch. The rules and the file are services/Tasks — this shows
-// the list and calls it.
+//   Header  (Settings › Modules › To-do hides it) the title and what is open
+//   Hero    how much is left, a bar of how far through the list you are, and Clear done (asks twice)
+//   Field   add one (Enter)
+//   List    a tonal row each: click to tick or untick, ✕ on hover to remove
 //
-//   Enter       add what's in the field
-//   click ring  tick / untick
-//   ✕ (hover)   remove one
-//   bin         clear everything finished (asks first — two clicks)
+// The rules and the file are services/Tasks; this shows the list and calls it.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
@@ -26,16 +24,19 @@ Item {
     // The room the slot has (the docks set it); the list scrolls past it.
     property real maxHeight: Infinity
 
-    readonly property int pad: Tokens.spacingLg
-    implicitWidth: Tokens.sideCardUnit * 7
+    readonly property int pad: Tokens.spacingXl
+    implicitWidth: Tokens.sideCardUnit * 8
     implicitHeight: Math.min(root.maxHeight, col.implicitHeight + root.pad * 2)
 
     readonly property color accent: Colors.of(QsWindow.window).primary
+    readonly property int total: Tasks.items.length
+    readonly property bool allDone: root.total > 0 && Tasks.openCount === 0
 
-    // What the list may take: what's left under the header and the field, never more
+    // What the list may take: what's left under the header, hero and field, never more
     // than six card units (a long list scrolls rather than stretching the panel).
     readonly property real listRoom: Math.max(Tokens.sideCardUnit * 2, Math.min(Tokens.sideCardUnit * 6,
-        root.maxHeight - root.pad * 2 - head.implicitHeight - field.implicitHeight - col.spacing * 2))
+        root.maxHeight - root.pad * 2 - (head.visible ? head.implicitHeight + col.spacing : 0)
+        - (hero.visible ? hero.implicitHeight + col.spacing : 0) - field.implicitHeight - col.spacing))
 
     ArmLatch {
         id: clearLatch
@@ -48,28 +49,48 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.margins: root.pad
-        spacing: Tokens.spacingMd
+        spacing: Tokens.spacingSm
 
         PanelHeader {
             id: head
             Layout.fillHeight: false
+            visible: Config.panelHeader("tasks")
             symbol:    "checklist"
             title:     Translation.tr("To-do")
             titleTail: Translation.tr("list")
             accent:    root.accent
-            subtitle:  Tasks.items.length === 0 ? Translation.tr("Nothing yet")
-                     : Tasks.openCount === 0    ? Translation.tr("All done")
+            subtitle:  root.total === 0 ? Translation.tr("Nothing yet")
+                     : root.allDone     ? Translation.tr("All done")
                      : Translation.tr("%1 open").arg(Tasks.openCount)
+        }
 
-            ActionGroup {
-                groupShown: Tasks.doneCount > 0
-                PanelButton {
-                    symbol:  "delete"
-                    label:   clearLatch.armed ? Translation.tr("Clear done?") : ""
-                    variant: clearLatch.armed ? "primary" : "ghost"
-                    accent:  root.accent
-                    onActivated: clearLatch.trigger()
-                }
+        PanelHero {
+            id: hero
+            visible: root.total > 0
+            compact: true
+            symbol: root.allDone ? "task_alt" : "checklist"
+            shape: root.allDone ? "sunny" : "cookie7"
+            active: true
+            turning: false
+            accent: root.accent
+            title: root.allDone ? Translation.tr("All done")
+                 : Tasks.openCount === 1 ? Translation.tr("1 task left") : Translation.tr("%1 tasks left").arg(Tasks.openCount)
+            line: Translation.tr("%1 of %2 finished").arg(Tasks.doneCount).arg(root.total)
+
+            PanelButton {
+                visible: Tasks.doneCount > 0
+                capsule: true
+                symbol:  "delete"
+                label:   clearLatch.armed ? Translation.tr("Clear done?") : Translation.tr("Clear done")
+                variant: clearLatch.armed ? "primary" : "normal"
+                accent:  root.accent
+                onActivated: clearLatch.trigger()
+            }
+
+            footer: Meter {
+                Layout.fillWidth: true
+                value: root.total > 0 ? Tasks.doneCount / root.total : 0
+                accent: hero.ink
             }
         }
 
@@ -85,12 +106,20 @@ Item {
             }
         }
 
+        PanelEmpty {
+            visible: Tasks.ready && root.total === 0
+            symbol: "checklist"
+            shape: "cookie7"
+            title: Translation.tr("Nothing to do")
+            text: Translation.tr("Type a task above and press Enter. It is kept on this computer.")
+        }
+
         ListView {
             id: list
             Layout.fillWidth: true
             Layout.fillHeight: false
             Layout.preferredHeight: Math.min(list.contentHeight, root.listRoom)
-            visible: Tasks.items.length > 0
+            visible: root.total > 0
             clip: true
             interactive: list.contentHeight > list.height
             boundsBehavior: Flickable.StopAtBounds
@@ -101,26 +130,34 @@ Item {
                 id: row
                 required property var modelData
                 width: ListView.view.width
-                implicitHeight: Math.max(tick.height, label.implicitHeight) + Tokens.spacingSm * 2
+                implicitHeight: Math.max(tick.height, label.implicitHeight) + Tokens.spacingMd * 2
                 height: implicitHeight
 
                 HoverHandler { id: hover }
 
                 Rectangle {
                     anchors.fill: parent
-                    radius: Tokens.radiusSm
-                    color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, hover.hovered ? 0.06 : 0)
-                    Behavior on color { ColorAnimation { duration: Motion.respond } }
+                    radius: Tokens.radiusCard
+                    color: Colors.of(QsWindow.window).section
+                    opacity: row.modelData.done ? 0.6 : 1
+                    Behavior on opacity { NumberAnimation { duration: Motion.respond } }
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: parent.radius
+                        color: Colors.of(QsWindow.window).fg
+                        opacity: hover.hovered ? Tokens.stateHover : 0
+                        Behavior on opacity { NumberAnimation { duration: Motion.respond } }
+                    }
                 }
 
                 MaterialIcon {
                     id: tick
                     anchors.left: parent.left
-                    anchors.leftMargin: Tokens.spacingSm
+                    anchors.leftMargin: Tokens.spacingMd
                     anchors.verticalCenter: parent.verticalCenter
                     name: row.modelData.done ? "check_circle" : "radio_button_unchecked"
                     fill: row.modelData.done ? 1 : 0
-                    font.pixelSize: Tokens.iconMd
+                    font.pixelSize: Tokens.iconLg
                     color: row.modelData.done ? root.accent : Colors.of(QsWindow.window).fgMuted
                     Behavior on color { ColorAnimation { duration: Motion.respond } }
                 }
@@ -145,15 +182,19 @@ Item {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: Tasks.toggle(row.modelData.id)
+                    Accessible.role: Accessible.CheckBox
+                    Accessible.name: row.modelData.text
+                    Accessible.checked: row.modelData.done
+                    Accessible.onPressAction: Tasks.toggle(row.modelData.id)
                 }
 
                 MaterialIcon {
                     id: gone
                     anchors.right: parent.right
-                    anchors.rightMargin: Tokens.spacingSm
+                    anchors.rightMargin: Tokens.spacingMd
                     anchors.verticalCenter: parent.verticalCenter
                     name: "close"
-                    font.pixelSize: Tokens.iconSm
+                    font.pixelSize: Tokens.iconMd
                     color: goneHover.hovered ? Colors.of(QsWindow.window).danger : Colors.of(QsWindow.window).fgDim
                     opacity: hover.hovered ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: Motion.respond } }

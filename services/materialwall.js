@@ -215,7 +215,7 @@ function layout(w, h, opts) {
         const bh = s.size * scale * h
         const bw = bh * (s.aspect || 1)
         const box = {
-            kind: s.kind, tone: clamp(s.tone * contrast, 0, 0.9), rot: (s.rot || 0) + jr, alt: s.alt === true,
+            kind: s.kind, slot: s.slot || "", tone: clamp(s.tone * contrast, 0, 0.9), rot: (s.rot || 0) + jr, alt: s.alt === true,
             x: (s.x + jx) * w - bw / 2, y: (s.y + jy) * h - bh / 2, w: bw, h: bh,
             round: clamp((s.round || 0) * softness, 0, 0.5),
             outline: []

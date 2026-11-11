@@ -59,7 +59,8 @@ Singleton {
     // Animations off means no wave at all: ThemeRunner then runs the scripts the old
     // way (picture first, colours instant), which is what "off" should mean for a
     // hero animation.
-    readonly property bool enabled: Config.motionEnabled
+    // Reduced motion counts: the wave is a sweep across the whole screen.
+    readonly property bool enabled: Motion.ambientOn
 
     // ── Timing ────────────────────────────────────────────────────────────────
     readonly property int spreadMs: Motion.wave

@@ -41,6 +41,11 @@ def blocks(src):
 
 
 def running_of(own):
+    # `running: true` + a non-literal `paused:` is gated: a paused animation is off the
+    # animation timer, and pausing (not stopping) is how one resumes where it was.
+    p = re.search(r"(?:^|\n)\s*paused\s*:\s*([^\n;]+)", own)
+    if p and p.group(1).strip() not in ("true", "false"):
+        return "paused: " + p.group(1).strip()
     m = re.search(r"(?:^|\n)\s*(?:running|paused)\s*:\s*([^\n;]+)", own)
     return m.group(1).strip() if m else None
 

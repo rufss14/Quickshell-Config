@@ -232,9 +232,9 @@ Item {
                 emphasis: "dim"
             }
             ChipTray {
-                ChipButton { label: "30 min"; tint: root.accent; onActivated: { Notifications.dndFor(30); root.dndMenu = false } }
-                ChipButton { label: "1 hour"; tint: root.accent; onActivated: { Notifications.dndFor(60); root.dndMenu = false } }
-                ChipButton { label: "Till morning"; tint: root.accent; onActivated: { Notifications.dndUntilMorning(); root.dndMenu = false } }
+                ChipButton { label: Translation.tr("30 min"); tint: root.accent; onActivated: { Notifications.dndFor(30); root.dndMenu = false } }
+                ChipButton { label: Translation.tr("1 hour"); tint: root.accent; onActivated: { Notifications.dndFor(60); root.dndMenu = false } }
+                ChipButton { label: Translation.tr("Till morning"); tint: root.accent; onActivated: { Notifications.dndUntilMorning(); root.dndMenu = false } }
                 ChipButton {
                     visible: !Notifications.dnd
                     label: Translation.tr("Until I stop it")
@@ -471,7 +471,7 @@ Item {
                 }
                 ChipButton {
                     symbol:  "snooze"
-                    label:   "1 hour"
+                    label:   Translation.tr("1 hour")
                     tint:    root.accent
                     enabled: root.selectedRecs.length > 0
                     onActivated: {

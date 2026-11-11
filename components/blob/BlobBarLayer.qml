@@ -170,6 +170,29 @@ Item {
     property real trayW: 0
     property real trayH: 0
 
+    // The workspace pill's glance (WorkspaceGlance): a card melted out of the bar's underside
+    // at the hovered slot. Its own lobe, not previewRect — the sidebar's dock owns that one.
+    property real glanceX: 0
+    property real glanceY: 0
+    property real glanceW: 0
+    property real glanceH: 0
+
+    // A bar pill's tooltip (modules/bar/PillTip): a small card melted out of the bar's underside.
+    property real tipX: 0
+    property real tipY: 0
+    property real tipW: 0
+    property real tipH: 0
+
+    // Arrange mode's hint cards (components/ArrangeHint): one under the bar, one off the sidebar's face.
+    property real arrBarX: 0
+    property real arrBarY: 0
+    property real arrBarW: 0
+    property real arrBarH: 0
+    property real arrSideX: 0
+    property real arrSideY: 0
+    property real arrSideW: 0
+    property real arrSideH: 0
+
     // Every visible notification toast, newest first, as {x, y, w, h} in this Item's
     // coordinates. The whole deck fuses — into each other and, through the top one,
     // into the bar.
@@ -187,6 +210,10 @@ Item {
     readonly property matrix4x4 settingsDeform: settingsRect.deformMatrix
     readonly property matrix4x4 sidebarDeform:  sidebarRect.deformMatrix
     readonly property matrix4x4 previewDeform:  previewRect.deformMatrix
+    readonly property matrix4x4 glanceDeform:   glanceRect.deformMatrix
+    readonly property matrix4x4 tipDeform:      tipRect.deformMatrix
+    readonly property matrix4x4 arrBarDeform:   arrBarRect.deformMatrix
+    readonly property matrix4x4 arrSideDeform:  arrSideRect.deformMatrix
     readonly property matrix4x4 sidePanelDeform: sidePanelRect.deformMatrix
     readonly property matrix4x4 osdDeform: osdRect.deformMatrix
     readonly property matrix4x4 powerDeform: powerRect.deformMatrix
@@ -639,6 +666,52 @@ Item {
         y: root.previewY - root.borderWidth
         width:  root.grow(root.previewW)
         height: root.grow(root.previewH)
+        radius: Tokens.radiusCard + root.borderWidth
+        deformScale: root.deformScale
+    }
+
+    // The workspace glance: the same single join as the tray menu, at the hovered slot.
+    BlobRect {
+        id: glanceRect
+        group: blobGroup
+        x: root.glanceX - root.borderWidth
+        y: root.glanceY - root.borderWidth
+        width:  root.grow(root.glanceW)
+        height: root.grow(root.glanceH)
+        radius: Tokens.radiusCard + root.borderWidth
+        deformScale: root.deformScale
+    }
+
+    // The arrange hint cards: single joins like the glance's, with the hero corner.
+    BlobRect {
+        id: arrBarRect
+        group: blobGroup
+        x: root.arrBarX - root.borderWidth
+        y: root.arrBarY - root.borderWidth
+        width:  root.grow(root.arrBarW)
+        height: root.grow(root.arrBarH)
+        radius: Tokens.radiusXl + root.borderWidth
+        deformScale: root.deformScale
+    }
+    BlobRect {
+        id: arrSideRect
+        group: blobGroup
+        x: root.arrSideX - root.borderWidth
+        y: root.arrSideY - root.borderWidth
+        width:  root.grow(root.arrSideW)
+        height: root.grow(root.arrSideH)
+        radius: Tokens.radiusXl + root.borderWidth
+        deformScale: root.deformScale
+    }
+
+    // A bar pill's tooltip: the glance's single join, smaller.
+    BlobRect {
+        id: tipRect
+        group: blobGroup
+        x: root.tipX - root.borderWidth
+        y: root.tipY - root.borderWidth
+        width:  root.grow(root.tipW)
+        height: root.grow(root.tipH)
         radius: Tokens.radiusCard + root.borderWidth
         deformScale: root.deformScale
     }

@@ -61,10 +61,11 @@ Item {
     property real  pointerX: root.width  / 2
     property real  pointerY: root.height / 2
     property color accent:  Colors.of(QsWindow.window).primary
-    // The sidebar's inner pill (SidePill "inner", the bar's roundness) less the spacingXs it
-    // keeps round a cell, so the plate's curve runs parallel to the pill's (IconButton's
-    // "concentric" note).
-    property real  radius:  Tokens.corner(Config.barShape, Math.max(0, Config.barRoundness - Tokens.spacingXs))
+    // The sidebar's inner pill (SidePill "inner", the sidebar's roundness — the bar's unless
+    // unlinked) less the spacingXs it keeps round a cell, so the plate's curve runs parallel
+    // to the pill's (IconButton's "concentric" note). The bar's one user (TrayPill) passes
+    // the bar's own.
+    property real  radius:  Tokens.corner(Config.barShape, Math.max(0, Config.sideRoundness - Tokens.spacingXs))
     property bool  barLadder: true
     property bool  active: false
     // The longest the indicator runs: a glyph's length. A module taller than a cell (the focused

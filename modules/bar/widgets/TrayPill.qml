@@ -94,6 +94,7 @@ Item {
                 CellFeedback {
                     id: feedback
                     anchors.fill: parent
+                    radius: Tokens.corner(Config.barShape, Math.max(0, Config.barRoundness - Tokens.spacingXs))
                     alongY: false
                     hovered: hit.containsMouse
                     accent: root.accent

@@ -14,7 +14,7 @@
 # RUNS the shell never needs it: the compiled .qsb ships in the repo.
 #
 # `--qt6` is qsb's standard Qt 6 target set (SPIR-V plus the GLSL/HLSL/MSL variants),
-# the same one the shell's other shader (liquidglass) was built with.
+# the same one every shader here is built with.
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 

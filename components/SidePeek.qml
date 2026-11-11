@@ -11,7 +11,9 @@ import "../state"
 //   • only on the focused monitor — every screen's sidebar hears the event;
 //   • only into a free slot: a panel the user opened is never pushed aside (a hover chip
 //     is a guest, and gives way);
-//   • not over the bar's own panel column on this side, not while arranging or sunk.
+//   • not over the bar's own panel column on this side, not while arranging or sunk;
+//   • only while the module stands on the sidebar: the same cell is drawn on the bar
+//     (SideModulePill) and in Settings' library, where "beside it" is nowhere.
 // A peek already up keeps its place: the next event waits for it to go.
 // ─────────────────────────────────────────────────────────────────────────────
 QtObject {
@@ -26,6 +28,7 @@ QtObject {
        : Config.dockPosition === "right" ? UiState.rightKey : "") !== ""
 
     function fire(kind) {
+        if (Config.surfaceOf(root.from) !== "side") return
         if (UiState.sidePanel !== "" && UiState.sidePanel !== "hover") return
         if (root._barPanelOnSide || UiState.sidebarArrange || UiState.sidebarHidden) return
         const mon = Hyprland.focusedMonitor

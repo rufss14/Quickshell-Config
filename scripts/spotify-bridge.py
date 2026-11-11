@@ -64,7 +64,7 @@ _write_lock = threading.Lock()
 # requests the extension missed are worth exactly one. A request stays PENDING until
 # the extension acknowledges it (its `restyled` report), and every poll that comes in
 # while one is pending is answered at once — that covers the gap between polls. It
-# used to count as delivered the moment ANY poll was answered, and a poll held by a
+# doesn't count as delivered the moment ANY poll is answered: a poll held by a
 # Spotify that had just been restarted (its connection still open here; nothing
 # notices a client that dies mid-wait) took the request and the live one waited out
 # its hold. A pending request expires after PENDING_S, so a report that never comes
@@ -92,8 +92,8 @@ _last_poll   = float("-inf")  # monotonic time the last poll ended (the gap betw
 # waited for that (PLAY_WAIT_S), returns it. No answer (an older extension, Spotify closed) → 504, and
 # scripts/music-play.py falls back to a web search, then to Spotify's search page.
 #
-# (2026-10-24 first tried the client's access token from here against api.spotify.com: 429 Too Many
-# Requests, every time — Spotify throttles its desktop token outside the app. Removed.)
+# (The client's access token used from here against api.spotify.com answers 429 Too Many Requests,
+# every time — Spotify throttles its desktop token outside the app — so the search runs inside it.)
 PLAY_KINDS  = ("track", "album", "playlist", "artist")
 PLAY_WAIT_S = 8
 _play       = None             # {"seq", "query", "kind", "at"} — the newest request; one at a time
@@ -443,6 +443,26 @@ _TRACE_HDRS = ("Content-Type", "Content-Length", "Origin", "Sec-Fetch-Mode", "Se
                "Access-Control-Request-Local-Network")
 
 
+def trusted_request(host, origin):
+    """True when a request's Host is loopback and its Origin (if any) is Spotify's.
+    Pure, for scripts/test-spotify-bridge.py; see Handler._trusted for why."""
+    h = (host or "").strip().lower()
+    if h.startswith("["):                      # [::1]:port
+        h = h[1:h.find("]")] if "]" in h else ""
+    else:
+        h = h.rsplit(":", 1)[0] if h.count(":") == 1 else h
+    if h not in ("127.0.0.1", "localhost", "::1"):
+        return False
+    if origin is None:
+        return True
+    try:
+        u = urlsplit(origin.strip())
+        oh = (u.hostname or "").lower()
+    except ValueError:
+        return False
+    return u.scheme == "https" and (oh == "spotify.com" or oh.endswith(".spotify.com"))
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -468,6 +488,19 @@ class Handler(BaseHTTPRequestHandler):
     def _loopback(self):
         return self.client_address[0] in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 
+    # ── Who may talk to this ──────────────────────────────────────────────────
+    # Loopback is not enough: every browser tab on this machine connects from 127.0.0.1
+    # too, and a no-cors POST needs no preflight. So a request must also come from one
+    # of two kinds of client:
+    #   · no Origin header: curl, the scripts here, Spotify's no-cors GETs (a browser
+    #     sends no Origin on those, and their responses are opaque to a page anyway).
+    #   · an Origin that is Spotify's own (https, spotify.com or a subdomain).
+    # Any other web origin, "null" (a sandboxed iframe) included, is refused, and so is
+    # a Host that isn't loopback: a DNS-rebound page is same-origin with this server,
+    # so its GETs carry no Origin, but its Host is the attacker's name.
+    def _trusted(self):
+        return trusted_request(self.headers.get("Host"), self.headers.get("Origin"))
+
     def _cors(self):
         # Fire-and-forget from the extension uses mode:"no-cors", which needs none of
         # this — but sending it means a response is readable if the extension ever wants
@@ -488,9 +521,17 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def do_OPTIONS(self):
+        if not self._trusted():
+            self.close_connection = True   # its body, if any, is never read
+            self._finish(403)
+            return
         self._finish(204)
 
     def do_GET(self):
+        if not self._trusted():
+            self.close_connection = True   # its body, if any, is never read
+            self._finish(403)
+            return
         if self.path.split("?")[0] == "/events":
             self._poll()
             return
@@ -618,6 +659,10 @@ class Handler(BaseHTTPRequestHandler):
         self._finish(200, json.dumps({"seq": seq, "listening": on}).encode())
 
     def do_POST(self):
+        if not self._trusted():
+            self.close_connection = True   # its body, if any, is never read
+            self._finish(403)
+            return
         if not self._loopback():
             self._finish(403)
             return

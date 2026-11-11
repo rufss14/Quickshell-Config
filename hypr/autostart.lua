@@ -9,10 +9,10 @@
 -- ══════════════════════════════════════════════
 
 hl.on("hyprland.start", function()
-    -- Quickshell, with the environment it needs. shell-env.sh is the single copy
-    -- of QSG_RHI_BACKEND / QML_IMPORT_PATH — reload-quickshell.sh sources the
-    -- same file, so a reloaded shell and a booted one agree.
-    hl.exec_cmd("bash -c 'source @QUICKSHELL_DIR@/scripts/shell-env.sh && exec qs -p @QUICKSHELL_DIR@'")
+    -- Quickshell, through shell-run.sh: it sources shell-env.sh (the one copy of the
+    -- launch environment, shared with reload-quickshell.sh) and starts the shell
+    -- again if it crashes while starting.
+    hl.exec_cmd("@QUICKSHELL_DIR@/scripts/shell-run.sh")
 
     hl.exec_cmd("/usr/lib/xdg-desktop-portal -r")
     hl.exec_cmd("systemctl --user start graphical-session.target")

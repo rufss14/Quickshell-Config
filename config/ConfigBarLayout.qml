@@ -3,6 +3,7 @@ import Quickshell.Io
 import QtQuick
 import "layout.js" as Layout
 import "modules.js" as Catalogue
+import "surfaces.js" as Surfaces
 // ConfigBarLayout — part of Config, split out of Config.qml by area (2026-11-08). The parts form
 // one inheritance chain (ConfigShell ← ConfigEdges ← ConfigBarLayout ← ConfigSystem ←
 // ConfigDesktop ← Config), so every property still lives on the one `Config` singleton
@@ -65,6 +66,10 @@ ConfigEdges {
     // answer this, and neither should be scanning the structure by hand.
     function locate(id)   { return Layout.locate(root.layout, id, root.regionIds) }
     function isPlaced(id) { return root.locate(id) !== null }
+    // The dock on either surface. `dockEnabled` (ConfigEdges) stays "the dock on the
+    // SIDEBAR" — the sidebar's host, its reserve and its window cell read it; what the
+    // dock needs wherever it is (the apps' badge feed, LauncherEntry) reads this.
+    readonly property bool dockPlaced: root.dockEnabled || root.isPlaced("dock")
 
     readonly property var availableModules:
         root.moduleList.filter(m => !root.isPlaced(m.id))
@@ -107,6 +112,20 @@ ConfigEdges {
 
     function moduleInfo(id) {
         return root.moduleList.find(m => m.id === id) ?? null
+    }
+
+    // ── Which surface, and putting a module on one ────────────────────────────
+    // "bar" | "side" | "" (off). A module has one place (modules.js), so this is an
+    // answer, not a list.
+    function surfaceOf(id) {
+        return root.isPlaced(id) ? "bar" : root.sidebarPlaced(id) ? "side" : ""
+    }
+    // "bar" | "side" → its home on that surface (each add takes it off the other);
+    // anything else → off both. No-op for a surface it has no form on.
+    function placeModule(id, surface) {
+        if (surface === "bar")       root.addModule(id)
+        else if (surface === "side") root.sidebarAdd(id)
+        else { root.removeModule(id); root.sidebarRemove(id) }
     }
 
     // ══ Bar — presets ═════════════════════════════════════════════════════════
@@ -152,6 +171,7 @@ ConfigEdges {
             barHoverGrow:    true,
             motionScale:     1.0,
             layout:          root.defaultLayout(),
+            barHero:         "clock",
             moduleSettings:  {},
             groupSettings:   {},
             panelPlacement:  {},
@@ -233,6 +253,31 @@ ConfigEdges {
         root._writePrefs()
     }
 
+    // ── A look file (services/Look.qml, services/look.js) ─────────────────────
+    // `style`: { property: value }, every key vetted against look.js's whitelist; `bar`: a
+    // bar snapshot or null. One write at the end, like applyShellPreset.
+    //
+    // The user's MOTION settings are kept: loadPreset falls back to the default for a key the
+    // snapshot lacks, and a look carries no motion, so without this an import would turn
+    // animations back on for someone who had switched them off.
+    function applyLook(style, bar) {
+        root._loading = true
+        if (bar) root._applyBarSnapshot(Object.assign({}, bar,
+            { motionEnabled: root.motionEnabled, motionScale: root.motionScale }))
+        for (const k in style) if (root[k] !== undefined) root[k] = style[k]
+        root._loading = false
+        root._writePrefs()
+    }
+
+    // Puts every preference back to a `_dumpPrefs()` taken before applyLook (its undo).
+    function restorePrefs(doc) {
+        if (!doc) return
+        root._loading = true
+        root._applyPrefsDoc(doc)
+        root._loading = false
+        root._writePrefs()
+    }
+
     function deleteShellPreset(name) {
         if (name === root.defaultShellPresetName) return
         root.shellPresets = root.shellPresets.filter(p => p.name !== name)
@@ -302,9 +347,22 @@ ConfigEdges {
             moduleSettings:  root._cloneFlatSettings(root.moduleSettings),
             groupSettings:   root._cloneFlatSettings(root.groupSettings),
             panelPlacement:  root._cloneFlatSettings(root.panelPlacement),
-            panelZoom:       root._cloneFlatSettings(root.panelZoom)
+            panelZoom:       root._cloneFlatSettings(root.panelZoom),
+            // Both surfaces travel with a preset (2026-11-08). Optional on the way in —
+            // see _presetOptional — so a preset saved before leaves them alone.
+            barHero:         root.barHero,
+            sidebarHero:     root.sidebarHero,
+            sidebarLayout:   Layout.clone(root.sidebarLayout, root.sidebarRegionIds),
+            sidebarStyle:    root._cloneFlatSettings(root.sidebarStyle),
+            sidebarIslands:  root.sidebarIslands,
+            barMusicReact:   root.barMusicReact
         }
     }
+
+    // Snapshot keys added after presets already existed: a preset that doesn't carry
+    // one leaves that setting alone on load, and isn't compared on it (presetActive).
+    readonly property var _presetOptional: ["barHero", "sidebarHero", "sidebarLayout",
+                                            "sidebarStyle", "sidebarIslands", "barMusicReact"]
 
     function savePreset(name) {
         const trimmed = (name ?? "").trim()
@@ -332,7 +390,12 @@ ConfigEdges {
     function loadPreset(name) {
         const p = root.allPresets.find(x => x.name === name)
         if (!p) return
-        const c = p.config
+        root._applyBarSnapshot(p.config)
+    }
+
+    // The body of loadPreset, for a snapshot that doesn't come from the preset list: a look
+    // file (applyLook). The caller has already checked the values' types (services/look.js).
+    function _applyBarSnapshot(c) {
         const d = root.defaultPreset.config
 
         root.barShape        = c.barShape        ?? d.barShape
@@ -364,7 +427,27 @@ ConfigEdges {
         // notifications' DND-only) are bar state exactly like layout is, so they travel
         // with the preset the same way — including on Reset, which is loadPreset(default)
         // and must clear a customised accent rather than leave it stuck.
-        root.moduleSettings  = root._cloneFlatSettings(c.moduleSettings ?? d.moduleSettings ?? {})
+        // Hero flags inside an old preset's moduleSettings become the bar's hero string
+        // (surfaces.js) and are stripped; a preset that has the string just uses it.
+        const ms = c.moduleSettings ?? d.moduleSettings ?? {}
+        root.moduleSettings  = root._cloneFlatSettings(Surfaces.stripHeroFlags(ms))
+        root.barHero         = typeof c.barHero === "string" ? c.barHero
+                             : c.moduleSettings ? Surfaces.heroFromFlags(c.moduleSettings, c.layout ?? d.layout,
+                                                                        root.regionIds, root._heroable)
+                             : d.barHero
+
+        // The sidebar only when the preset has it (Reset — the built-in — has neither,
+        // so it never clears the sidebar). Reconciled like a loaded one, then the bar's
+        // copy of any module on both wins: the preset's bar is what was just asked for.
+        if (c.sidebarLayout && typeof c.sidebarLayout === "object")
+            root.sidebarLayout = Layout.reconcile(c.sidebarLayout, [], root.sidebarModuleList,
+                                                  root.sidebarRegionIds)
+        if (typeof c.sidebarHero === "string") root.sidebarHero = c.sidebarHero
+        if (c.sidebarStyle && typeof c.sidebarStyle === "object")
+            root.sidebarStyle = Surfaces.cleanStyle(c.sidebarStyle)
+        if (typeof c.sidebarIslands === "boolean") root.sidebarIslands = c.sidebarIslands
+        if (typeof c.barMusicReact === "boolean")  root.barMusicReact  = c.barMusicReact
+        root._dedupeSurfaces()
 
         // Per-group spacing overrides — see Config.groupSettings. Travels with the
         // preset exactly like moduleSettings, including on Reset.
@@ -427,7 +510,11 @@ ConfigEdges {
     // and a hand-rolled deep-equal is a bug farm for something this shallow.
     function presetActive(name) {
         const p = root.allPresets.find(x => x.name === name)
-        return p ? root._canonical(p.config) === root._canonical(root._snapshot()) : false
+        if (!p) return false
+        // Retired hero flags in an old preset aren't a difference: loading strips them.
+        const c = Object.assign({}, p.config)
+        if (c.moduleSettings) c.moduleSettings = Surfaces.stripHeroFlags(c.moduleSettings)
+        return Layout.presetMatches(c, root._snapshot(), root._presetOptional)
     }
 
     // Reset IS the built-in preset — same values, one definition. They drifted apart
@@ -479,34 +566,21 @@ ConfigEdges {
         root.setModuleSetting("notifications", "showOnlyDnd", !!v)
     }
 
-    // ── Clock module: the panel's header card ─────────────────────────────────
-    // Whether the clock panel opens with its PanelHeader (icon, "Clock & Weather",
-    // place) or goes straight to the page tabs. On by default — that's the panel
-    // recipe every bar panel follows; turning it off buys the height back.
-    function clockPanelHeader() {
-        return root._moduleSetting("clock", "panelHeader", true) === true
+    // ── A module's panel: its title row ───────────────────────────────────────
+    // Whether a module's panel opens with its PanelHeader (icon, two-word title, subtitle, actions) or goes
+    // straight to its hero. On by default; off buys the height back. One setting per module (Settings ›
+    // Modules › the module), stored in moduleSettings like accent and right-click. A panel whose header
+    // carries its only actions keeps them: it shows the actions in a slim row instead (see each panel).
+    function panelHeader(id) {
+        return root._moduleSetting(id, "panelHeader", true) === true
     }
-    function setClockPanelHeader(v) {
-        root.setModuleSetting("clock", "panelHeader", !!v)
+    function setPanelHeader(id, v) {
+        root.setModuleSetting(id, "panelHeader", !!v)
     }
-
-    // The Gaming panel's title row, a setting of the gamemode module (Settings → Bar → Game mode), like the
-    // clock's. Off, the panel opens straight onto its pages.
-    function gamemodePanelHeader() {
-        return root._moduleSetting("gamemode", "panelHeader", true) === true
-    }
-    function setGamemodePanelHeader(v) {
-        root.setModuleSetting("gamemode", "panelHeader", !!v)
-    }
-
-    // The audio mixer's title row, a setting of the volume module (Settings → Bar → Volume), like the Game Mode
-    // panel's. Off, the panel opens straight onto its pages.
-    function mixerPanelHeader() {
-        return root._moduleSetting("volume", "panelHeader", true) === true
-    }
-    function setMixerPanelHeader(v) {
-        root.setModuleSetting("volume", "panelHeader", !!v)
-    }
+    function clockPanelHeader()      { return root.panelHeader("clock") }
+    function gamemodePanelHeader()   { return root.panelHeader("gamemode") }
+    function mixerPanelHeader()      { return root.panelHeader("volume") }
+    function screentimePanelHeader() { return root.panelHeader("screentime") }
 
     // ── Accent ────────────────────────────────────────────────────────────────
     // A ROLE NAME, never a hex string. The brief is explicit that colour flows from the
@@ -539,24 +613,51 @@ ConfigEdges {
     // `barInnerPill` is the bar-wide switch (Settings → Bar → Look); the
     // per-module setting (module inspector) narrows it further. Either one off
     // means off — a module can opt itself out, but no per-module setting can
-    // override the bar-wide switch back on.
+    // override the bar-wide switch back on. The switch is the module's surface's: on
+    // the sidebar, `sideInnerPill` (the bar's unless unlinked, ConfigEdges), whose pill
+    // SideRegionPills splits round an opted-out module as BarGroup does on the bar.
     property bool barInnerPill: true
     function moduleInnerPill(id) {
-        return root.barInnerPill && root._moduleSetting(id, "innerPill", true) === true
+        const on = root.surfaceOf(id) === "side" ? root.sideInnerPill : root.barInnerPill
+        return on && root._moduleSetting(id, "innerPill", true) === true
     }
     function setModuleInnerPill(id, v) { root.setModuleSetting(id, "innerPill", !!v) }
 
     // ── Hero ──────────────────────────────────────────────────────────────────
-    // A module whose chip is primaryContainer instead of the inner pill — the bar's one
+    // A module whose chip is primaryContainer instead of the inner pill — a surface's one
     // emphasised pill, as a desktop tile's hero (2026-10-31, Material 3 Expressive). Only a
-    // module whose bar form says `hero: true` (config/modules.js): it recolours its own text
-    // for that ground, and nothing else knows how. The clock is the hero until told otherwise.
-    // Independent of the inner pill: a hero draws its chip even with that switched off.
+    // module the catalogue calls `heroable` (config/modules.js). Independent of the inner
+    // pill: a hero draws its chip even with that switched off.
+    //
+    // ONE per surface (2026-11-08): `barHero` here and `sidebarHero` (ConfigEdges) each
+    // name a module or "". It used to be a `hero` flag per module in moduleSettings, so
+    // two could be on at once; the persisted load and loadPreset turn old flags into this
+    // string (surfaces.js heroFromFlags). The string follows its module between surfaces
+    // (_leaveBar / _leaveSidebar → Surfaces.moveHero). The clock is the default.
+    property string barHero: "clock"
+
+    function _heroable(id) { return Catalogue.info(id)?.heroable === true }
+
+    // Is `id` the hero of the surface it stands on?
     function moduleHero(id) {
-        const info = root.moduleInfo(id)
-        return !!info && info.hero === true && root._moduleSetting(id, "hero", id === "clock") === true
+        if (!root._heroable(id)) return false
+        const on = root.surfaceOf(id)
+        return on === "bar" ? root.barHero === id : on === "side" ? root.sidebarHero === id : false
     }
-    function setModuleHero(id, v) { root.setModuleSetting(id, "hero", !!v) }
+    // On: it becomes its surface's hero (the old one stops being). Off: that surface has none.
+    function setModuleHero(id, v) {
+        if (!root._heroable(id)) return
+        const on = root.surfaceOf(id)
+        if (on === "bar")       root.barHero     = v ? id : (root.barHero === id ? "" : root.barHero)
+        else if (on === "side") root.sidebarHero = v ? id : (root.sidebarHero === id ? "" : root.sidebarHero)
+    }
+
+    // One place per module, after a load or a preset put layouts in from outside the
+    // mutators (layout.js dedupeAcross: the bar's copy wins).
+    function _dedupeSurfaces() {
+        const side = Layout.dedupeAcross(root.layout, root.sidebarLayout, root.regionIds, root.sidebarRegionIds)
+        if (side !== root.sidebarLayout) root.sidebarLayout = side
+    }
 
     // ── Group spacing ─────────────────────────────────────────────────────────
     // A per-GROUP (not per-module) pixel gap between adjacent bare icons — the
@@ -576,9 +677,13 @@ ConfigEdges {
     // spacing", the same idiom the accent role's "" already uses.
     property var groupSettings: ({})
 
+    // On whichever surface it stands: a sidebar group is keyed the same way (ids are
+    // unique across both surfaces, one place per module).
     function _groupMembers(id) {
         const loc = root.locate(id)
-        return loc ? root.layout[loc.region][loc.group] : []
+        if (loc) return root.layout[loc.region][loc.group]
+        const s = root.sidebarLocate(id)
+        return s ? root.sidebarLayout[s.region][s.group] : []
     }
 
     // Exposed for the inspector, which lists who a spacing change affects.

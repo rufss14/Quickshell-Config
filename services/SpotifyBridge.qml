@@ -298,8 +298,7 @@ Singleton {
             root.restyled(root._num(d.sheets, 0), root._num(d.loaded, 0), root._num(d.ms, 0))
             return
         }
-        // A Canvas clip the bridge could not fetch or re-encode (QuickSpice shows the cover
-        // instead). Logged, never an anchor.
+        // A Canvas clip the bridge could not fetch or re-encode (the player keeps the cover). Logged, never an anchor.
         if (d.type === "canvas-error") {
             console.warn("SpotifyBridge: canvas —", String(d.error || "?").substring(0, 160))
             return

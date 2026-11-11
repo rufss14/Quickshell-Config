@@ -16,7 +16,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(here, "..", "services", "screentime.js"), "utf8")
     .replace(/^\s*\.pragma\s+library\s*$/m, "");
 const S = new Function(src + `
-return { dayKey, nextMidnight, appKey, credit, clean, prune, total, top, lastDays, duration, short };`)();
+return { dayKey, nextMidnight, appKey, credit, clean, prune, total, top, lastDays, duration, short, topAcross, segments, versus, heat, streak, creditHours, cleanHours, hoursOf, paceVs };`)();
 
 let passed = 0, failed = 0;
 function check(name, got, want) {
@@ -79,6 +79,74 @@ check("duration minutes", S.duration(45 * 60), "45 m");
 check("duration hours", S.duration(3 * 3600 + 12 * 60), "3 h 12 m");
 check("duration whole hours", S.duration(7200), "2 h");
 check("short", [S.short(45 * 60), S.short(3.25 * 3600), S.short(12 * 3600)], ["45m", "3.3h", "12h"]);
+
+// ── Ranking, stacks, the comparison, the heat strip ───────────────────────────
+const rd = { "2026-10-01": { a: 100, b: 50 }, "2026-10-02": { a: 10, c: 70, d: 5 } };
+check("topAcross sums the days", S.topAcross(rd, ["2026-10-01", "2026-10-02"], 2), [{ app: "a", seconds: 110 }, { app: "c", seconds: 70 }]);
+check("topAcross skips missing days", S.topAcross(rd, ["2026-09-01"], 3), []);
+check("segments stack bottom first", S.segments(rd["2026-10-02"], [{ app: "a" }, { app: "c" }]),
+      [{ rank: 0, seconds: 10, from: 0 }, { rank: 1, seconds: 70, from: 10 }, { rank: 3, seconds: 5, from: 80 }]);
+check("segments skips an app the day lacks", S.segments(rd["2026-10-01"], [{ app: "c" }, { app: "b" }]),
+      [{ rank: 1, seconds: 50, from: 0 }, { rank: 3, seconds: 100, from: 50 }]);
+check("segments: other stays rank 3 with fewer apps", S.segments({ a: 5, z: 7 }, [{ app: "a" }]),
+      [{ rank: 0, seconds: 5, from: 0 }, { rank: 3, seconds: 7, from: 5 }]);
+check("segments of nothing", S.segments({}, [{ app: "a" }]), []);
+const vw = (t, ...o) => [...o.map(s => ({ seconds: s, today: false })), { seconds: t, today: true }];
+check("versus above", S.versus(vw(150, 100, 100)), { pct: 50, dir: 1 });
+check("versus below", S.versus(vw(50, 100, 100)), { pct: 50, dir: -1 });
+check("versus level within 5%", S.versus(vw(103, 100)), { pct: 3, dir: 0 });
+check("versus ignores empty days", S.versus(vw(100, 0, 100, 0)), { pct: 0, dir: 0 });
+check("versus nothing to compare", S.versus(vw(100, 0, 0)), null);
+check("versus no days", S.versus([]), null);
+check("heat", [S.heat(0, 100), S.heat(1, 100), S.heat(25, 100), S.heat(26, 100), S.heat(100, 100), S.heat(500, 100), S.heat(5, 0)], [0, 1, 1, 2, 4, 4, 0]);
+
+const sd = (...v) => v.map(x => ({ seconds: x }));
+check("streak any", S.streak(sd(0, 5, 5, 5), "any", 0), 3);
+check("streak any breaks on a gap", S.streak(sd(5, 0, 5, 5), "any", 0), 2);
+check("streak skips an empty today", S.streak(sd(5, 5, 0), "any", 0), 2);
+check("streak under", S.streak(sd(5, 50, 5, 5), "under", 10), 2);
+check("streak today over breaks", S.streak(sd(5, 5, 50), "under", 10), 0);
+check("streak under with no limit is any", S.streak(sd(5, 50), "under", 0), 2);
+check("streak of nothing", S.streak([], "any", 0), 0);
+check("streak all empty", S.streak(sd(0, 0), "any", 0), 0);
+
+// ── Hours ─────────────────────────────────────────────────────────────────────
+let h = S.creditHours({}, at(2026, 10, 4, 9, 30), at(2026, 10, 4, 9, 45));
+check("hours: inside one hour", h["2026-10-04"][9], 900);
+check("hours: 24 slots", h["2026-10-04"].length, 24);
+h = S.creditHours({}, at(2026, 10, 4, 9, 50), at(2026, 10, 4, 10, 20));
+check("hours: split at the hour", [h["2026-10-04"][9], h["2026-10-04"][10]], [600, 1200]);
+h = S.creditHours({}, at(2026, 10, 4, 23, 50), at(2026, 10, 5, 0, 10));
+check("hours: split at midnight", [h["2026-10-04"][23], h["2026-10-05"][0]], [600, 600]);
+h = S.creditHours({}, at(2026, 10, 4, 9), at(2026, 10, 4, 15), 70 * 1000);
+check("hours: clipped like credit", h["2026-10-04"].reduce((a, b) => a + b, 0), 70);
+const before = { "2026-10-04": [1, ...Array(23).fill(0)] };
+const after = S.creditHours(before, at(2026, 10, 4, 9), at(2026, 10, 4, 9, 1));
+check("hours: input untouched", [before["2026-10-04"][9], after["2026-10-04"][9], after !== before], [0, 60, true]);
+check("hours: nothing to credit", S.creditHours(before, 5, 5), before);
+// The two ledgers agree on the same span, DST day included (Lisbon: clocks forward 2026-03-29, back 2026-10-25).
+for (const [a, b] of [[at(2026, 3, 29, 0, 30), at(2026, 3, 29, 4)], [at(2026, 10, 25, 0, 30), at(2026, 10, 25, 4)]]) {
+  const dsum = Object.values(S.credit({}, "x", a, b)).reduce((s, d) => s + d.x, 0);
+  const hsum = Object.values(S.creditHours({}, a, b)).reduce((s, arr) => s + arr.reduce((x, y) => x + y, 0), 0);
+  check("hours: same total as credit across DST", Math.round(hsum), Math.round(dsum));
+}
+check("cleanHours", S.cleanHours({ hours: { "2026-10-04": [5, "x", -1, 99999, ...Array(30).fill(1)], "bad": [1], "2026-10-05": [0, 0], "2026-10-06": "no" } }),
+      { "2026-10-04": [5, 0, 0, 3600, ...Array(20).fill(1)] });
+check("cleanHours: none", [S.cleanHours({ days: {} }), S.cleanHours(null), S.cleanHours({ hours: [1] })], [{}, {}, {}]);
+check("hoursOf pads", [S.hoursOf({}, "x").length, S.hoursOf({ x: [0, 7] }, "x")[1]], [24, 7]);
+
+// Pace. Two earlier days, 100 s in each of hours 8 and 9; it is 09:30 and today has had 150 s.
+const hrs = (m) => { const a = Array(24).fill(0); for (const k in m) a[k] = m[k]; return a };
+const ph = { "d1": hrs({ 8: 600, 9: 600 }), "d2": hrs({ 8: 600, 9: 600 }), "t": hrs({ 8: 600, 9: 300 }) };
+// by 09:30 an average day had 600 + 600*0.5 = 900; today 900 -> level
+check("pace level", S.paceVs(ph, "t", ["d1", "d2"], at(2026, 10, 4, 9, 30)), { ahead: 0, expected: 900, dir: 0 });
+ph.t = hrs({ 8: 600, 9: 900 });
+check("pace ahead", S.paceVs(ph, "t", ["d1", "d2"], at(2026, 10, 4, 9, 30)).dir, 1);
+ph.t = hrs({ 8: 100 });
+check("pace behind", S.paceVs(ph, "t", ["d1", "d2"], at(2026, 10, 4, 9, 30)), { ahead: -800, expected: 900, dir: -1 });
+check("pace: nothing before", S.paceVs({ t: hrs({ 8: 600 }) }, "t", ["d1"], at(2026, 10, 4, 9, 30)), null);
+check("pace: too early in the day", S.paceVs(ph, "t", ["d1", "d2"], at(2026, 10, 4, 3, 0)), null);
+check("pace ignores days without hours", S.paceVs(ph, "t", ["gone", "d1"], at(2026, 10, 4, 9, 30)).expected, 900);
 
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

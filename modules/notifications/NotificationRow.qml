@@ -407,9 +407,9 @@ Rectangle {
             tint:    root.accent
             onActivated: root.snoozing = true
         }
-        ChipButton { visible: root.snoozing; label: "15 min"; tint: root.accent; onActivated: root._snooze(15) }
-        ChipButton { visible: root.snoozing; label: "1 hour"; tint: root.accent; onActivated: root._snooze(60) }
-        ChipButton { visible: root.snoozing; label: "3 hours"; tint: root.accent; onActivated: root._snooze(180) }
+        ChipButton { visible: root.snoozing; label: Translation.tr("15 min"); tint: root.accent; onActivated: root._snooze(15) }
+        ChipButton { visible: root.snoozing; label: Translation.tr("1 hour"); tint: root.accent; onActivated: root._snooze(60) }
+        ChipButton { visible: root.snoozing; label: Translation.tr("3 hours"); tint: root.accent; onActivated: root._snooze(180) }
         ChipButton {
             symbol: "close"
             tint:   Colors.of(QsWindow.window).danger

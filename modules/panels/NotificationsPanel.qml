@@ -16,7 +16,7 @@ Item {
     // The room the slot has (SidePanelDock sets it); the list scrolls past it.
     property real maxHeight: Infinity
 
-    readonly property int pad: Tokens.spacingLg
+    readonly property int pad: Tokens.spacingXl
     implicitWidth: Tokens.sideCardUnit * 8
     implicitHeight: Math.min(root.maxHeight, centre.implicitHeight + root.pad * 2)
 

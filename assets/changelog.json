@@ -1,6 +1,123 @@
 {
   "versions": [
     {
+      "version": "0.4.1",
+      "name": "Bar and sidebar as one",
+      "date": "2026-11-11",
+      "summary": "The bar and the sidebar share modules, settings and look; more panels are rebuilt in the same style, and Steam and Spotify follow your palette.",
+      "highlights": [
+        {
+          "symbol": "widgets",
+          "title": "One set of modules",
+          "text": "Every module can live on the bar or the sidebar, and looks the same on both. Drag it across in Bar › Modules."
+        },
+        {
+          "symbol": "dock",
+          "title": "A library and unlinked styles",
+          "text": "A module library with search and reasons, and a sidebar that follows the bar's look or has its own."
+        },
+        {
+          "symbol": "timer",
+          "title": "Panels in one style",
+          "text": "Timer, Wi-Fi, Bluetooth, clipboard, to-do, stats, Claude and more are rebuilt as a card on top with tiles below."
+        },
+        {
+          "symbol": "videocam",
+          "title": "Clips, redone",
+          "text": "A row of your latest clips, tags, filters, a scrubbing preview, and a Discord-size shrink."
+        },
+        {
+          "symbol": "palette",
+          "title": "Steam and Spotify follow you",
+          "text": "Steam's Material theme and Spotify's QuickZiro theme take your palette live."
+        }
+      ],
+      "sections": [
+        {
+          "title": "Bar and sidebar",
+          "symbol": "widgets",
+          "items": [
+            "Bar › Modules covers both edges: press a module to set it up, drag it along an edge or across to the other",
+            "A module library replaces \"Not on the bar\": shelves by kind, where each is now, search and the reason when a tool is missing",
+            "A module looks the same on both edges, only turned: the clock, timers, stats, to-dos and clips show their rings and levels",
+            "The sidebar can follow the bar's style or unlink for its own roundness, opacity, text and icon size, pills and glow",
+            "Workspaces, the tray and the visualizer can sit on the sidebar; the dock and Now playing can sit on the bar",
+            "The dock can share a sidebar group with other modules, and moves between edges from its right-click menu",
+            "Rest the pointer on a bar module to see what it is and what it is doing; Settings › Bar style › Tooltips turns it off",
+            "Rest the pointer on a workspace to see its windows as live tiles: click to go, middle-click to close, right-click to bring",
+            "Arranging shows a card with the three gestures and names the exact placement as you drag",
+            "The bar has one hero, like the sidebar; making a module the hero takes the chip off the previous one",
+            "Most modules' panels can drop their title row (Settings › Modules › the module › Panel header)"
+          ]
+        },
+        {
+          "title": "Panels",
+          "symbol": "tune",
+          "items": [
+            "Timer: one card per tab with the time big on it and tonal rows for laps and alarms; presets or Exact time replace the dial",
+            "The Claude pop-up shows what Claude asked or answered, with project, model and context, and has Go to it, Copy and close",
+            "Brightness, Wi-Fi, Bluetooth, clipboard, to-do, layout, idle, window, stats and Claude panels are rebuilt in the Game Mode style",
+            "Screen time: a daily goal ring, an hour-by-hour strip, a pause button, streaks, and Today / Week / Apps pages",
+            "Discord: the voice panel's new Board tab ranks who you've spent the most time in calls with",
+            "The wallpaper panel has a music effects view; the Wi-Fi panel switches NetworkManager VPNs on and off",
+            "Brightness gets 25 / 50 / 75 / 100% buttons for every display; to-do shows a progress bar",
+            "Clipboard: search the history and filter by text, links or images; stats: a Busiest tile for CPU and memory",
+            "Panels explain their controls with tooltips, for example what each Game Mode effect does"
+          ]
+        },
+        {
+          "title": "Clips",
+          "symbol": "videocam",
+          "items": [
+            "The panel is built around a row of your latest clips, with new ones marked, and the library opens and scrolls much faster",
+            "Clips can remember the song that was playing and, if you switch it on, who was in your Discord call; the library searches it",
+            "Library: tags, game / music / call filters, a hover preview that scrubs, and a clean-up for old or oversized clips",
+            "\"Send to Discord\" shrinks a clip over your upload limit (10, 25, 50 or 500 MB, set in Settings › Clips)",
+            "Keys while the panel is open: C clips, 1–6 length, R record, P pause, L library",
+            "Key display: a 4K layout for osu!mania that only listens for D, F, J and K"
+          ]
+        },
+        {
+          "title": "Look and settings",
+          "symbol": "settings",
+          "items": [
+            "Settings has a fresh look: tinted section cards, shaped page headers, bigger switches and thicker sliders",
+            "Reduced motion keeps fades but drops bounce, parallax, drifting shapes and the colour wave",
+            "High contrast: stronger text and accent colours, solid 2px borders and opaque surfaces",
+            "Export how your shell looks to one file and import someone else's, shown first with Undo",
+            "A fresh install starts with the author's current look, including a ready desktop widgets layout",
+            "Desktop widgets' glass bends the wallpaper exactly as drawn, following parallax and wallpaper changes",
+            "\"Copy diagnostics\" in Settings › About copies a report for bug reports with your home folder and user name removed",
+            "Settings pages scroll a quarter of the window per wheel notch; more of the interface can be translated"
+          ]
+        },
+        {
+          "title": "Setup and apps",
+          "symbol": "update",
+          "items": [
+            "Steam follows your palette live through its Material theme and starts in about 9 seconds instead of 80. Run Setup › Steam once",
+            "Spotify's theme is now QuickZiro, following your palette. Run Setup › Spotify once to switch",
+            "Discord and Spotify themes are steps of their own in Setup, and are no longer ticked by default",
+            "If the shell crashes while starting it restarts itself; after two crashes it starts in safe mode and tells you"
+          ]
+        },
+        {
+          "title": "Fixed",
+          "symbol": "bolt",
+          "items": [
+            "Wallpaper Engine scenes with sound no longer restart over and over, and the audio visualiser no longer cuts out",
+            "Setup no longer installs rtkit, which got audio apps killed. If 0.4 installed it, remove it and log back in",
+            "Websites in your browser can no longer control Spotify or feed fake lyrics through the shell's bridge",
+            "A wrong password on the Storage page can no longer lock you out of sudo for ten minutes",
+            "Setup no longer replaces a quickshell-git install and works from a folder whose name contains a quote",
+            "Snipping with a fullscreen game on one monitor no longer fails for every screen; you are told which one failed",
+            "The Claude Code picture on your Discord profile shows again; Wallpaper Engine's autostart no longer waits four seconds",
+            "Without power-profiles-daemon the shell no longer warns at every start, and Settings › Battery says why Power mode is off"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.4",
       "name": "Everything grew",
       "date": "2026-10",

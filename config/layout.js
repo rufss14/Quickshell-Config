@@ -54,7 +54,7 @@ function defaultLayout() {
         left:   [["overview"], ["wallpaper", "palette"], ["volume"], ["visualizer"]],
         centre: [["update"], ["workspaces"]],
         right:  [["tray", "privacy", "notifications", "bluetooth", "wifi"],
-                 ["battery"], ["controlcenter"], ["clock"], ["settings"]]
+                 ["battery"], ["clock"], ["settings"]]
     };
 }
 
@@ -251,4 +251,35 @@ function canonical(v) {
         return "{" + Object.keys(v).sort()
             .map(k => JSON.stringify(k) + ":" + canonical(v[k])).join(",") + "}";
     return JSON.stringify(v);
+}
+
+// ── One place per module, across both surfaces ────────────────────────────────
+// Config's mutators already keep a module on one surface (_leaveBar/_leaveSidebar),
+// but a document is hand-editable and a preset may carry a bar layout without a
+// sidebar one: either can name a module that already stands on the other surface.
+// The bar's copy wins — it is the one a preset or a load just asked for — and the
+// sidebar's is dropped (its emptied group pruned). Returns the sidebar layout,
+// unchanged (the same object) when nothing was shared, so the caller can skip the
+// assignment and its change signal.
+function dedupeAcross(bar, side, barRegions, sideRegions) {
+    const br = barRegions || REGIONS, sr = sideRegions || SIDE_REGIONS;
+    const onBar = [];
+    for (const r of br) for (const g of (bar[r] || [])) for (const id of g) onBar.push(id);
+    let shared = false;
+    for (const r of sr) for (const g of (side[r] || [])) if (g.some(id => onBar.indexOf(id) !== -1)) shared = true;
+    if (!shared) return side;
+    const next = clone(side, sr);
+    for (const r of sr) next[r] = next[r].map(g => g.filter(id => onBar.indexOf(id) === -1));
+    return prune(next, sr);
+}
+
+// ── Does a preset match the live snapshot? ────────────────────────────────────
+// `optional` keys were added to the snapshot after presets already existed (the
+// sidebar's layout, the two hero strings): a preset that doesn't mention one says
+// nothing about it — loading it leaves that setting alone — so the comparison
+// leaves it out too, instead of no old preset ever showing as active again.
+function presetMatches(preset, snap, optional) {
+    const s = Object.assign({}, snap);
+    for (const k of (optional || [])) if (preset[k] === undefined) delete s[k];
+    return canonical(preset) === canonical(s);
 }

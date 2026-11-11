@@ -270,6 +270,40 @@ Singleton {
         }
     }
 
+    // ══ Busiest processes ═════════════════════════════════════════════════════
+    // What is using the machine, grouped by name (scripts/top-procs.py: two /proc reads half a second
+    // apart; `python3 scripts/test-top-procs.py`). Sampled every few seconds only while something holds
+    // it: the stats panel, while it is open.
+    readonly property var topCpu: root._top.cpu ?? []     // [{ name, cpu (% of one core), mb, procs }]
+    readonly property var topMem: root._top.mem ?? []
+    property var _top: ({})
+    property int _topRefs: 0
+    function acquireTop() { root._topRefs++ }
+    function releaseTop() { root._topRefs = Math.max(0, root._topRefs - 1) }
+
+    Timer {
+        running: root._topRefs > 0
+        interval: 3000
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: if (!topProc.running) topProc.running = true
+    }
+
+    Process {
+        id: topProc
+        command: ["python3", Quickshell.shellPath("scripts/top-procs.py"), "5"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const o = JSON.parse(text)
+                    if (o && o.ok) root._top = o
+                } catch (e) {
+                    // A cut-off line (the shell reloading mid-run): keep the last reading.
+                }
+            }
+        }
+    }
+
     // ══ Alerts ════════════════════════════════════════════════════════════════
     // A metric that has sat over its threshold for `alertSustain` is flagged in the
     // panel, and (if asked) says so once, as a notification. Watched for as long as

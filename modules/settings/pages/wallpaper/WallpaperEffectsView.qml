@@ -147,68 +147,10 @@ Flickable {
 
             Repeater {
                 model: FX.SOUNDS
-                ColumnLayout {
-                    id: sound
+                // The row is shared with the Wallpaper panel's Effects view.
+                delegate: WallFxSoundRow {
                     required property var modelData
-                    readonly property bool optIn: sound.modelData.optIn === true
-                    readonly property real trim: FX.trimOf(Config.wallFxMix, sound.modelData.id)
-                    // How loud this sound is right now, for its dot.
-                    readonly property real heard: !MusicPulse.live ? 0
-                        : ({ kick: MusicPulse.kick,
-                             // a kick whose bass is big (the rumble's rule, wallfx.js HEAVY_FROM)
-                             bass: MusicPulse.heavy < 0 || MusicPulse.heavy >= 0.65 ? MusicPulse.kick : 0,
-                             snare: MusicPulse.snare,
-                             hats: MusicPulse.hat, vocals: MusicPulse.mid, loudness: MusicPulse.level,
-                             hardest: MusicPulse.impact, breakdown: MusicPulse.songView.breakdown,
-                             strobe: MusicPulse.flash })[sound.modelData.id] ?? 0
-                    readonly property color tone: sound.modelData.warning === true
-                        ? Colors.of(QsWindow.window).danger : Colors.of(QsWindow.window).primary
-                    Layout.fillWidth: true
-                    Layout.fillHeight: false
-                    spacing: Tokens.spacingXs
-                    // Flashing light: said before the control, not after.
-                    StyledText {
-                        Layout.fillWidth: true
-                        visible: sound.modelData.warning === true
-                        text: Translation.tr("Flashing light. Leave Strobe off if you're sensitive to it (photosensitive epilepsy). It flashes three times a second at most.")
-                        variant: "caption"
-                        color: Colors.of(QsWindow.window).danger
-                        wrapMode: Text.WordWrap
-                    }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: false
-                        spacing: Tokens.spacingMd
-                        Rectangle {
-                            Layout.alignment: Qt.AlignVCenter
-                            implicitWidth: Tokens.spacingMd
-                            implicitHeight: Tokens.spacingMd
-                            radius: width / 2
-                            color: sound.trim > 0 && sound.heard > 0.05 ? sound.tone
-                                                                       : Colors.of(QsWindow.window).outline
-                            opacity: sound.trim > 0 && sound.heard > 0.05 ? 0.35 + 0.65 * Math.min(1, sound.heard) : 1
-                        }
-                        Fader {
-                            Layout.fillWidth: true
-                            accent: sound.tone
-                            label: sound.modelData.label + " · " + sound.modelData.effect
-                            help: sound.modelData.about
-                            from: 0; to: sound.optIn ? 1 : 2; step: 0.05
-                            value: sound.trim
-                            readout: sound.trim <= 0 ? "off"
-                                   : !sound.optIn && Math.abs(sound.trim - 1) < 0.001 ? "auto"
-                                   : Math.round(sound.trim * 100) + "%"
-                            // Auto is no entry at all (and Strobe's off), so Auto
-                            // follows the song and a reset is one assignment.
-                            onCommit: function(v) {
-                                const e = Object.assign({}, Config.wallFxMix)
-                                const auto = sound.optIn ? v <= 0 : Math.abs(v - 1) < 0.001
-                                if (auto) delete e[sound.modelData.id]
-                                else e[sound.modelData.id] = v
-                                Config.wallFxMix = e
-                            }
-                        }
-                    }
+                    sound: modelData
                 }
             }
         }

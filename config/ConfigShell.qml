@@ -180,7 +180,7 @@ Singleton {
     // How solid the pills are. Worth almost nothing without a compositor blur behind it
     // — see the namespace note in Bar.qml — because all it reveals otherwise is the
     // wallpaper.
-    property real barOpacity: Tokens.surfaceOpacity
+    property real barOpacity: root.surfaceOpacity
 
     // ── Where the centre region pins itself ───────────────────────────────────
     // true  — the group holding `workspaces` sits on true screen centre, and its
@@ -335,6 +335,13 @@ Singleton {
     // see Defaults.qml for why that value had to move out of Tokens.
     property real surfaceOpacity: Defaults.surfaceOpacity
     readonly property real surfaceOpacityMin: 0.5
+
+    // High contrast: an accessibility switch, not a look. Text and accents are held to 7:1,
+    // borders go solid and 2px, and every surface is drawn opaque, whatever the opacity
+    // sliders say (the sliders keep their values, so switching it off gives the look back).
+    // Read through Tokens (borderWidth, the *Opacity values) and PaletteRoles, never here.
+    // Like motionReduced, not part of a bar preset or a look bundle.
+    property bool highContrast: false
 
     // A shell-wide fallback accent, in the same vocabulary as every per-module and
     // per-widget accent: a ROLE NAME from `accentRoles` below, never a hex string.

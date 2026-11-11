@@ -17,9 +17,8 @@ import "../../../services"
 // very visible. Loading the incoming one underneath and fading it up hides the decode
 // entirely.
 //
-// ── Its own picture (2026-10-30) ──────────────────────────────────────────────
-// Each frame now says WHAT it shows (`opts.source`): "library" (the wallpapers, as
-// before), "folder" (every picture in one folder, cycling — `opts.folder`), or "image"
+// ── Its own picture ───────────────────────────────────────────────────────────
+// Each frame says WHAT it shows (`opts.source`): "library" (the wallpapers), "folder" (every picture in one folder, cycling — `opts.folder`), or "image"
 // (one picture, still — `opts.image`). Paths are stored `~`-relative and expanded by
 // DesktopWidgets.expandPath; see desktopwidgets.js for why. The frame may be placed many
 // times (catalogue `multiple`), each with its own source.
@@ -153,7 +152,7 @@ Item {
 
     // Shape rotation animation
     SequentialAnimation on shapeRotation {
-        running: root.active && root.shapeRot && root.shots.length > 0
+        running: root.active && root.shapeRot && root.shots.length > 0 && Motion.ambientOn
         loops: Animation.Infinite
         NumberAnimation { from: 0; to: 360; duration: 20000; easing.type: Easing.Linear }
     }

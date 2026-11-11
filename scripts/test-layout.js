@@ -34,7 +34,7 @@ const src = readFileSync(join(here, "..", "config", "layout.js"), "utf8")
 const L = new Function(src + `
     return { REGIONS, SIDE_REGIONS, defaultLayout, clone, prune, locate, extract,
              moveToOwnGroup, moveIntoGroup, removeModule, addModule,
-             reconcile, canonical, unifiedLayout };`)();
+             reconcile, canonical, unifiedLayout, dedupeAcross, presetMatches };`)();
 
 // A small catalogue standing in for Config.moduleList. Only `id` and `home` matter.
 const CAT = [
@@ -292,6 +292,45 @@ check("canonical still distinguishes different data",
       L.canonical({ a: 1 }) !== L.canonical({ a: 2 }), true);
 check("canonical keeps ARRAY order significant",
       L.canonical([1, 2]) !== L.canonical([2, 1]), true);
+
+// ── Both surfaces: one place per module ───────────────────────────────────────
+{
+    const bar  = { left: [["volume"]], centre: [["workspaces"]], right: [["clock"]] };
+    const side = { start: [["clock", "timer"]], centre: [["dock"]], end: [["volume"]] };
+    check("dedupeAcross: the bar's copy wins, emptied groups pruned",
+          L.dedupeAcross(bar, side), { start: [["timer"]], centre: [["dock"]], end: [] });
+    const clean = { start: [["timer"]], centre: [["dock"]], end: [] };
+    check("dedupeAcross: nothing shared hands back the SAME object (no change signal)",
+          L.dedupeAcross(bar, clean) === clean, true);
+    check("dedupeAcross: input untouched", side.start, [["clock", "timer"]]);
+}
+
+// ── Presets: keys added after presets existed are optional ────────────────────
+{
+    const snap = { barRoundness: 17, layout: { left: [] }, barHero: "clock",
+                   sidebarHero: "claude", sidebarLayout: { start: [] } };
+    const OPT = ["barHero", "sidebarHero", "sidebarLayout"];
+    check("presetMatches: an old preset without the new keys still matches",
+          L.presetMatches({ layout: { left: [] }, barRoundness: 17 }, snap, OPT), true);
+    check("presetMatches: a new preset is compared on them",
+          L.presetMatches({ barRoundness: 17, layout: { left: [] }, barHero: "visualizer",
+                            sidebarHero: "claude", sidebarLayout: { start: [] } }, snap, OPT), false);
+    check("presetMatches: a non-optional key still has to be there",
+          L.presetMatches({ layout: { left: [] }, barHero: "clock" }, snap, OPT), false);
+}
+
+// ── A module that only gains a bar form is not appended to the bar ────────────
+// Config._barKnown adds every sidebar id to priorKnown, so the dock and Now playing
+// getting bar forms (2026-11-08) don't land on BOTH surfaces after an upgrade.
+{
+    const CAT2 = CAT.concat([{ id: "dock", home: "centre" }, { id: "nowplaying", home: "right" }]);
+    const saved = { left: [["volume"]], centre: [["workspaces"]], right: [["clock"]] };
+    const known = ["volume", "workspaces", "clock", "wifi", "settings"].concat(["dock", "nowplaying"]);
+    const got = L.reconcile(saved, known, CAT2);
+    check("gaining a bar form: dock not appended", L.locate(got, "dock"), null);
+    check("gaining a bar form: nowplaying not appended", L.locate(got, "nowplaying"), null);
+}
+check("defaultLayout names no dead id", L.locate(L.defaultLayout(), "controlcenter"), null);
 
 const total = pass + failures.length;
 console.log(`${pass}/${total} passed`);

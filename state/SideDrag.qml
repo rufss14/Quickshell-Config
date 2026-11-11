@@ -13,10 +13,10 @@ import "../config"
 // DropArea commits in its own `onDropped`, from the event; and nothing commits
 // before the drop, because a layout write rebuilds what's holding the gesture.
 //
-// Its own singleton and its own mime rather than BarDrag with a flag: a top-bar
-// module dropped on the sidebar (or the reverse) has nowhere to go — the sidebar's
-// catalogue is sidebar modules only (the user's call) — and a separate mime means
-// neither surface's drop targets ever light up for the other's modules.
+// It had its own mime once, so neither surface lit up for the other's modules. Since
+// 2026-11-08 the gesture is ModuleDrag's (one mime, one dragId) and a module dragged
+// off the bar can land here and the reverse; this keeps only the sidebar's targets,
+// wording and commit, and Config's mutators take a module off the bar as it lands.
 //
 // Targets, as `drop` (drawing only) and as what a DropArea commits:
 //   { kind: "chip",   owner, region, group, index }   into a group, at index
@@ -27,17 +27,25 @@ import "../config"
 Singleton {
     id: root
 
-    property string dragId: ""
-    property bool dragging: false
+    // Mirrors of ModuleDrag (start and end a drag there). `dragging` only for a module
+    // with a sidebar form, so no zone opens for a drag that would be refused.
+    readonly property string dragId: ModuleDrag.dragId
+    readonly property bool dragging: ModuleDrag.dragging && Config.sidebarModuleInfo(ModuleDrag.dragId) !== null
     property var drop: null
+    onDropChanged: if (root.drop !== null && !root.dragging && ModuleDrag.dragging) root.drop = null
+    property Connections _end: Connections {
+        target: ModuleDrag
+        function onDraggingChanged() { if (!ModuleDrag.dragging) root.drop = null }
+    }
 
-    readonly property string mime: "application/x-quickshell-sidemodule"
+    readonly property string mime: ModuleDrag.mime
 
     function idFromDrop(d) {
-        if (!d || !d.formats || d.formats.indexOf(root.mime) === -1) return ""
-        const id = d.getDataAsString(root.mime)
+        const id = ModuleDrag.idFromDrop(d)
         return Config.sidebarModuleInfo(id) ? id : ""
     }
+
+    function _across() { return Config.isPlaced(root.dragId) ? "Move to the sidebar  ·  " : "" }
 
     function _label(id) { return Config.sidebarModuleInfo(id)?.label ?? id }
 
@@ -53,17 +61,14 @@ Singleton {
         case "chip": {
             const group = (Config.sidebarLayout[d.region] ?? [])[d.group] ?? []
             const others = group.filter(x => x !== root.dragId)
-            // The dock never shares a group: that drop lands beside it (Config).
-            if (!Config.sidebarIsSmall(root.dragId) || others.some(x => !Config.sidebarIsSmall(x)))
-                return "A group of its own, beside it  ·  " + where
             const naming = others.length === 0 ? "its own"
                          : others.length === 1 ? "the " + root._label(others[0])
                          : "the " + root._label(others[0]) + " +" + (others.length - 1)
-            return "Join " + naming + " group  ·  " + where
+            return root._across() + "Join " + naming + " group  ·  " + where
         }
-        case "gap":    return "A group of its own  ·  " + where
-        case "region": return "A group of its own  ·  " + where
-        case "off":    return "Take it off the sidebar — it waits in Settings › Sidebar"
+        case "gap":    return root._across() + "A group of its own  ·  " + where
+        case "region": return root._across() + "A group of its own  ·  " + where
+        case "off":    return "Take it off — it waits in Settings › Bar › Modules"
         }
         return ""
     }
@@ -81,7 +86,8 @@ Singleton {
         case "gap":    Config.sidebarMoveToOwnGroup(id, target.region, target.groupIndex);         break
         case "region": Config.sidebarMoveToOwnGroup(id, target.region,
                                                     (Config.sidebarLayout[target.region] ?? []).length); break
-        case "off":    Config.sidebarRemove(id);                                                  break
+        // Off whichever surface it is on (a bar module dropped on the off band too).
+        case "off":    Config.placeModule(id, "");                                                break
         default:       return false
         }
         return true
@@ -89,15 +95,13 @@ Singleton {
 
     function dropExternal(id, target) {
         const ok = root.commit(id, target)
-        root.drop     = null
-        root.dragging = false
-        root.dragId   = ""
+        root.drop = null
+        ModuleDrag.end()
         return ok
     }
 
     function cancel() {
-        root.dragging = false
-        root.dragId   = ""
-        root.drop     = null
+        root.drop = null
+        ModuleDrag.end()
     }
 }

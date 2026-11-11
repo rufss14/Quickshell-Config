@@ -72,6 +72,11 @@ Read before editing `modules/`, `components/` or `shell.qml`. Moved out of CLAUD
   (`EqualizerPanel`), updates (`UpdatePanel`) — were all rebuilt to it:
   - `PanelHeader` at the top (icon/glyph, two-word title with the second word in
     the panel's accent, subtitle, an action row on the right).
+    `visible: Config.panelHeader("<module id>")` where the header is identity only (the module is then listed in
+    `PANELS`, config/modules.js); a header that holds the panel's controls is not switchable.
+  - Under it a `PanelHero` (what is going on, and the main switch or action), then `PanelRow`s / pages; an empty
+    panel shows `PanelEmpty`. Outer padding `Tokens.spacingXl`, column spacing `Tokens.spacingSm`, cards
+    `Tokens.radiusCard` on `section`, no outlines.
   - Header actions grouped in `ActionGroup` — the bar-style tray of
     `PanelButton`s.
   - Every spacing, radius, font size, and duration from `Tokens`/`Motion`. No
@@ -90,6 +95,9 @@ Read before editing `modules/`, `components/` or `shell.qml`. Moved out of CLAUD
     seconds. Never write `Timer { interval: 1000 }` + `new Date()` in a widget:
     twelve of those disagreed by up to a second, so the bar clock and the desktop
     clock changed minute at visibly different moments.
+  - `SudoProcess` (services) — a root job fed a typed password on stdin, once, with the
+    sudo-lockout guard (a rejected password isn't sent twice; nothing while `SudoLock` says
+    locked). Setup and Storage use it; never write a password to a bare `Process`.
   - `InputField` (component) — the single-line text field. `committed` (Enter +
     focus loss) or `edited` (per keystroke); both always fire.
   - `ArmLatch` (component) — click once to arm, again to confirm, self-disarming.
@@ -146,6 +154,13 @@ Read before editing `modules/`, `components/` or `shell.qml`. Moved out of CLAUD
   - Desktop tiles: `WidgetHeader` (glyph on an M3E shape, `shape` per widget), `TileRow` (a tonal list
     row with the state layer), `TileChip` (tonal icon button; `filled` for a tile's main action, `box`
     for size), `TilePill`, `WidgetEmpty`. A tile's hero sits on `primaryContainer`.
+  - `PanelHero`, `PanelRow`, `PanelEmpty` (components) — a panel's subject card (an M3E shape, a headline, the line of
+    what is true now, the main action; `footer` for controls inside the card), a tonal list row (`active`, `clickable`,
+    `below` for content under it) and the "nothing here" face. Use them rather than a Rectangle of your own; the Game
+    Mode and Screen time panels' heroes predate them and are bespoke.
+  - `HelpTip` + `TipBubble` — a control's explanation as a tooltip. The bubble belongs to the SURFACE (the settings card
+    has one, the bar window has one for its pills and panels); a new window that wants tips hosts a `TipBubble`.
+    `HelpTip.provide` is a function asked on hover, for words that cost a service read (`ModuleGlance.tip(id)`).
   - `Meter` (component) — one ratio against its limit, as a track + fill. Use
     `fillDuration: Motion.track` when it follows a live signal (an audio peak),
     not the default.
@@ -162,7 +177,7 @@ Read before editing `modules/`, `components/` or `shell.qml`. Moved out of CLAUD
     `NAME` (codepoint → name), so a ternary of two glyphs or a field in a service's table is an icon
     without anyone resolving it. A StyledText that shows an icon is a MaterialIcon (converted
     shell-wide, 2026-10-03). Do not add new Nerd Font literals to a plain StyledText; the few Text
-    elements that show a `glyph` straight (IconButton's glyph path, ContextMenu, SideModuleTray) set
+    elements that show a `glyph` straight (IconButton's glyph path, ContextMenu) set
     `font.family: Tokens.glyphFamily(text)`.
   - **A new icon name or glyph needs a regeneration.** The fonts carry only what the tree used when
     they were cut; anything new is a help-circle (a name) or a Qt-fallback glyph until `--emit` runs
@@ -194,6 +209,15 @@ Read before editing `modules/`, `components/` or `shell.qml`. Moved out of CLAUD
     focus — a question the compositor was already pushing over the event socket.
 - Flag dead code before removing it, in case it's load-bearing.
 
+## Comments
+
+A comment says why the code is the way it is NOW. History goes in the commit message: no dates,
+no "used to", "previously", "until 2026-…", "the old version". A measured fact stays without its
+diary ("measured on Qt 6.12: …"), and so does a rejected alternative stated as a reason ("not X:
+X does Y"). Docs under `docs/` may keep history; code comments may not.
+`python3 scripts/check-comment-history.py FILE…` lists a file's findings: clean the ones in a file
+you edit. Not gated (hundreds remain); `check-all.sh` prints the count so it only goes down.
+
 ## Accessibility
 
 Started 2026-11-08: the shared interactive components expose themselves to screen readers
@@ -206,6 +230,29 @@ from its label when the caller leaves it empty.
 
 - New interactive components set `Accessible.role`, `Accessible.name` and
   `Accessible.onPressAction` the same way. Prefer the shared ones and it's free.
+- **Reduced motion** (2026-11-08): `Config.motionReduced`, between full and off (Settings › Appearance ›
+  Type & shape › Motion). `Motion.reduced` / `Motion.ambientOn` are the two reads. Central, no call-site
+  change: spatial springs go critically damped, the `spring` curve and `overshoot` lose their overshoot.
+  Gated on `Motion.ambientOn`: cookie/shape drift, the colour-change wave, wallpaper parallax, widget and
+  HUD card tilt, overview pointer drift, lock/greet Ken Burns and scene video, the voice orb's idle turn,
+  the watermark, beat-spun shapes. Gated on `!Motion.reduced` (so "off" behaves as it always did): wallpaper
+  music effects, the material wallpaper's drift/spin. A NEW decorative loop or parallax gates on
+  `Motion.ambientOn`; a busy spinner does not (Motion.qml category 3). Not in a bar preset or look bundle.
+  Also the onboarding wizard's and setup cookie's turns, the overview's badge/cell/feed turns, Game
+  Mode's hero and the photo tile's shape turn. A busy spinner turns at `Motion.spin` (exempt, like
+  `pulse`). **Not covered:** panel/bar morph travel and slide-ins still move (only their overshoot is
+  gone), loading shimmers.
+- **High contrast**: `Config.highContrast` (Settings › Appearance › Type & shape › Shape). Central, no
+  call-site change for anything that already reads roles and tokens: PaletteRoles raises the accent and
+  text floors from 4.5 to 7:1 (`_textFloor`), lifts fgMuted/fgDim to 7 / 4.5 and fgFaint to 0.55, and
+  draws the outline ladder solid; `Tokens.borderWidth` goes to 2; `Tokens.surfaceOpacity` and
+  `Tokens.sectionAlpha` go to 1. **Draw the bar's and the sidebar's fill with `Tokens.barOpacity` /
+  `Tokens.sideOpacity`, never `Config.barOpacity` / `Config.sideOpacity`** (those are what the sliders
+  edit, and stay as set). A desktop tile's is `WidgetFrame.effOpacity`. Not in a bar preset or look
+  bundle. **Not covered:** a translucent fill a file computes with its own `alpha()` (a hover wash, a
+  dim) stays translucent; wallpaper effects and the HUD over a game are untouched.
+- Bar and sidebar modules are named for screen readers by their catalogue label (2026-11-10): `IconButton.accessibleName`
+  (`BarIconPill` fills it from `ModuleGlance.label`), and `SideCell` is a Button named the same way.
 - Not done yet: keyboard focus order (`activeFocusOnTab` / `KeyNavigation`) across panels — the
   layer-shell keyboard-focus rules in `docs/qml-api-caution.md` make it its own job — and
   bespoke clickable `MouseArea`s outside these components.

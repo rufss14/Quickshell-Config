@@ -106,6 +106,30 @@ What moves, and why each is cheap:
 
 Everything runs through `Motion`, so "Animations: off" is a plain swap.
 
+### 1.5 Material 3 Expressive (2026-11-09, stage 1: the shared controls)
+
+User picks: foundation first, then the neglected pages; tonal M3E cards and heroes; an expressive window.
+Stage 1 changed the shared pieces, so every page inherits it:
+
+- **Cards.** `Section.cornerRadius` defaults to `Tokens.radiusXl` (24). The heading chip is TONAL: the palette's
+  `primaryContainer` with `fgOnPrimaryContainer` for the glyph, no outline (a card with another accent mixes its own
+  container the same way). `Section.tonalAccent` says which.
+- **Page header.** `SettingsPage` passes `morph` / `chipSize` / `titleVariant: "headline"` to `PanelHeader`: a badge that is a
+  `MorphShape` on `primaryContainer`. `headerShape` picks the shape; left empty it is chosen by the page's title, so each
+  page wears a different one and the same page always the same. The three pages with their own `PanelHeader` (Updates,
+  Wallpaper, Keybinds) set the same four properties by hand.
+- **Toggle tiles.** `QuickToggleTile` (roomy) badge is a `MorphShape`: a disc when off, `shape` when on, on the spring that
+  overshoots (`ShapeTile`'s move). `shape` defaults to one of eight by the tile's label. The old pop of a rounded square is gone.
+- **Switch.** `Toggle` is Material 3's: 52×32 capsule, thumb 20 off / 24 on / 28 pressed (equal air all round), a state-layer
+  halo behind the thumb (`Tokens.stateHover` / `statePress`). The smear on a state change stays; pressing does not smear.
+- **Slider.** `ValueSlider.expressive` (opt-in; `Fader` and `SliderRow` set it, the bar's and the mixer's stay hairline): a 16px
+  active track that stops 6px short of a thin vertical handle (4px, 2px pressed), the rest of the track beginning past it.
+- **Not yet (stages 2+):** `ChipRow` / `SegmentSwitch` as connected button groups, the rail's indicator, and the page
+  rethinks (system plumbing, integrations, the big data pages).
+- **Unverified live:** all of it was checked only in the headless sandbox (`bash scripts/smoke-headless.sh --shots DIR`), whose
+  palette is monochrome — so the tonal container reads as grey there; the real wallpaper palette is the actual test, and
+  so are the springs and the press feel.
+
 ### 1.1 The corner language — cards soft, controls capsules
 
 | Level | Radius | Examples |
@@ -269,14 +293,14 @@ the top of every page matches.
 
 ## 4. The rail, pages and views
 
-`services/SettingsIndex.qml` is the catalogue: eight rail PAGES, each with one or
+`services/SettingsIndex.qml` is the catalogue: seven rail PAGES, each with one or
 more VIEWS. A view is one file in `pages/`.
 
     Appearance      Theme · Type & shape · Night light · Cursor · Sound effects
     Wallpaper       (one view, with its own Gallery | Appearance | Engine strip — drawn in the
                     same place as every other page's strip)
-    Bar             Modules · Style · Panels
-    Sidebar & dock  Sidebar · Dock · Stats
+    Bar & sidebar   Modules · Style · Behaviour · Panels   (2026-11-08: one page for both
+                    surfaces; Dock and Stats are modules, their settings in the inspector)
     Desktop         Widgets (Desktop · Style · Content modes, a header switch) · Lock screen · Keybinds · Tuning
     Devices         Sound · Network · Bluetooth · Keyboard · Battery
     Apps & tools    Launcher · Clips · Screen time · Lyrics · Discord · Presence

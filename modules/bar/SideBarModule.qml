@@ -17,8 +17,8 @@ import "../../state"
 //   click     what the pill's click does      right   Settings › Sidebar
 //   middle    the pill's secondary action     wheel   volume only
 //
-// Workspaces, the tray and the visualizer have no cell: each is a row of live
-// things, not a glyph, and a column of them is its own design.
+// Workspaces, the tray and the visualizer are rows of live things, not a glyph: each
+// has its own file (SideWorkspaces, SideTray, SideVisualizer — sidecells.js).
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
@@ -40,32 +40,48 @@ Item {
 
     // What each module looks like and does. `symbol` is a Material name, `glyph` a
     // codepoint the services already speak (Net.glyph, Audio.glyph).
+    // A bar pill's second face (the SSID, the device, the percentage) is shown unless it
+    // was collapsed with right-click AND remembered (the bar's own rule: an unremembered
+    // collapse is that pill's alone, and resets on reload).
+    function detailOn(id) { return !(Config.modulePersist(id) && Config.moduleRightState(id)) }
+
+    // ── The bar's face, turned (2026-11-08) ───────────────────────────────────
+    // "Same face on both surfaces" (the user, after a module moved and looked like a
+    // different thing): each case shows what the module's BAR pill shows — its symbol, its
+    // word, its badge, its second face — in a cell. Keep these in step with Bar.qml's
+    // pills and the widgets/ *Pill files; a symbol that differs here is a bug.
     readonly property var spec: {
         const w = Colors.of(QsWindow.window)
         switch (root.moduleId) {
-        case "shapeToggle": return { symbol: Config.barShape ? "square" : "rounded_corner" }
-        case "modeToggle":  return { symbol: "web" }
+        case "shapeToggle": return { symbol: Config.barShape ? "fullscreen_exit" : "fullscreen" }
+        case "modeToggle":  return { symbol: "menu", active: Config.barAnchored }
         case "palette":     return { symbol: "palette",   active: UiState.isOpen("colorScheme") || root.sideOpen("colorScheme") }
-        case "wallpaper":   return { symbol: "wallpaper", active: UiState.isOpen("wallpaper") }
+        case "wallpaper":   return { symbol: "format_paint", active: UiState.isOpen("wallpaper") }
         case "volume":      return { glyph: Audio.glyph(Audio.volume, Audio.muted),
                                      caption: Audio.muted ? "mut" : Math.round(Audio.volume * 100) + "",
                                      tint: Audio.muted ? w.danger : undefined,
                                      active: root.sideOpen("equalizer"), wheel: true }
-        case "keyboard":    return { symbol: "keyboard", caption: Keyboard.layout }
-        case "update":      return { symbol: "update",
-                                     caption: Updates.total > 0 ? Updates.total + "" : "",
+        case "keyboard":    return { label: Keyboard.layout }
+        case "update":      return { symbol: "terminal",
+                                     badge: Updates.total + (ShellUpdate.available ? 1 : 0),
+                                     badgeTint: Updates.hasError ? w.warning : w.primary,
                                      active: UiState.updateOpen }
         case "reload":      return { symbol: "refresh" }
-        case "wifi":        return { glyph: Net.glyph(), active: root.sideOpen("wifi") }
+        case "wifi":        return { glyph: Net.glyph(), active: root.sideOpen("wifi"),
+                                     caption: !root.detailOn("wifi") ? ""
+                                            : Net.wiredConnected ? "Ethernet" : Net.ssid !== "" ? Net.ssid : "Wi-Fi" }
         case "bluetooth":   return { symbol: !Bt.powered ? "bluetooth_disabled"
                                            : Bt.connectedCount > 0 ? "bluetooth_connected" : "bluetooth",
-                                     active: root.sideOpen("bluetooth") }
+                                     active: root.sideOpen("bluetooth"),
+                                     caption: !root.detailOn("bluetooth") ? ""
+                                            : !Bt.powered ? "Off"
+                                            : Bt.connectedCount === 0 ? ""
+                                            : Bt.connectedCount === 1 ? (Bt.primary?.name || Bt.primary?.address || "")
+                                            : Bt.connectedCount + "" }
         case "battery":     return !(root.battery && root.battery.isPresent) ? { symbol: "power" }
                                  : { symbol: root.charging ? "battery_charging_full" : "battery_full",
-                                     caption: Math.round(root.battery.percentage * 100) + "" }
-        case "clock":       return { symbol: "schedule", caption: Qt.formatDateTime(Clock.now, "HH:mm"),
-                                     active: root.sideOpen("clock") }
-        case "overview":    return { symbol: "grid_view", active: UiState.overviewOpen }
+                                     caption: root.detailOn("battery") ? Math.round(root.battery.percentage * 100) + "%" : "" }
+        case "overview":    return { symbol: "menu", active: UiState.overviewOpen }
         case "settings":    return { symbol: "settings" }
         case "privacy":     return { symbol: "mic", active: Audio.recordingApps.length > 0,
                                      tint: Audio.recordingApps.length > 0 ? w.danger : undefined }
@@ -97,7 +113,6 @@ Item {
         case "wifi":        root.toggleSide("wifi"); break
         case "bluetooth":   root.toggleSide("bluetooth"); break
         case "battery":     UiState.openSettingsTo("BatteryPage.qml"); break
-        case "clock":       root.toggleSide("clock"); break
         case "overview":    UiState.toggleOverview(); break
         case "settings":    UiState.toggleSettingsWindow(); break
         case "privacy":     UiState.openSettingsTo("SoundPage.qml"); break
@@ -124,10 +139,13 @@ Item {
         symbol:  root.spec.symbol ?? ""
         glyph:   root.spec.glyph ?? ""
         caption: root.spec.caption ?? ""
+        label:   root.spec.label ?? ""
+        badge:   root.spec.badge ?? 0
+        badgeTint: root.spec.badgeTint ?? Colors.of(QsWindow.window).primary
         active:  root.spec.active ?? false
         wheel:   root.spec.wheel ?? false
         tint:    root.spec.tint ?? Colors.of(QsWindow.window).stateIdleFg
-        accent:  Config.moduleAccent(root.moduleId, Colors.of(QsWindow.window).primary)
+        moduleId: root.moduleId
         onScrolled: function (d) { if (root.moduleId === "volume") Audio.stepVolume(d) }
         onClicked:       root.click()
         onMiddleClicked: root.middle()

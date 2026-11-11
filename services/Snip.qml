@@ -139,13 +139,18 @@ Singleton {
         root.activeScreen = Hyprland.focusedMonitor?.name ?? ""
         root.phase = "capturing"
         const names = Quickshell.screens.map(s => P.safeName(s.name)).filter(n => n !== "")
+        root._outputs = names
         // Every output at once, uncompressed (`-l 0`): measured 0.28 s for two screens one after
         // the other with grim's default PNG, 0.03 s this way — and the file is on tmpfs and
-        // deleted a moment later, so its size costs nothing.
+        // deleted a moment later, so its size costs nothing. Each output stands alone: the ones
+        // that were captured are printed, and one that can't be (Hyprland refuses an output a
+        // fullscreen app is scanned out to: "failed to copy output") must not take the others down.
+        // 127 = no grim at all.
         capture.command = ["sh", "-c",
             'dir=$1; id=$2; shift 2; mkdir -p "$dir" && chmod 700 "$dir" || exit 1; '
-          + 'pids=; for o in "$@"; do grim -l 0 -o "$o" "$dir/snip-$id-$o.png" & pids="$pids $!"; done; '
-          + 'rc=0; for p in $pids; do wait "$p" || rc=1; done; exit $rc',
+          + 'command -v grim >/dev/null || exit 127; '
+          + 'for o in "$@"; do { grim -l 0 -o "$o" "$dir/snip-$id-$o.png" 2>/dev/null && echo "$o"; } & done; '
+          + 'wait; exit 0',
             "sh", root.dir, String(root._session)].concat(names)
         capture.running = true
     }
@@ -301,16 +306,30 @@ Singleton {
 
     property var _job: null
 
+    // The outputs a capture was asked for, and the ones grim could not read.
+    property var _outputs: []
     Process {
         id: capture
+        stdout: StdioCollector { id: capOut }
         onExited: function (code) {
             if (root.phase !== "capturing") return
-            if (code !== 0) {
+            const got = capOut.text.split("\n").map(l => l.trim()).filter(l => l !== "")
+            const failed = root._outputs.filter(n => got.indexOf(n) < 0)
+            // The screen you are on has to be one of them: its overlay is the one that takes the keys.
+            const here = got.indexOf(P.safeName(root.activeScreen)) >= 0
+            if (code !== 0 || !here) {
                 root.phase = ""
+                root._clean()
                 Quickshell.execDetached(["notify-send", "-a", "Snip", Translation.tr("Couldn't capture the screen"),
-                                         Translation.tr("grim failed — is it installed?")])
+                    code === 127 ? Translation.tr("grim isn't installed")
+                    : got.length === 0 ? Translation.tr("grim couldn't read any output")
+                    : Translation.tr("Couldn't read") + " " + root.activeScreen + " — "
+                      + Translation.tr("a fullscreen app on it can block capture")])
                 return
             }
+            if (failed.length > 0)
+                Quickshell.execDetached(["notify-send", "-a", "Snip", Translation.tr("Couldn't capture") + " " + failed.join(", "),
+                                         Translation.tr("It is left as it is; the other screens work.")])
             root.phase = "selecting"
         }
     }

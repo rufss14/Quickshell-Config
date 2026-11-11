@@ -15,8 +15,8 @@ resets zoom to 1). Eager in shell.qml. The live `~/.config/hypr` needs the binds
 
 `services/ScreenTime` (+ `screentime.js`, `bun scripts/test-screentime.js`) →
 `modules/bar/SideScreenTime` (one cell; hover = today's total) → `modules/panels/ScreenTimePanel`
-and Settings › Sidebar › Screen time (`ScreenTimePage`), both drawing
-`components/ScreenTimeView` (a week of bars, click a day; that day's apps with bars).
+and Settings › Sidebar › Screen time (`ScreenTimePage`). The page still draws `components/ScreenTimeView`
+(a week of bars, click a day; that day's apps with bars); the panel has its own M3E views since 2026-11-08.
 Off by default (`Config.screenTime`); eager in shell.qml so it counts with no view open.
 Counts the FOCUSED window's app (`Hyprland.activeToplevel`, an event) while not away —
 an IdleMonitor (`screenTimeIdleMinutes`, inhibitors respected, so a video counts) and not
@@ -24,6 +24,59 @@ locked; credited every 30s and on change, a span over two ticks clipped (a suspe
 Stored in `statePath("screen-time.json")`: local days → app id → seconds (app ids
 validated, never a title), `screenTimeKeepDays` of them, written once a minute.
 `qs ipc … call screentime status` (counts only).
+
+**Panel (redone 2026-11-08, the Game Mode / Audio Mixer dialect; the user picked hero + pages, all four extras,
+"hero becomes the switch" while off, an optional header).** `ScreenTimePanel` = optional `PanelHeader`
+(`Config.screentimePanelHeader()`, module setting `screentime.panelHeader`, Settings › Bar › Screen time) +
+`screentime/ScreenTimeHero` + a `SegmentSwitch` (opens out once there is something to read) + pages on one
+`SpringValue`, the box as tall as the page on show (within `maxHeight`, else it scrolls). All in `modules/panels/screentime/`:
+
+- **Hero** — an M3E shape (circle off, squircle away, `cookie9` turning while it counts; two rings leave it on Start), today's
+  total, "Counting · <app>", Start/Stop (Stop keeps what was counted). Chips pop in on a spring (`ScreenTimeChip`): today vs
+  the week's other days ("24% above usual", `screentime.js versus`, ±5% = "About usual") and the top app (its icon). A top
+  app that is a Steam game lays its header behind the card (`Gamemode.requestArt` / `artPaths`; only Steam games, like
+  Game Mode's hero). Off, the hero is the switch and says what recording does.
+- **Today** — tiles (daily average, week, busiest day), "right now" (the focused app, its time today), today cut by app as beads.
+- **Week** — seven stacked bars (week's top-3 apps = three tints of the accent + neutral "other"), a plate that slides
+  to the picked day, the average line, legend as four icon tiles (app icon on a plate of its tint, name, week total;
+  hovering one lights its slice in every bar, `focusRank`); under it the month as heat squares (`ScreenTime.month`: kept days, ≤ 30;
+  `heat()` = quarters of the busiest day). Hover reads a bar/square, click picks the day (`panel.pick`; "" = today so a
+  panel open past midnight still means today).
+- **Apps** — the picked day's apps, a wavy `RadialGauge` each = share of THAT day, arrows step days.
+- **Round 2 (same day; the user took all eight suggestions).** `ScreenTimeAppTile` (icon on a plate of the app's tint, name,
+  a line; `hovered` lights its slice/bead and dims the rest) is the legend on BOTH Today and Week. Today's "right now" card
+  is full size with the app on a cookie, "% today", "This stretch: …" (`ScreenTime.stretchStart`, set in `_settle` only when the
+  app or counting changes, so the 30 s tick doesn't restart it) and a Meter of its share. The week tile has a 7-day sparkline;
+  tile captions are short ("per day", "best · Sat"). Week: the picked day's top-3 icons beside its total. Apps: each row has a
+  tint bar (the tint it wears on Week) and opens a 7-day chart of that app on tap, one at a time. Hero: the top chip carries
+  its time, "above usual" is tinted (below/level neutral, no verdict colour), a streak chip (`screentime.js streak`; with a goal =
+  days kept under it, else days recorded in a row; today still empty is skipped, today over the goal = 0) and a goal chip.
+  **Daily goal** = `Config.screenTimeGoalMinutes` (0 = off, persisted; Settings › Screen time › What counts): a wavy ring round
+  the hero shape, warning colour once passed (`warning` is the palette's ramp3 — a wallpaper may make it any hue, so the chip
+  also says "over your goal" in words).
+- **Round 3 (same day): the hero again** — the user: "could look better and have more features"; picked "big number + day
+  strip", and Pause, set-goal-from-card, yesterday + pace, tap-to-cycle, hourly buckets. Row 1 badge (goal ring round a shape that
+  follows the stat on show) + state + **Pause** (`ScreenTime.pause(30)`, in memory only, resumes by itself, ends when counting is
+  turned off; `counting` includes `!paused`) + Stop; row 2 a big number (tap: today → this stretch → this week, number slides out
+  and in, `mode` vs `shown` so the swap happens unseen) beside the top app on a plate; row 3 `ScreenTimeDayStrip` (24 hourly bars,
+  hover reads an hour); row 4 chips: pace, yesterday, goal with − / + (30 min; below 30 = off; from off one tap picks ~the week's
+  average, ≥ 1 h), streak. **Hourly data:** `screen-time.json` now also holds `hours: { day: [24 seconds] }` (no app per hour;
+  `screentime.js creditHours / cleanHours / hoursOf / paceVs`, tested incl. DST days; old files load unchanged, the strip fills
+  from the day of the update; an older shell reading a new file ignores `hours` and drops it on its next write). **Pace** = today's
+  hourly sum against an average of the earlier days with hours up to this minute (null under 10 min expected); the first days
+  after the update compare against partly-covered days, so it reads low until a full day of hours exists. Until then the chip
+  falls back to "43% above usual" (total vs other days).
+- **Stable models.** The data moves every 30 s while counting, and a Repeater fed `ScreenTime.week` (a new array each time)
+  rebuilds and replays every entrance. The bars, legend and squares are fixed slots read live (`ScreenTime.week[i]`); the
+  Apps list replaces its id array only when the ORDER changes. Keep it that way.
+- **Entrances** — `SpringReveal` (components/; was ScreenTimeReveal; 0→1 on a spring when its page is the one on show, `delay` per item): bars, beads, tiles,
+  rows and squares grow in every time a page slides in. Reduced motion: springs go critically damped (Motion); the hero's
+  turn and the live dot gate on `Motion.ambientOn`.
+- **Shared helpers moved into the service** (`ScreenTime.labelOf / iconOf / isGame / steamIdOf / weekApps / segments`), and
+  `components/ScreenTimeView` now uses them, so the settings page and the panel can't disagree on a name or a tint.
+  `segments()` keeps "other" at rank 3 whatever the app count.
+- Icons are existing names only (`hourglass_*`, `bedtime`, `today`, `calendar_month`, `apps`, `pause_circle`, `play_arrow`,
+  `arrow_upward/downward`, `remove`, `chevron_*`): no `--emit` needed. New files in `screentime/` need ALT+Q, not a hot reload.
 
 ## Snap zones
 
@@ -288,6 +341,14 @@ absent from its 0600 file and its field is listed under `"_keyring"` (names only
   BEFORE any overlay maps, each screen's overlay draws its still, and the crop is `magick -crop` in the
   capture's own pixels (`logical × scale`) as an argv. The file name carries a session id because `Image`'s
   cache is keyed by URL and would otherwise show the previous snip's screen.
+- **One output that grim can't read doesn't stop the others** (2026-11-09). Measured on Hyprland 0.57.1 / grim 1.5.0: with a
+  fullscreen Discord on HDMI-A-1 (`directScanoutTo` set, `currentFormat: Invalid`, `render:direct_scanout = 1`), `grim -o HDMI-A-1`
+  fails every time with "failed to copy output HDMI-A-1" while DP-2 captures fine — and the old all-or-nothing capture then told
+  you "grim failed — is it installed?" for every snip. Now each output is captured on its own and the ones that worked are
+  printed; an output that failed gets no overlay (the overlay maps only once its still has loaded) and one notification says
+  so. The screen you are on has to be one of the captured (its overlay owns the keys): if it isn't, the snip aborts with the
+  reason. Exit 127 = no grim. **The scanout link is the best fit to the evidence, not proven** — switching
+  `render:direct_scanout` off at runtime and retrying was not done (system-affecting; ask first).
 - Actions reuse what exists: save → `Screenshot.saveDir` + clipboard + `Screenshot.present` (the toast),
   edit → `UiState.openAnnotate`, text/translate → `Lens.adopt()`, record → `Clips.recordArea()`.
 - **Reverse image search is deliberately absent.** ii uploads the crop to a public file host (uguu.se) to
@@ -1305,3 +1366,49 @@ two-finger right-click, scroll speed. Written to `~/.config/hypr/hardware.lua` b
   `--verify-config`: "allowed values are: adaptive, flat, custom*"), so the page offers those two.
 - `python3 scripts/test-hypr-input.py` (56): every key on temp copies of the repo's and the
   installed hardware.lua, each result through `Hyprland --verify-config`.
+
+## Look bundles (2026-11-08)
+
+Settings › Appearance › Theme › **Looks**: Export writes how the shell looks to one `.look.json`; Import
+reads one, shows what it would change, and applies on Apply (Undo afterwards). `services/look.js` is the
+format and every check (`bun scripts/test-look.js`); `services/Look.qml` is the files, the dialogs and Config.
+
+- **A whitelist, not a shell preset.** A shell preset (`Config._dumpPrefs`) holds everything, including the
+  lock avatar path and the weather town. A look is for sending to a stranger: appearance only (`STYLE` in
+  look.js, ranges from Config's own `*Min/*Max`), the bar preset snapshot (`Config._snapshot()`), and the
+  current palette (18 colours, all or nothing). The wallpaper is a NAME for the reader, never a path or the image.
+- **Never in a look: motion** (`motionEnabled`, `motionScale`, `motionReduced`). `Config.applyLook` passes the
+  live motion values into the bar snapshot, because `loadPreset` would otherwise fall back to the defaults for a
+  key the file lacks and import would turn a user's animations back on.
+- **Invalid values are dropped, not clamped**, and counted ("N values skipped" on the confirm card). Unknown keys
+  are ignored. Objects (layouts, module settings) are checked for hostile keys (`__proto__`…), depth 8 and 40 KB;
+  Config's own loaders (`Layout.reconcile`, `Surfaces.cleanStyle`) still do the semantic cleaning.
+  A file over 100 KB is refused, and import reads `head -c` of it, never the whole file. A newer `version` is
+  refused with "update first".
+- **The scheme goes into the library** under the look's name (`uniqueName`: never over an existing scheme), and
+  only when the library has been listed (`ColorScheme.presetsReady`): "no scheme by that name" must not be a
+  list that hasn't arrived. It is then worn through `applyPalette`, like any scheme. A look with no valid palette
+  does not change `themeMode` (it would flip the mode and keep the old colours).
+- **Undo** restores every preference (`_dumpPrefs()` taken just before; `Config.restorePrefs`). Colours come back
+  from the WALLPAPER (`Wallpaper.reapplyPalette`), not from a scheme or pins that were in force before; the scheme
+  the look added stays in the library. In memory only: gone on reload.
+- **File dialogs are zenity's** (also behind "Add wallpapers"; now in `install-dependencies.sh`). Missing:
+  both buttons disable with a reason (`Look.blocker()`).
+- **Untested by me:** the dialogs, the write (`FileView.setText` on a path chosen at runtime), applying a real
+  look, the colour wave on import, Undo.
+
+## Diagnostics (Settings › About, "Copy diagnostics")
+
+`scripts/doctor.sh` prints one Markdown report for a bug report: the shell's version and git state,
+Quickshell / Qt / Hyprland / Wayland versions and the hardware line (from `specs.sh`), which required,
+AUR and feature-pack packages are missing (`install-dependencies.sh --official/--aur/--packs` through
+`pacman -T`), whether the shell runs, through `shell-run.sh`, in safe mode, and the running instance's
+latest warnings (`qs log --pid`, debug/info dropped, ANSI stripped, each distinct line once with a count,
+the 25 most recent). Reads only.
+
+- **Made to be pasted in public:** `$HOME` becomes `~`, the user and host names `<user>` / `<host>`
+  (whole words, three characters or more). Board, BIOS and boot details are left out.
+- The About page's button runs it through `SysInfo.copyDiagnostics()` and hands the text to
+  `Clipboard.copyText`; the chip reads Collecting… / Copied / Couldn't collect for four seconds.
+- From a terminal: `bash scripts/doctor.sh`, which also works with the shell not running (the log section
+  then says so).

@@ -78,7 +78,7 @@ Singleton {
     readonly property int radiusPill: root._square ? root.radiusSquare : Math.round((root._roundII ? 17 : 12) * Config.radiusScale)
     // How opaque a SECTION card is (see PaletteRoles.section): 1 = solid, as the panels were; a little
     // under, and the drifting cookies behind the panel show through the cards instead of stopping at them.
-    readonly property real sectionAlpha: 0.85
+    readonly property real sectionAlpha: Config.highContrast ? 1 : 0.85
 
     // ── State layers: Material 3's calibrated alphas ──────────────────────────
     // The wash a control wears over its own fill, in its content colour, per state. These
@@ -420,7 +420,7 @@ Singleton {
                          + Math.max(0, root.shadowSpread(dp)))
     }
 
-    readonly property int borderWidth: 1
+    readonly property int borderWidth: Config.highContrast ? 2 : 1   // 2px under high contrast
 
     // The bar pills and the screen frame — the shell's OUTER chrome — draw their
     // border at this width instead of borderWidth, so the shell's edge and the
@@ -438,5 +438,11 @@ Singleton {
     // for the same reason radiusWidget reads Defaults: Config.barOpacity's own
     // default already borrows THIS property, so the raw constant lives in
     // Defaults.qml, one level below both.
-    readonly property real surfaceOpacity: Config.surfaceOpacity
+    readonly property real surfaceOpacity: Config.highContrast ? 1 : Config.surfaceOpacity
+
+    // The bar's and the sidebar's own opacity, as DRAWN: the user's value, or solid under
+    // high contrast. Draw with these; the Config values are what the sliders edit. (A
+    // desktop widget's is WidgetFrame.effOpacity, which also has a per-tile override.)
+    readonly property real barOpacity:  Config.highContrast ? 1 : Config.barOpacity
+    readonly property real sideOpacity: Config.highContrast ? 1 : Config.sideOpacity
 }

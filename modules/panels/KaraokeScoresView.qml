@@ -282,7 +282,7 @@ ColumnLayout {
                             Layout.fillHeight: false
                             spacing: 0
                             Text {
-                                text: "COMBO"
+                                text: Translation.tr("COMBO")
                                 color: root.pal.fgMuted
                                 font.family: Tokens.fontFamily
                                 font.bold: true
@@ -303,7 +303,7 @@ ColumnLayout {
                             Layout.fillHeight: false
                             spacing: 0
                             Text {
-                                text: "MODS"
+                                text: Translation.tr("MODS")
                                 color: root.pal.info
                                 font.family: Tokens.fontFamily
                                 font.bold: true
@@ -322,7 +322,7 @@ ColumnLayout {
                         // Full combo, where the best was one.
                         Text {
                             visible: row.modelData.best.fullCombo
-                            text: "FULL COMBO"
+                            text: Translation.tr("FULL COMBO")
                             color: root.pal.success
                             font.family: Tokens.fontFamily
                             font.bold: true

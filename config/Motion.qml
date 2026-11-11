@@ -114,6 +114,19 @@ Singleton {
     // its own time through it (the wave itself, below) is NOT run through `_d()`.
     property bool snap: false
 
+    // ── Reduced motion ────────────────────────────────────────────────────────
+    // Config.motionReduced, the middle setting between full and off. It keeps what tells you
+    // something changed (fades, colour, a panel arriving) and drops what only moves: overshoot
+    // and bounce, parallax, drifting shapes, the colour-change wave, idle spinning.
+    //   reduced    — true only while motion is on AND the user asked for less.
+    //   ambientOn  — true when decorative movement may run. Gate a loop, a parallax or a drift
+    //                on this instead of Config.motionEnabled. A busy indicator does NOT use it
+    //                (category 3 below): a frozen spinner reads as "hung".
+    // Central, so no call site changes for the overshoot cases: the spatial springs, the
+    // `spring` curve and `overshoot` all lose their overshoot here.
+    readonly property bool reduced:   Config.motionEnabled && Config.motionReduced
+    readonly property bool ambientOn: Config.motionEnabled && !Config.motionReduced
+
     // ── Durations ─────────────────────────────────────────────────────────────
 
     // track: following a live, continuously-changing value. Just enough to take
@@ -199,6 +212,11 @@ Singleton {
     // collapsed pulse does not spin the CPU — it simply stops, silently, which is
     // the failure mode that matters here.
     readonly property int pulse: 400
+
+    // spin: one turn of a busy spinner (a refresh glyph, a rescan arrow). Exempt from
+    // `_d()` for the reason `pulse` is: a spinner that stops reads as "hung". One tempo,
+    // so two spinners side by side don't turn at 850 and 1200 ms.
+    readonly property int spin: 900
 
     // ripple: a Material 3 state-layer wave crossing a control, from wherever you
     // actually pressed.
@@ -299,7 +317,9 @@ Singleton {
     // spring: overshoots slightly past the target and settles back (note the 1.21 —
     // above 1 IS the overshoot). For motion that should feel physical rather than
     // merely correct: a preview snapping home, a card landing.
-    readonly property list<real> spring: [0.38, 1.21, 0.22, 1.0, 1.0, 1.0]
+    // Reduced motion: the same curve with the overshoot taken out (1.21 → 0.8, `effects`' own).
+    readonly property list<real> spring: root.reduced ? [0.38, 0.8, 0.22, 1.0, 1.0, 1.0]
+                                                      : [0.38, 1.21, 0.22, 1.0, 1.0, 1.0]
 
     // zoomCurve: ease IN and out, unlike every curve above. emphasizedDecel covers half the
     // distance in the first 7% of its time — two frames — which is right for a card
@@ -323,9 +343,11 @@ Singleton {
     // Unlike a duration + curve, a spring keeps its velocity when its target changes in
     // mid-flight, so a hover that leaves before the grow has finished turns round instead
     // of restarting. That is what "fluid" means here.
-    readonly property var springSpatialFast: ({ stiffness: 800,  damping: 0.6 })
-    readonly property var springSpatial:     ({ stiffness: 380,  damping: 0.8 })
-    readonly property var springSpatialSlow: ({ stiffness: 200,  damping: 0.8 })
+    // Reduced motion lifts the damping ratio to 1 (critically damped): the same stiffness, so
+    // the same speed, with nothing past the target.
+    readonly property var springSpatialFast: ({ stiffness: 800,  damping: root.reduced ? 1.0 : 0.6 })
+    readonly property var springSpatial:     ({ stiffness: 380,  damping: root.reduced ? 1.0 : 0.8 })
+    readonly property var springSpatialSlow: ({ stiffness: 200,  damping: root.reduced ? 1.0 : 0.8 })
     readonly property var springEffectsFast: ({ stiffness: 3800, damping: 1.0 })
     readonly property var springEffects:     ({ stiffness: 1600, damping: 1.0 })
     readonly property var springEffectsSlow: ({ stiffness: 800,  damping: 1.0 })
@@ -372,7 +394,8 @@ Singleton {
     readonly property int inOut: Easing.InOutQuad
 
     // overshoot: a control that lands past its target and settles back (a bounce, a pop).
-    readonly property int overshoot: Easing.OutBack
+    // Reduced motion: OutCubic (it lands, it doesn't bounce).
+    readonly property int overshoot: root.reduced ? Easing.OutCubic : Easing.OutBack
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     // A surface's enter and exit differ in BOTH duration and curve, and that

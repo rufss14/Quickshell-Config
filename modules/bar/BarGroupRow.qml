@@ -325,6 +325,18 @@ Repeater {
                 // the ROW's shared bottom edge (translated into this slot's local
                 // coordinates) keeps every segment on the same line regardless of its
                 // own slot's height.
+                // The outline every module wears while arranging, as the desktop widgets' tiles do.
+                Rectangle {
+                    anchors.fill: widget
+                    radius: Math.min(height / 2, Config.barRoundness)
+                    color: "transparent"
+                    border.width: Tokens.borderWidth
+                    border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary,
+                        BarDrag.dragging && BarDrag.dragId === slot.modelData ? 0.9 : 0.45)
+                    visible: root.slotsArranging
+                    Behavior on border.color { ColorAnimation { duration: Motion.respond } }
+                }
+
                 Rectangle {
                     x: 0
                     // Same teardown guard as the slot's anchor above.
@@ -555,9 +567,8 @@ Repeater {
                     // QDrag owns the pointer from the threshold onward.
                     Drag.onDragFinished: {
                         dragProxy.armed  = false
-                        BarDrag.dragging = false
-                        BarDrag.dragId   = ""
                         BarDrag.drop     = null
+                        ModuleDrag.end()
                     }
                 }
 
@@ -591,8 +602,7 @@ Repeater {
                     // Raising the latch is what starts the drag — see dragProxy.
                     drag.onActiveChanged: {
                         if (!slotHit.drag.active) return
-                        BarDrag.dragging = true
-                        BarDrag.dragId   = slot.modelData
+                        ModuleDrag.begin(slot.modelData, "bar")
                         dragProxy.armed  = true
                     }
 

@@ -18,7 +18,8 @@ import "../state"
 // page-switch.
 //
 // The icon chip is PanelHeader's (ShapeBox: a rounded square unless Config.iconShape picks
-// one shape for every holder), so a card heading and a panel heading read as one thing.
+// one shape for every holder), so a card heading and a panel heading read as one thing. It is
+// TONAL since 2026-11-09 (M3E): the accent's container with the on-container glyph, no outline.
 //
 // ── The heading sits INSIDE the card ──────────────────────────────────────────
 // The title and the rows it introduces are one object that scrolls, elides and is bounded
@@ -56,7 +57,10 @@ ColumnLayout {
     // A warning card (blocker, lock-out risk) wears its own outline.
     property color cardBorder: "transparent"
 
-    property int cornerRadius: Tokens.radiusCard
+    // Large corners, the Material 3 Expressive card. (A well inside a card, or a warning card, sets its own.)
+    property int cornerRadius: Tokens.radiusXl
+    // The accent is the palette's own primary, so the heading chip can wear its container role.
+    readonly property bool tonalAccent: Qt.colorEqual(root.accent, Colors.of(QsWindow.window).primary)
 
     property alias actions: actionRow.data
     default property alias content: bodyCol.data
@@ -167,14 +171,16 @@ ColumnLayout {
                     implicitWidth:  Tokens.iconXl + Tokens.spacingSm
                     implicitHeight: Tokens.iconXl + Tokens.spacingSm
                     fallback:    "rounded"
-                    fillColor:   Colors.of(QsWindow.window).alpha(root.accent, 0.20)
-                    strokeColor: Colors.of(QsWindow.window).alpha(root.accent, 0.32)
+                    // Tonal (Material 3 Expressive): the accent's container, not a wash and an outline. For the
+                    // default accent that IS the palette's primaryContainer; a warning card mixes its own the same way.
+                    fillColor:   root.tonalAccent ? Colors.of(QsWindow.window).primaryContainer
+                                                  : Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceContainer, root.accent, 0.26)
 
                     MaterialIcon {
                         anchors.centerIn: parent
                         name:  root.symbol
                         glyph: root.glyph
-                        color: root.accent
+                        color: root.tonalAccent ? Colors.of(QsWindow.window).fgOnPrimaryContainer : root.accent
                         variant: "title"
                     }
                 }

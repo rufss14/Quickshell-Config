@@ -54,8 +54,8 @@ Item {
                     iconAngle: refresh.spin
                     property real spin: 0
                     NumberAnimation on spin {
-                        running: News.busy && Config.motionEnabled
-                        from: 0; to: 360; duration: 900
+                        running: News.busy
+                        from: 0; to: 360; duration: Motion.spin
                         loops: Animation.Infinite
                         onRunningChanged: if (!running) refresh.spin = 0
                     }

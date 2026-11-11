@@ -1,30 +1,31 @@
 #!/usr/bin/env python3
 # ── steam-colors.py ──────────────────────────────────────────────────────────
-# Recolours Millennium's simply-dark theme from the live pywal palette, by writing
-# the theme's colour inputs into Millennium's config.json (Settings → Themes → "Edit
-# colors" is the same store: `themes.themeColors.<theme>` is injected as a :root block
-# and cascades over the theme's own colors.css).
+# Makes Steam's Material theme (Millennium, kuska1/Material-Theme, MIT) wear the shell's
+# palette. The theme has a "Matugen" colour source: it reads a stylesheet of Material 3
+# system colours (`--md-sys-color-*`) from css/main/colors/matugen.css and re-reads it
+# regularly in every Steam window (js/main/colors/matugen.js). This script writes that one
+# file from the pywal palette, with the same blends the shell's PaletteRoles uses, so a
+# running Steam repaints by itself within a couple of seconds: no restart, no debug port,
+# nothing written to Millennium's config.json.
 #
-#   steam-colors.py CONFIG COLORS_JSON [--theme-dir DIR] [--preview]
+#   steam-colors.py COLORS_JSON [--theme-dir DIR]     write matugen.css (default: the installed theme)
+#   steam-colors.py COLORS_JSON --preview             print it, write nothing
 #
-# Why a ramp, not the pywal names: the stock theme does not read `--color0…15`. Its inputs
-# are ~20 greys and two status colours (`--color-dark`, `--grey`, `--white`, `--online`…),
-# so baking the pywal names (what this step used to do) recoloured nothing. Each of the
-# theme's own variables is mapped by how light it is: its stock grey picks a point on the
-# line from the palette's background to its foreground, anchored so the theme's MAIN
-# BACKGROUND is exactly the palette background (see ramp()). Lighter steps keep their layering
-# above it, whites reach the foreground, so the theme keeps the contrast it was designed with,
-# in the palette's hue. `--ingame` / `--online` keep a hue (palette green / cyan) so a friend's
-# status still reads on a muted palette.
-#
-# The stock values are read from the theme's colors.css, NOT from config.json: after the
-# first run config.json holds OUR output, and ramping that again would drift the palette a
-# little further toward the middle on every wallpaper change.
-#
-# The pywal names are still written alongside, for a theme (an older local copy whose
-# colors.css is a symlink to the wal cache) that does read them.
+# Role map (shell → Material 3):
+#   primary / secondary    pywal color1 / color4, pulled to 4.5:1 on the background — the shell's
+#                          own `primary` / `focus` (scripts/themes/spotify/pwspice.py _legible)
+#   tertiary               pywal color5, same floor
+#   surface*, containers   the shell's surface / surfaceContainer / surfaceHigh blends of
+#                          background, text (color7) and primary
+#   on-*, outline          text, and text mixed toward the background
+#   error                  Material's own fixed red: the shell's `danger` is color1, which is
+#                          usually the accent, so it would read as primary
+# The file also sets the light/dark switches (--scheme-*, color-scheme) from the background's
+# lightness, so a light wallpaper turns the whole theme light without touching its Appearance
+# setting. --hue-rotate (which tints Steam's bitmap art) follows the accent's hue.
 # ─────────────────────────────────────────────────────────────────────────────
 import argparse
+import colorsys
 import importlib.util
 import json
 import os
@@ -32,129 +33,163 @@ import re
 import sys
 import tempfile
 
-THEME = "simply-dark"
+HERE = os.path.dirname(os.path.abspath(__file__))
+THEME = "Material-Theme"
+RELATIVE = os.path.join("css", "main", "colors", "matugen.css")
+_HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 
-# simply-dark's colors.css as shipped — the fallback when the theme folder can't be found.
-STOCK = {
-    "--color-light": "rgb(48, 48, 48)", "--color-dark": "#212121",
-    "--color-darker": "#191919", "--color-darkest": "#141414", "--scrollbar": "#303030",
-    "--black": "#000000", "--blacker-ish": "#1b1b1b", "--blacker": "#1c1c1c",
-    "--grey": "#2e2e2f", "--lightgrey": "#3e3e3f", "--lightergrey": "#353535",
-    "--grey-ish": "#454545", "--darkergrey": "#151515", "--thegrey": "#181818",
-    "--begrey": "#262627", "--littlegrey": "#282828", "--darkgrey": "#1e1e1f",
-    "--darkerwhite": "#b8b6b4", "--darkwhite": "#d9dadd", "--white": "#ffffff",
-    "--ingame": "#90ba3c", "--online": "#57cbde", "--offline": "#898989",
-}
-
-# Status colours keep a hue: name → pywal colour index (green, cyan).
-HUES = {"--ingame": 2, "--online": 6}
-
-_HEX = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
-_RGB = re.compile(r"^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)")
-_DECL = re.compile(r"^\s*(--[A-Za-z0-9-]+)\s*:\s*([^;]+);", re.M)
+# Accent hue (degrees) → the --hue-rotate the theme's own presets use for it (purple.css,
+# red.css, yellow.css, green.css, cyan.css, blue.css read off the shipped files); linear between.
+HUE_ROTATE = [(15, 145), (50, 220), (96, 270), (186, 330), (217, 360), (265, 420)]
 
 
-def parse_color(text):
-    """'#rgb' / '#rrggbb' / 'rgb(r,g,b)' → (r, g, b), else None."""
-    text = text.strip()
-    m = _HEX.match(text)
-    if m:
-        h = m.group(1)
-        if len(h) == 3:
-            h = "".join(c * 2 for c in h)
-        return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
-    m = _RGB.match(text)
-    if m:
-        return tuple(min(255, int(g)) for g in m.groups())
-    return None
-
-
-def to_hex(rgb):
-    return "#%02x%02x%02x" % tuple(round(c) for c in rgb)
-
-
-def lightness(rgb):
-    return sum(rgb) / 765
-
-
-def ramp(l, base=0.0):
-    """Where on bg→fg a stock grey of lightness l (0..1) lands (0..1).
-
-    Surfaces (up to ~#666) keep the stock steps — against a foreground about as light as
-    white that is the theme's own contrast between layers, which a gentler slope flattens into
-    one slab; text-range lights then close the rest of the way, so #fff reaches the
-    foreground exactly.
-
-    `base` anchors it: the stock theme lifts its MAIN BACKGROUND a little off pure black
-    (#191919), and reproduced proportionally that left Steam's main surface ~16 levels lighter
-    than the palette background every other app puts under theirs (measured: 79% of what Steam
-    paints was that one colour). With `base` = the raw ramp at the main background's stock grey,
-    that grey lands exactly on the palette background, everything lighter keeps its step above
-    it, and anything darker (the theme's few inset shades) is clamped to it."""
-    t = l * 0.9 if l <= 0.4 else 0.36 + (l - 0.4) / 0.6 * 0.64
-    return max(0.0, (t - base) / (1.0 - base))
-
-
-# The theme's own doc comment on this variable (colors.css): "Darker Color — Main Background".
-MAIN_BG = "--color-darker"
+def rgb(h):
+    h = h.lstrip("#")
+    return [int(h[i:i + 2], 16) for i in (0, 2, 4)]
 
 
 def mix(a, b, t):
-    return tuple(x + (y - x) * t for x, y in zip(a, b))
+    """Opaque blend of `t` of b into a — PaletteRoles.mix()."""
+    return [x + (y - x) * t for x, y in zip(a, b)]
 
 
-def read_palette(path):
-    """(bg, fg, [color0..15]) as RGB tuples, or raise ValueError."""
-    with open(path, encoding="utf-8") as f:
-        wal = json.load(f)
+def lum(c):
+    def lin(v):
+        s = v / 255.0
+        return s / 12.92 if s <= 0.03928 else ((s + 0.055) / 1.055) ** 2.4
+    r, g, b = (lin(v) for v in c)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(a, b):
+    la, lb = lum(a), lum(b)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+
+def legible(color, bg, target, toward):
+    """services/palette.js legible(): the least shift toward `toward` that reaches `target`."""
+    if contrast(color, bg) >= target:
+        return list(color)
+    if contrast(toward, bg) < target:
+        return list(toward)
+    lo, hi = 0.0, 1.0
+    for _ in range(12):
+        mid = (lo + hi) / 2
+        if contrast(mix(color, toward, mid), bg) >= target:
+            hi = mid
+        else:
+            lo = mid
+    return mix(color, toward, hi)
+
+
+def css(c):
+    return "rgb(%d, %d, %d)" % tuple(max(0, min(255, round(v))) for v in c)
+
+
+def hue_rotate(c):
+    h = colorsys.rgb_to_hsv(*(v / 255.0 for v in c))[0] * 360.0
+    pts = HUE_ROTATE
+    if h < pts[0][0]:
+        h += 360.0                          # reds below 15° sit between purple (265) and red (15+360)
+    if h > pts[-1][0]:
+        (h0, r0), (h1, r1) = pts[-1], (pts[0][0] + 360.0, pts[0][1] + 360.0)
+        return round((r0 + (r1 - r0) * (h - h0) / (h1 - h0)) % 360)
+    for (h0, r0), (h1, r1) in zip(pts, pts[1:]):
+        if h0 <= h <= h1:
+            return round((r0 + (r1 - r0) * (h - h0) / (h1 - h0)) % 360)
+    return pts[0][1]
+
+
+def parse(wal):
     try:
-        special = wal["special"]
-        colors = [parse_color(wal["colors"]["color%d" % i]) for i in range(16)]
-        bg, fg = parse_color(special["background"]), parse_color(special["foreground"])
+        bg = wal["special"]["background"]
+        c = {i: wal["colors"]["color%d" % i] for i in (1, 4, 5, 7)}
     except (KeyError, TypeError) as e:
         raise ValueError("incomplete palette: %s" % e)
-    if bg is None or fg is None or None in colors:
-        raise ValueError("palette has a colour that isn't #rrggbb")
-    return bg, fg, colors, wal
+    for v in (bg, *c.values()):
+        if not (isinstance(v, str) and _HEX.match(v)):
+            raise ValueError("palette has a colour that isn't #rrggbb: %r" % (v,))
+    return rgb(bg), {i: rgb(v) for i, v in c.items()}
 
 
-def theme_stock(theme_dir):
-    """The theme's own colour inputs, from its colors.css, over the shipped table."""
-    stock = dict(STOCK)
-    path = os.path.join(theme_dir, "colors.css") if theme_dir else ""
-    try:
-        with open(path, encoding="utf-8") as f:
-            found = {k: v.strip() for k, v in _DECL.findall(f.read())}
-    except OSError:
-        return stock
-    # Only what is actually a colour (the file also documents itself in comments).
-    stock.update({k: v for k, v in found.items() if parse_color(v) is not None})
-    return stock
+def roles(bg, c, legible=legible):
+    """({--md-sys-color name: [r, g, b]}, primary, is_light). `legible` is injectable."""
+    text = c[7]
+    light = lum(bg) > 0.4
+    away = [255, 255, 255] if light else [0, 0, 0]          # the extreme behind the surfaces
+    primary = legible(c[1], bg, 4.5, text)
+    secondary = legible(c[4], bg, 4.5, text)
+    tertiary = legible(c[5], bg, 4.5, text)
+
+    surface = mix(bg, primary, 0.03)
+    container = mix(mix(bg, text, 0.07), primary, 0.08)
+    high = mix(mix(bg, text, 0.12), primary, 0.10)
+    highest = mix(mix(bg, text, 0.17), primary, 0.12)
+
+    def accent(color):
+        cont = mix(container, color, 0.26)
+        return cont, legible(mix(color, text, 0.6), cont, 4.5, text)
+
+    p_cont, on_p_cont = accent(primary)
+    s_cont, on_s_cont = accent(secondary)
+    t_cont, on_t_cont = accent(tertiary)
+    if light:
+        err, on_err, err_cont, on_err_cont = [186, 26, 26], [255, 255, 255], [255, 218, 214], [147, 0, 10]
+    else:
+        err, on_err, err_cont, on_err_cont = [255, 180, 171], [105, 0, 5], [147, 0, 10], [255, 218, 214]
+
+    r = {
+        "primary": primary, "surface-tint": primary, "on-primary": bg,
+        "primary-container": p_cont, "on-primary-container": on_p_cont,
+        "secondary": secondary, "on-secondary": bg,
+        "secondary-container": s_cont, "on-secondary-container": on_s_cont,
+        "tertiary": tertiary, "on-tertiary": bg,
+        "tertiary-container": t_cont, "on-tertiary-container": on_t_cont,
+        "error": err, "on-error": on_err, "error-container": err_cont, "on-error-container": on_err_cont,
+        "background": surface, "on-background": text,
+        "surface": surface, "on-surface": text,
+        "surface-variant": high, "on-surface-variant": mix(text, bg, 0.22),
+        "outline": mix(bg, text, 0.45), "outline-variant": mix(bg, text, 0.20),
+        "shadow": [0, 0, 0], "scrim": [0, 0, 0],
+        "inverse-surface": text, "inverse-on-surface": bg,
+        "inverse-primary": legible(primary, text, 4.5, bg),
+        "surface-dim": surface, "surface-bright": mix(mix(bg, text, 0.20), primary, 0.12),
+        "surface-container-lowest": mix(surface, away, 0.35),
+        "surface-container-low": mix(surface, container, 0.5),
+        "surface-container": container,
+        "surface-container-high": high,
+        "surface-container-highest": highest,
+    }
+    # Material's "fixed" roles are the same in light and dark.
+    for name, base, cont, on_cont in (("primary", primary, p_cont, on_p_cont),
+                                      ("secondary", secondary, s_cont, on_s_cont),
+                                      ("tertiary", tertiary, t_cont, on_t_cont)):
+        r[name + "-fixed"] = cont
+        r[name + "-fixed-dim"] = base
+        r["on-" + name + "-fixed"] = bg
+        r["on-" + name + "-fixed-variant"] = on_cont
+    return r, primary, light
 
 
-def main_bg_base(stock):
-    """The ramp's anchor: where the theme's main background sits, so it can be put on the palette bg."""
-    main = parse_color(stock.get(MAIN_BG, ""))
-    return ramp(lightness(main)) if main else 0.0
-
-
-def derive(bg, fg, colors, stock, wal=None):
-    """The themeColors block for `stock`'s variables, plus the pywal names."""
-    out = {}
-    base = main_bg_base(stock)
-    for name, value in stock.items():
-        if name in HUES:
-            out[name] = to_hex(colors[HUES[name]])
-            continue
-        rgb = parse_color(value)
-        if rgb is not None:
-            out[name] = to_hex(mix(bg, fg, ramp(lightness(rgb), base)))
-    special = (wal or {}).get("special", {})
-    out["--background"], out["--foreground"] = to_hex(bg), to_hex(fg)
-    out["--cursor"] = special.get("cursor") or to_hex(fg)
-    for i, c in enumerate(colors):
-        out["--color%d" % i] = to_hex(c)
-    return out
+def render(wal, legible=legible):
+    bg, c = parse(wal)
+    r, primary, light = roles(bg, c, legible)
+    on, off = "var(--ON)", "var(--OFF)"
+    head = [
+        "/* Written by scripts/steam-colors.py from the shell's palette; see its header. */",
+        ":root {",
+        '    --theme-color: "Matugen";',
+        "    --hue-rotate: %ddeg;" % hue_rotate(primary),
+        # The theme's Appearance switches, set by the background so a light wallpaper goes light.
+        "    color-scheme: only %s !important;" % ("light" if light else "dark"),
+        "    --scheme: %s;" % ("light" if light else "dark"),
+        "    --scheme-light: %s;" % (on if light else off),
+        "    --scheme-dark: %s;" % (off if light else on),
+        "    --scheme-color: %s;" % ("white" if light else "black"),
+        "    --scheme-color-inverse: %s;" % ("black" if light else "white"),
+    ]
+    body = ["    --md-sys-color-%s: %s;" % (k, css(v)) for k, v in r.items()]
+    return "\n".join(head + body + ["}", ""])
 
 
 def default_theme_dirs():
@@ -163,92 +198,73 @@ def default_theme_dirs():
             os.path.expanduser("~/.steam/steam/millennium/themes/" + THEME)]
 
 
-def write_atomic(path, text):
-    """Rename into place: Millennium reading mid-write must never see half a file."""
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".config.", suffix=".tmp")
+def write_if_changed(path, text):
+    """Atomic rename; untouched when the content is already right, so a run that didn't move
+    the palette gives the theme's poll nothing to repaint."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            if f.read() == text:
+                return False
+    except OSError:
+        pass
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".matugen.", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(text)
-        os.chmod(tmp, os.stat(path).st_mode & 0o777)
+        os.chmod(tmp, 0o644)
         os.replace(tmp, path)
     except BaseException:
         if os.path.exists(tmp):
             os.unlink(tmp)
         raise
+    return True
+
+
+def shell_legible():
+    """pwspice's legible() — the one definition of the shell's accent floor — adapted to RGB
+    lists. Falls back to this file's copy when pwspice can't be loaded."""
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "pwspice", os.path.join(HERE, "themes", "spotify", "pwspice.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        fn = mod._legible
+    except Exception:
+        return legible
+
+    def hexs(c):
+        return "#%02x%02x%02x" % tuple(max(0, min(255, round(v))) for v in c)
+
+    def adapted(color, bg, target, toward):
+        return rgb(fn(hexs(color), hexs(bg), target, hexs(toward)))
+    return adapted
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Recolour simply-dark from the pywal palette.")
-    ap.add_argument("config")
+    ap = argparse.ArgumentParser(description="Write Material's matugen.css from the shell's palette.")
     ap.add_argument("colors_json")
     ap.add_argument("--theme-dir")
-    ap.add_argument("--preview", action="store_true", help="print the colours, write nothing")
+    ap.add_argument("--preview", action="store_true", help="print the file, write nothing")
     args = ap.parse_args(argv)
 
     try:
-        bg, fg, colors, wal = read_palette(args.colors_json)
+        with open(args.colors_json, encoding="utf-8") as f:
+            text = render(json.load(f), shell_legible())
     except (OSError, ValueError) as e:
         print("steam-colors: palette unreadable: %s" % e, file=sys.stderr)
         return 2
-    theme_dir = args.theme_dir or next((d for d in default_theme_dirs() if os.path.isdir(d)), "")
-    block = derive(bg, fg, colors, theme_stock(theme_dir), wal)
-
     if args.preview:
-        for k in sorted(block):
-            print("%-16s %s" % (k, block[k]))
+        sys.stdout.write(text)
         return 0
-
-    try:
-        with open(args.config, encoding="utf-8") as f:
-            cfg = json.load(f)
-    except (OSError, ValueError) as e:
-        print("steam-colors: millennium config unreadable: %s" % e, file=sys.stderr)
-        return 2
-    accent = accent_parts(colors, theme_stock(theme_dir), bg, fg)
-    block.update(accent["vars"])
-    cfg.setdefault("themes", {}).setdefault("themeColors", {}).setdefault(THEME, {}).update(block)
-    write_atomic(args.config, json.dumps(cfg, indent=2, sort_keys=True))
-    print("steam-colors: wrote %d colours for %s (%d of them Steam's own, recoloured)"
-          % (len(block), THEME, len(accent["vars"])))
-    write_accent_quickcss(args.config, accent["css"])
+    theme_dir = args.theme_dir or next((d for d in default_theme_dirs() if os.path.isdir(d)), "")
+    if not theme_dir:
+        print("steam-colors: %s isn't installed (scripts/theme-setup.sh steam)" % THEME, file=sys.stderr)
+        return 3
+    target = os.path.join(theme_dir, RELATIVE)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    changed = write_if_changed(target, text)
+    print("steam-colors: %s" % ("updated matugen.css" if changed else "matugen.css already current"))
     return 0
-
-
-def _load_accent():
-    spec = importlib.util.spec_from_file_location(
-        "steam_accent", os.path.join(os.path.dirname(os.path.abspath(__file__)), "steam-accent.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def accent_parts(colors, stock, bg, fg):
-    """Steam's own blues, greens and tinted greys (steam-accent.py), from the rules steam-live.py
-    scanned out of a running Steam: {"vars": {--qs-…: colour} for themeColors — the palette's half,
-    "css": the static stylesheet or None}. Empty before the first scan, and never fatal: the theme's
-    own colours are written either way."""
-    try:
-        acc = _load_accent()
-        cache = acc.load_cache()
-        if not cache:
-            return {"vars": {}, "css": None}
-        return {"vars": acc.variables(cache["rules"], bg, fg, colors[1], main_bg_base(stock)),
-                "css": acc.rules_css(cache["rules"])}
-    except Exception as e:
-        print("steam-colors: Steam's own colours skipped: %s" % e, file=sys.stderr)
-        return {"vars": {}, "css": None}
-
-
-def write_accent_quickcss(config, css):
-    """The static stylesheet into Millennium's Quick CSS, which injects it into every window as it
-    loads. It doesn't depend on the palette, so on a normal theme run this finds nothing to change."""
-    if not css:
-        return
-    try:
-        if _load_accent().write_quickcss(os.path.join(os.path.dirname(config), "quick.css"), css):
-            print("steam-colors: updated Quick CSS")
-    except OSError as e:
-        print("steam-colors: Quick CSS not written: %s" % e, file=sys.stderr)
 
 
 if __name__ == "__main__":

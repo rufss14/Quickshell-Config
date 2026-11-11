@@ -813,7 +813,7 @@ print(json.dumps(out))
         onExited: function(code) {
             // pkill only SIGNALS the renderer; it can keep holding the audio
             // device for a moment while it tears down. Starting the replacement
-            // now (as the old code did, on a flat 350ms timer) briefly runs TWO
+            // now (on a flat timer) briefly runs TWO
             // instances, and the scene's soundtrack plays twice — an audible
             // echo. So we DRAIN first: poll until nothing matches the pattern,
             // and only then continue. 1 = nothing was running, which is fine.
@@ -1221,8 +1221,8 @@ print(json.dumps(out))
     // animating, and fades in over it — so there is never a still, and never a swap
     // from a picture of the scene to the scene itself (that swap was the "adjusting"
     // after the water: a frame taken 30 frames in, framed by the shell, replaced by
-    // the real thing at its first frame). The water used to wait for the old scene to
-    // be stopped and the new one to LOAD, several seconds of a frozen picture.
+    // the real thing at its first frame). Waiting for the old scene to stop and the
+    // new one to LOAD would be several seconds of a frozen picture.
     //
     // The fade is Hyprland's own: it eases every freshly mapped layer surface in
     // (`fade`, speed 10 — hypr/animation.lua — a second), and the new scene maps over
@@ -1553,17 +1553,13 @@ print(json.dumps(out))
     }
 
     // ── Autostart ─────────────────────────────────────────────────────────────
-    // NOTE: a lazy singleton's timers only exist once something references it —
-    // shell.qml holds that reference now, which is the only reason this can fire
-    // on login rather than on first opening the settings page.
-    //
-    // The delay outwaits Config's async JSON load: firing at onCompleted would
-    // read wpeAutoStart's default (false) and the setting would never work — the
-    // same restore-before-load trap that broke the remembered settings page.
+    // shell.qml creates this service at launch (a lazy singleton's timers only exist
+    // once something references it). It fires once config.json has been read
+    // (Config.prefsLoaded): before that, wpeAutoStart reads its default (false).
     Timer {
-        interval: 4000
+        interval: 0
         repeat: false
-        running: true
+        running: Config.prefsLoaded
         onTriggered: {
             if (!Config.wpeAutoStart) return
             // A monitors-only setup (no default scene) still needs restoring.

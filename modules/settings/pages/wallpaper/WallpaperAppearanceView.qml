@@ -247,7 +247,7 @@ Flickable {
         QuickToggleTile {
             roomy: true
             symbol: "update"
-            label:  "12-hour"
+            label:  Translation.tr("12-hour")
             accent: Colors.of(QsWindow.window).primary
             active: Config.wallDepthHour12
             visible: Config.wallDepth

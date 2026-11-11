@@ -63,7 +63,7 @@ Item {
 
         elevation:    root.inner ? Tokens.elevationNested : Tokens.elevationBar
         squareMode:   Config.barShape
-        cornerRadius: Config.barRoundness
+        cornerRadius: Config.sideRoundness
         squareLeft:   root.flush && (root.edge === "left" || (!root.vertical && root.squareStart))
         squareRight:  root.flush && (root.edge === "right" || (!root.vertical && root.squareEnd))
         squareTop:    root.flush && root.vertical && root.squareStart
@@ -71,7 +71,7 @@ Item {
         borderWidth:  root.inner || root.welded ? 0 : Config.barBorderWidth
         castsShadow:  !root.inner && !root.welded && !Config.barAnchored
         focused:      root.focused && !root.inner
-        fillOpacity:  Config.barOpacity
+        fillOpacity:  Tokens.sideOpacity
         // BarGroup's inner pill keeps the item's default; the bar drives their translucency through the fill alone (Surface.itemOpacity).
         itemOpacity:  root.inner ? Tokens.surfaceOpacity : 1.0
         // Welded, the blob's own fill, so the card and the lobe under it are one.

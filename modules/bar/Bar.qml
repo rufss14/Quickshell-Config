@@ -124,6 +124,8 @@ PanelWindow {
                     + Math.max(panelDock.maxHeight,
                                Math.max(toastHost.maxHeight, trayMenuHost.maxHeight))
                     + root.arrangeRoom,
+                      // Arranging dims the whole screen, so the window reaches its bottom.
+                      UiState.arrange ? (root.screen?.height ?? 0) : 0,
                       // The docked settings panel hangs off the BOTTOM, not the bar
                       // edge — the window has to be tall enough to hold it too.
                       Math.max(settingsHost.bottomReach,
@@ -153,6 +155,11 @@ PanelWindow {
         Region { item: dockHost.maskItem;    intersection: Intersection.Combine }
         Region { item: dockHost.previewMask; intersection: Intersection.Combine }
         Region { item: dockHost.menuMask;    intersection: Intersection.Combine }
+        // The dock as a bar module (DockPill): its preview card and its menu's dismiss layer.
+        Region { item: barDockPopups.previewMask; intersection: Intersection.Combine }
+        Region { item: barDockPopups.menuMask;    intersection: Intersection.Combine }
+        // The workspace pill's glance: its card, while it is out.
+        Region { item: workspaceGlance.maskItem;  intersection: Intersection.Combine }
         // A sidebar button's panel, beside it.
         Region { item: sidePanelDock.maskItem; intersection: Intersection.Combine }
         // The OSD's sliders, while they are up: draggable, so they take the pointer.
@@ -160,6 +167,8 @@ PanelWindow {
         // The power column: the card while it melts, and the WHOLE window while it is up, so
         // a click outside lands on its dismiss layer and closes it.
         Region { item: powerDock.maskItem; intersection: Intersection.Combine }
+        // The "Done arranging" button, only while it is up.
+        Region { item: arrangeDone.visible ? arrangeDone : null; intersection: Intersection.Combine }
         // Arranging the sidebar: its band and the room beside it (SideArrange).
         Region { item: sideArrangeHost.item?.maskItem ?? null; intersection: Intersection.Combine }
         // The unified sidebar's bar, between and behind the modules — and the edge
@@ -193,12 +202,15 @@ PanelWindow {
           (panelDock.centerWantsKeyboard
            || settingsHost.wantsKeyboardFocus
            || dockHost.wantsExclusiveFocus
+           || barDockPopups.wantsExclusiveFocus
            // The power column: arrow keys, letters and Escape must reach it, and it is
            // opened from another surface, so OnDemand would never deliver them.
            || powerDock.wantsExclusive)                                   ? WlrKeyboardFocus.Exclusive
         : (panelDock.wantsKeyboardFocus
            || trayMenuHost.expanded || dockHost.wantsKeyboardFocus
-           || sidePanelDock.wantsKeyboardFocus)                           ? WlrKeyboardFocus.OnDemand
+           || barDockPopups.wantsKeyboardFocus
+           || sidePanelDock.wantsKeyboardFocus
+           || UiState.arrange)                                            ? WlrKeyboardFocus.OnDemand
         :                                                                   WlrKeyboardFocus.None
 
     // ══ WINDOW PEEK ═══════════════════════════════════════════════════════════
@@ -333,6 +345,28 @@ PanelWindow {
 
             item.toastRects = Qt.binding(() => toastHost.toastRects)
 
+            // The workspace glance fills this window, so its card is already in window space.
+            item.glanceX = Qt.binding(() => workspaceGlance.blobX)
+            item.glanceY = Qt.binding(() => workspaceGlance.blobY)
+            item.glanceW = Qt.binding(() => workspaceGlance.blobW)
+            item.glanceH = Qt.binding(() => workspaceGlance.blobH)
+
+            // The pill tooltip fills this window too.
+            item.tipX = Qt.binding(() => pillTip.blobX)
+            item.tipY = Qt.binding(() => pillTip.blobY)
+            item.tipW = Qt.binding(() => pillTip.blobW)
+            item.tipH = Qt.binding(() => pillTip.blobH)
+
+            // Arrange mode's hint cards: the bar's and the sidebar's, each in window coordinates.
+            item.arrBarX = Qt.binding(() => arrangeHost.item?.blobX ?? 0)
+            item.arrBarY = Qt.binding(() => arrangeHost.item?.blobY ?? 0)
+            item.arrBarW = Qt.binding(() => arrangeHost.item?.blobW ?? 0)
+            item.arrBarH = Qt.binding(() => arrangeHost.item?.blobH ?? 0)
+            item.arrSideX = Qt.binding(() => sideArrangeHost.item?.blobX ?? 0)
+            item.arrSideY = Qt.binding(() => sideArrangeHost.item?.blobY ?? 0)
+            item.arrSideW = Qt.binding(() => sideArrangeHost.item?.blobW ?? 0)
+            item.arrSideH = Qt.binding(() => sideArrangeHost.item?.blobH ?? 0)
+
             // trayMenuHost fills this whole window at (0,0), so its own card box is
             // already in window coordinates — no dock offset to add, unlike left/
             // right/centre above.
@@ -443,6 +477,7 @@ PanelWindow {
             case "bluetooth":  return UiState.isOpen("bluetooth")
             case "update":     return UiState.updateOpen
             case "visualizer": return UiState.isOpen("media")
+            case "nowplaying": return UiState.isOpen("media")
             case "clock":      return UiState.isOpen("clock")
             case "notifications": return UiState.isOpen("notifications")
             case "brightness": return UiState.isOpen("brightness")
@@ -524,6 +559,8 @@ PanelWindow {
             case "power":       return side_powerC
             case "tools":       return side_toolsC
             case "voice":       return side_voiceC
+            case "nowplaying":  return nowplayingC
+            case "dock":        return dockC
             default:            return null
         }
     }
@@ -589,6 +626,7 @@ PanelWindow {
     Component { id: workspacesC; WorkspacesPill {
         accent:  Config.moduleAccent("workspaces", Colors.of(QsWindow.window).primary)
         monitor: root.hyprMonitor
+        glance:  workspaceGlance
     } }
     Component { id: reloadC;     ReloadPill { accent: Config.moduleAccent("reload", Colors.of(QsWindow.window).primary) } }
     Component { id: trayC;       TrayPill {
@@ -814,6 +852,10 @@ PanelWindow {
     Component { id: side_powerC;      SideModulePill { moduleId: "power"; screen: root.screen } }
     Component { id: side_toolsC;      SideModulePill { moduleId: "tools"; screen: root.screen } }
     Component { id: side_voiceC;      SideModulePill { moduleId: "voice"; screen: root.screen } }
+    // Now playing: the sidebar's cover cell, then its transport buttons (NowPlayingPill).
+    Component { id: nowplayingC;      NowPlayingPill { screen: root.screen } }
+    // The dock: the sidebar's strip at the bar's size; what hangs off it is barDockPopups.
+    Component { id: dockC;            DockPill { screen: root.screen; monitor: root.hyprMonitor; popups: barDockPopups } }
 
     Component {
         id: overviewC
@@ -923,7 +965,7 @@ PanelWindow {
             // See Surface.castsShadow.
             castsShadow:  !Config.barAnchored
             focused:      unifiedBar.hovered
-            fillOpacity:  Config.barOpacity
+            fillOpacity:  Tokens.barOpacity
             // Without this, the Bar page's "Opacity" slider could never actually
             // reach opaque: this Surface didn't override the item's own opacity,
             // so it defaulted to Tokens.surfaceOpacity (Settings → Appearance's
@@ -935,7 +977,7 @@ PanelWindow {
             // the same fill (frameFill is this surface's recipe), with the cookies in it. Painted again
             // here it would hide them; transparent, the pills stand straight on the material.
             color:        Drift.inBlob ? "transparent"
-                                       : Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceFor(Tokens.elevationBar), Config.barOpacity)
+                                       : Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceFor(Tokens.elevationBar), Tokens.barOpacity)
         }
 
     }
@@ -1238,6 +1280,7 @@ PanelWindow {
             groupKey: modelData
             screen:   root.screen
             monitor:  root.hyprMonitor
+            contextMenu: trayMenuHost
             deformMatrix: root.sidebarDeform
         }
     }
@@ -1286,8 +1329,17 @@ PanelWindow {
         id: sideArrangeHost
         anchors.fill: parent
         active: UiState.sidebarArrange
-        z: 60
-        sourceComponent: SideArrange { rail: sideRail }
+        // ABOVE the bar's arrange layer (arrangeHost, z 60, declared later): its
+        // "off the bar" shelf is a full-width band under the bar, and on a left or
+        // right edge it covers the sidebar's first modules. Qt gives a drag to the
+        // topmost DropArea, so a module dragged off the bar onto the sidebar's top
+        // was taken off the bar instead (2026-11-08). SideArrange only has targets
+        // over the sidebar and the room beside it, so it shadows nothing of the bar's.
+        z: 61
+        sourceComponent: SideArrange {
+            rail: sideRail
+            deformMatrix: blobLayer.item?.arrSideDeform ?? Qt.matrix4x4()
+        }
     }
 
     // ══ THE PANELS THAT DROP OUT OF THE BAR ══════════════════════════════════
@@ -1362,14 +1414,89 @@ PanelWindow {
     // the true (0,0) origin to position itself under WHICHEVER tray icon on
     // WHICHEVER region was clicked, and its dismiss layer has to cover every pill,
     // not just its own corner. See BarContextMenu.qml.
+    // ── The bar dock's previews, jump list and keyboard (widgets/DockPill) ─────
+    // Fills the window like the tray menu, for the same reason: a card stands under
+    // whichever icon was hovered, and the menu's dismiss layer covers every pill.
+    BarDockPopups {
+        id: barDockPopups
+        anchors.fill: parent
+        z: 50
+        monitor: root.hyprMonitor
+    }
+
+    // ── The workspace pill's glance ───────────────────────────────────────────
+    // A card of the hovered workspace's windows, melted out of the bar's underside. Fills the
+    // window like the dock's popups, for the same reason: it stands under whichever slot.
+    WorkspaceGlance {
+        id: workspaceGlance
+        anchors.fill: parent
+        z: 50
+        monitor: root.hyprMonitor
+        welded: root.blobRing
+        deformMatrix: blobLayer.item?.glanceDeform ?? Qt.matrix4x4()
+    }
+
+    // ── Tips ──────────────────────────────────────────────────────────────────
+    // A pill's tip melts out of the bar (welded); every other tip is the bubble below.
+    PillTip {
+        id: pillTip
+        anchors.fill: parent
+        z: 50
+        // Not while arranging: the arrange cards hang from the same edges.
+        welded: root.blobRing && !UiState.arrange
+        except: settingsHost
+        // Beside a sidebar the card stays off its face.
+        clearLeft:  !UiState.sidebarHidden && sideRail.edge === "left"  ? sideRail.band : 0
+        clearRight: !UiState.sidebarHidden && sideRail.edge === "right" ? sideRail.band : 0
+        deformMatrix: blobLayer.item?.tipDeform ?? Qt.matrix4x4()
+    }
+
+    // The tooltip of everything this window draws: a bar pill's "what is it doing" and a panel
+    // control's explanation (components/HelpTip). The docked settings card draws its own.
+    TipBubble {
+        host: root.contentItem
+        except: settingsHost
+        skipPills: root.blobRing
+        z: 90
+    }
+
     BarContextMenu {
         id: trayMenuHost
         anchors.fill: parent
         deformMatrix: blobLayer.item?.trayDeform ?? Qt.matrix4x4()
         blobWeld: root.blobRing
+        // Beside the sidebar (SideTray): melted out of its face when the sidebar is welded.
+        sideWelded: sideRail.welded && root.blobRing
+        sideFace: sideRail.band
     }
 
     // ══ ARRANGE MODE ══════════════════════════════════════════════════════════
+    // The desktop dims and the snap dots show while arranging, as they do for the desktop widgets
+    // (z under the blob layer and everything this window draws); the way out is the button below
+    // and Escape, as the widgets' is.
+    ArrangeBackdrop {
+        anchors.fill: parent
+        z: -2
+        shown: UiState.arrange
+        monitor: root.hyprMonitor
+    }
+    PanelButton {
+        id: arrangeDone
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Tokens.spacingXxl * 2
+        z: 70
+        visible: UiState.arrange
+        variant: "primary"
+        symbol: "check"
+        label: Translation.tr("Done arranging")
+        onActivated: UiState.arrange = false
+    }
+    Item {
+        focus: UiState.arrange
+        Keys.onEscapePressed: UiState.arrange = false
+    }
+
     // The region labels, the region drop targets, the shelf of modules that are not
     // on the bar, and the ghost. Declared last so all of it paints above the pills it
     // is annotating — the ghost in particular has to be over everything, since it
@@ -1400,7 +1527,7 @@ PanelWindow {
         // Still a fixed ceiling and still never animated: it feeds the window's
         // implicitHeight, and animating that resizes the actual Wayland surface every
         // frame. Same discipline as the window's own ceiling above.
-        readonly property real shelfHeight: Tokens.spacingXl * 2 + 28
+        readonly property real shelfHeight: Tokens.spacingXl * 2 + 56
 
         anchors.fill: parent
         active: UiState.barArrange
@@ -1412,6 +1539,8 @@ PanelWindow {
             rightItem:  rightRegion
             barHeight:    Config.barExtent
             shelfHeight:  arrangeHost.shelfHeight
+            fused:        root.blobRing
+            deformMatrix: blobLayer.item?.arrBarDeform ?? Qt.matrix4x4()
             // The bar's OWN factory, so the shelf and the ghost are built from the
             // same catalogue the bar renders from rather than a second copy.
             componentFor: root.moduleFor
@@ -1423,11 +1552,10 @@ PanelWindow {
     // settings window while holding one is an ordinary way to do that.
     Connections {
         target: UiState
-        function onBarArrangeChanged() {
-            if (!UiState.barArrange) BarDrag.cancel()
-        }
-        function onSidebarArrangeChanged() {
-            if (!UiState.sidebarArrange) SideDrag.cancel()
+        function onArrangeChanged() {
+            if (UiState.arrange) return
+            BarDrag.cancel()
+            SideDrag.cancel()
         }
     }
 

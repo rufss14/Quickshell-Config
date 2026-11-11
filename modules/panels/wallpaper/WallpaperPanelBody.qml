@@ -44,7 +44,7 @@ Item {
     transform: Translate { id: bodyShift }
 
     property string _lastView: "gallery"
-    function _depth(v) { return v === "properties" ? 2 : (v === "browse" || v === "settings") ? 1 : 0 }
+    function _depth(v) { return v === "properties" ? 2 : (v === "browse" || v === "settings" || v === "effects") ? 1 : 0 }
     function _enter(dir) {
         if (!Config.motionEnabled) return
         body.fadeK = 0
@@ -277,6 +277,14 @@ delegate: WallpaperRow {
         anchors.rightMargin: Tokens.spacingMd
         active: panel.view === "settings"
         sourceComponent: panel.settingsComponent
+    }
+
+    // ── The music effects ─────────────────────────────────────────────
+    Loader {
+        anchors.fill: parent
+        anchors.rightMargin: Tokens.spacingMd
+        active: panel.view === "effects"
+        sourceComponent: panel.effectsComponent
     }
 
     // ── The Material Wallpaper: its preview and its style ──────────────

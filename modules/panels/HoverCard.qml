@@ -57,65 +57,10 @@ Item {
     }
 
     // ── Every other module (a chip) ───────────────────────────────────────────
-    // Its catalogue name, and a line of what it is doing, read from its service. Live while
-    // shown; a module with nothing to say gets its name alone.
+    // Its catalogue name, and a line of what it is doing (services/ModuleGlance, the bar pills'
+    // tooltips' wording too). Live while shown; a module with nothing to say gets its name alone.
     function chipFor(kind) {
-        const info = Config.sidebarModuleList.find(m => m.id === kind)
-        return { title: info ? info.label : kind, value: root.valueFor(kind) }
-    }
-    function _n(n, one, many) { return n + " " + (n === 1 ? one : many) }
-    function valueFor(kind) {
-        switch (kind) {
-        case "claude": {
-            const need = ClaudeSessions.needsYou.length, busy = ClaudeSessions.busyCount
-            const all = ClaudeSessions.sessions.length
-            return need > 0 ? root._n(need, "session needs you", "sessions need you")
-                 : busy > 0 ? busy + " working" + (all > busy ? " · " + (all - busy) + " idle" : "")
-                 : all > 0  ? root._n(all, "session", "sessions") + ", idle"
-                 : "No sessions"
-        }
-        case "tasks":
-            return Tasks.openCount > 0 ? Tasks.openCount + " open" + (Tasks.doneCount > 0 ? " · " + Tasks.doneCount + " done" : "")
-                 : Tasks.doneCount > 0 ? "All done" : "Nothing to do"
-        case "timer":
-            if (Timers.ringing)  return "Alarm ringing"
-            if (Timers.timerDone) return "Done"
-            if (Timers.timerRunning || Timers.timerPaused)
-                return (Timers.mode === "focus" ? Timers.pomoLabel + " · " : "")
-                     + Timers.clockString(Timers.timerRemain) + (Timers.timerPaused ? " · paused" : " left")
-            if (Timers.swRunning) return "Stopwatch · " + Timers.clockString(Math.floor(Timers.swElapsed / 1000))
-            return "Nothing running"
-        case "clips":
-            if (!Clips.installed) return "Needs gpu-screen-recorder"
-            if (Clips.recording)  return Clips.paused ? "Recording, paused" : "Recording"
-            if (Clips.buffering)  return "Replay buffer · last " + Clips.bufferSeconds + "s"
-            return "Replay buffer off"
-        case "colour":
-            return ColorPicker.picking ? "Picking…"
-                 : ColorPicker.lastPicked !== "" ? "Last " + ColorPicker.lastPicked.toUpperCase()
-                 : "Pick a colour off the screen"
-        case "clipboard":
-            return Clipboard.count > 0 ? root._n(Clipboard.count, "item", "items") : "Empty"
-        case "stats":
-            return SysStats.metrics.slice(0, 3).map(k => {
-                const r = SysStats.readout(k)
-                return r.label + " " + r.short + "%"
-            }).join(" · ")
-        case "inactivity":
-            return Inactivity.summary
-        case "voice":
-            return Discord.inCall ? (Discord.channelName || "In a call") + " · " + Discord.users.length + " here"
-                 : Audio.micMuted ? "Mic muted" : "Mic on"
-        case "power":
-            return "Middle-click locks"
-        case "nowplaying": {
-            const p = MusicPulse.player
-            if (!p) return "Nothing playing"
-            const what = (p.trackTitle || "") + (p.trackArtist ? " · " + p.trackArtist : "")
-            return (MusicPulse.playing ? "" : "Paused · ") + what
-        }
-        }
-        return ""
+        return { title: ModuleGlance.label(kind), value: ModuleGlance.value(kind) }
     }
     readonly property var chip: root.kind !== "" && root.kind !== "window" ? root.chipFor(root.kind) : null
 

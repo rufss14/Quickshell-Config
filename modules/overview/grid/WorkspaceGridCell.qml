@@ -115,7 +115,7 @@ Item {
         // sitting on the wallpaper, the same class of thing as a bar pill
         // or the screen frame, and reads better with their weight.
         // Chrome weight only for the cell that is lit; the rest sit on a hairline (card, cell and preview each
-        // had a heavy edge, which read as noise — 2026-11-03 review).
+        // with a heavy edge reads as noise).
         border.width: (cell.isTarget || cell.isFocused)
                       ? Tokens.borderChrome + 1
                       : Tokens.borderWidth
@@ -394,7 +394,7 @@ Item {
                         from: 0; to: 360
                         duration: 30000
                         loops: Animation.Infinite
-                        running: newFace.on && grid.active && Config.motionEnabled
+                        running: newFace.on && grid.active && Motion.ambientOn
                     }
                 }
                 MaterialIcon {

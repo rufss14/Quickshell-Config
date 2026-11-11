@@ -64,6 +64,17 @@ Item {
         subtitle:  root.fact("DISTRO") + "  ·  up " + root.fact("UPTIME")
 
         actions: ChipTray {
+            // scripts/doctor.sh: versions, missing packages, how the shell runs, its latest
+            // warnings, with home / user / host names taken out. For pasting into a bug report.
+            ChipButton {
+                label:  SysInfo.diagnostics === "running" ? Translation.tr("Collecting…")
+                      : SysInfo.diagnostics === "copied"  ? Translation.tr("Copied")
+                      : SysInfo.diagnostics === "failed"  ? Translation.tr("Couldn't collect")
+                      : Translation.tr("Copy diagnostics")
+                symbol: SysInfo.diagnostics === "copied" ? "check" : "content_copy"
+                tint:   Colors.of(QsWindow.window).primary
+                onActivated: SysInfo.copyDiagnostics()
+            }
             ChipButton {
                 label:  Translation.tr("Refresh")
                 symbol: "refresh"

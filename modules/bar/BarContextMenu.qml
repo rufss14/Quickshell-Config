@@ -58,10 +58,11 @@ Item {
     // permanent phantom lobe welded into the bar's underside forever. Closing is
     // quick enough (Motion.exit) that popping straight out of the blob group here
     // reads as part of the same fade rather than a separate snap.
-    readonly property real cardX: root.expanded ? surface.x      : 0
-    readonly property real cardY: root.expanded ? surface.y      : 0
-    readonly property real cardW: root.expanded ? surface.width  : 0
-    readonly property real cardH: root.expanded ? surface.height : 0
+    readonly property bool _lobeOn: root._weld && (root._melt ? root.grow > 0.01 : root.expanded)
+    readonly property real cardX: root._lobeOn ? surface.x      : 0
+    readonly property real cardY: root._lobeOn ? surface.y      : 0
+    readonly property real cardW: root._lobeOn ? surface.width  : 0
+    readonly property real cardH: root._lobeOn ? surface.height : 0
     readonly property Item maskItem: surface
 
     // A ceiling on how tall this can get, fed into Bar.qml's implicitHeight the
@@ -70,14 +71,83 @@ Item {
     // reserving unbounded space for the rare case.
     readonly property real maxHeight: 400
 
-    function open(handle, anchor) {
+    // `beside`: "" under the anchor (a bar pill); "left" | "right" | "bottom" — the
+    // sidebar's edge, for a tray icon on the sidebar (SideTray): the menu opens beside the
+    // cell, toward the windows, as the sidebar's panels do (SidePanelDock). Welded there
+    // too when the sidebar is (`sideWelded`, SideRail.welded): flush on the sidebar's face
+    // (`sideFace`, SideRail.band, in this window's coordinates from its edge), a lobe the
+    // blob melts out of the sidebar. Floating, a gap off the cell, an ordinary card.
+    property string beside: ""
+    property bool sideWelded: false
+    property real sideFace: 0
+    readonly property bool _weld: root.beside === "" ? root.blobWeld : root.sideWelded
+
+    // ── The melt (welded beside the sidebar) ──────────────────────────────────
+    // As the sidebar's panels melt out of its face (SidePanelDock): `grow` pushes the card
+    // out across the edge, `narrow` widens it along the edge from the cell's width, the
+    // content fades in once it is mostly out, and the blob's lobe follows the card the
+    // whole way in AND out — it used to pop in at full size while only the card faded.
+    readonly property bool _melt: root._weld && root.beside !== ""
+    readonly property bool _side: root.beside === "left" || root.beside === "right"
+    property real grow: root.expanded ? 1 : 0
+    Behavior on grow {
+        enabled: root._melt
+        NumberAnimation {
+            duration: Motion.surfaceDuration(root.expanded)
+            easing.bezierCurve: Motion.emphasizedDecel
+            easing.type: root.expanded ? Easing.BezierSpline : Motion.exitCurve
+        }
+    }
+    property real narrow: root.expanded ? 1 : 0
+    Behavior on narrow {
+        enabled: root._melt
+        NumberAnimation {
+            duration: root.expanded ? Motion.spatial : Motion.exit
+            easing.bezierCurve: Motion.emphasizedDecel
+            easing.type: root.expanded ? Easing.BezierSpline : Motion.travel
+        }
+    }
+
+    // The card fully out: its size, and where it rests.
+    readonly property real fullW: 168
+    readonly property real fullH: Math.min(column.implicitHeight + Tokens.spacingSm * 2, root.maxHeight)
+    // Under a bar pill: centred under the icon, clamped so it never crosses either edge
+    // of the window (a tray icon near the screen's edge would otherwise centre the menu
+    // half off-screen). Beside a welded sidebar: flush on its face across the edge,
+    // unclamped (the join is the point); along it, clamped like the rest.
+    readonly property real restX:
+          root._weld && root.beside === "left"  ? root.sideFace
+        : root._weld && root.beside === "right" ? root.width - root.sideFace - root.fullW
+        : Math.max(Tokens.spacingMd,
+                   Math.min(root.width - root.fullW - Tokens.spacingMd,
+                             root.beside === "left"  ? root._anchorBox.x + root._anchorBox.width + Tokens.spacingSm
+                           : root.beside === "right" ? root._anchorBox.x - root.fullW - Tokens.spacingSm
+                           :                           root._anchorCenterX - root.fullW / 2))
+    readonly property real restY:
+          root._weld && root.beside === "bottom" ? root.height - root.sideFace - root.fullH
+        : Math.max(Tokens.spacingMd,
+                   Math.min(root.height - root.fullH - Tokens.spacingMd,
+                             root._side ? root._anchorBox.y
+                           : root.beside === "bottom" ? root._anchorBox.y - root.fullH - Tokens.spacingSm
+                           :                            root._anchorY + Tokens.spacingXs))
+    // Melting: along the edge, the bud (the cell's width) widening about the cell, kept
+    // inside the rest box.
+    readonly property real _alongFull: root._side ? root.fullH : root.fullW
+    readonly property real _alongNow: Math.min(root._alongFull, Config.sidebarCell)
+        + Math.max(0, root._alongFull - Config.sidebarCell) * root.narrow
+    readonly property real _restAlong: root._side ? root.restY : root.restX
+    readonly property real _alongPos: Math.max(root._restAlong, Math.min(root._restAlong + root._alongFull - root._alongNow,
+        (root._side ? root._anchorBox.y + root._anchorBox.height / 2
+                    : root._anchorBox.x + root._anchorBox.width / 2) - root._alongNow / 2))
+    function open(handle, anchor, beside) {
         root.menuHandle = handle
         root.anchorItem = anchor
+        root.beside     = beside ?? ""
         root.expanded   = true
     }
     function close() { root.expanded = false }
 
-    visible: root.expanded || surface.opacity > 0.005
+    visible: root.expanded || (root._melt ? root.grow > 0.01 : surface.opacity > 0.005)
     z: 50
 
     QsMenuOpener {
@@ -118,6 +188,9 @@ Item {
         ? root.anchorItem.mapToItem(root, root.anchorItem.width / 2, root.anchorItem.height).x : 0
     readonly property real _anchorY: root.anchorItem
         ? root.anchorItem.mapToItem(root, root.anchorItem.width / 2, root.anchorItem.height).y : 0
+    // The anchor's whole box, for a menu beside it (`beside`).
+    readonly property rect _anchorBox: root.anchorItem
+        ? root.anchorItem.mapToItem(root, 0, 0, root.anchorItem.width, root.anchorItem.height) : Qt.rect(0, 0, 0, 0)
 
     Surface {
         id: surface
@@ -131,30 +204,32 @@ Item {
         // No stroke of its own while welded — the blob's outline is the border.
         // No cast shadow either: a lobe of the bar casts no shadow onto the bar
         // it's made of, same as BarDock's `elevated: !dock.blobWeld`.
-        borderWidth: root.blobWeld ? 0 : Tokens.borderWidth
-        castsShadow: !root.blobWeld
+        borderWidth: root._weld ? 0 : Tokens.borderWidth
+        castsShadow: !root._weld
         // …and no fill while the blob draws the cookie field: the blob's lobe is this same colour.
-        fillOpacity: root.blobWeld && Drift.inBlob ? 0 : 1
+        fillOpacity: root._weld && Drift.inBlob ? 0 : 1
         // A right-click menu, not a panel — sized like the native ones this
         // replaces (the old PanelWindow was 150), not like a touch-sized popup.
-        width: 168
+        width:  !root._melt ? root.fullW : root._side ? root.fullW * root.grow : root._alongNow
 
         // Capped at the reserved ceiling — see maxHeight above.
-        height: Math.min(column.implicitHeight + Tokens.spacingSm * 2, root.maxHeight)
+        height: !root._melt ? root.fullH : root._side ? root._alongNow : root.fullH * root.grow
 
-        // Centred under the icon, clamped so it never crosses either edge of the
-        // window (a tray icon near the screen's edge would otherwise centre the
-        // menu half off-screen).
-        x: Math.max(Tokens.spacingMd,
-                     Math.min(root.width - width - Tokens.spacingMd,
-                               root._anchorCenterX - width / 2))
-        y: Math.max(Tokens.spacingMd,
-                     Math.min(root.height - height - Tokens.spacingMd,
-                               root._anchorY + Tokens.spacingXs))
+        x: !root._melt ? root.restX
+         : root.beside === "right" ? root.restX + root.fullW * (1 - root.grow)
+         : root._side ? root.restX : root._alongPos
+        y: !root._melt ? root.restY
+         : root._side ? root._alongPos
+         : root.restY + root.fullH * (1 - root.grow)
+        clip: root._melt
 
-        opacity: root.expanded ? Tokens.surfaceOpacity : 0.0
-        scale:   root.expanded ? 1.0 : 0.94
-        transformOrigin: Item.TopRight
+        // Melting, the blob is the material: the card is there at once and the content
+        // fades in (below). Otherwise the card fades and scales in, as it always did.
+        opacity: root._melt || root.expanded ? Tokens.surfaceOpacity : 0.0
+        scale:   root._melt || root.expanded ? 1.0 : 0.94
+        // Floating beside an unwelded sidebar it scales out of the sidebar's side.
+        transformOrigin: root.beside === "left" ? Item.Left : root.beside === "right" ? Item.Right
+                       : root.beside === "bottom" ? Item.Bottom : Item.TopRight
 
         Behavior on opacity {
             NumberAnimation { duration: Motion.surfaceDuration(root.expanded); easing.type: Motion.surfaceEasing(root.expanded) }
@@ -165,11 +240,16 @@ Item {
 
         // The card's own content squashes with the blob's spring instead of riding
         // on top of it rigidly — same idiom as BarDock's `transform:` on its card.
-        transform: Matrix4x4 { matrix: root.deformMatrix }
+        transform: Matrix4x4 { matrix: root._weld ? root.deformMatrix : Qt.matrix4x4() }
 
         Column {
             id: column
-            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Tokens.spacingSm }
+            // Pinned to the rest box, not the card: melting, the card is a window
+            // widening over content that stays put.
+            x: (root._melt ? root.restX - surface.x : 0) + Tokens.spacingSm
+            y: (root._melt ? root.restY - surface.y : 0) + Tokens.spacingSm
+            width: root.fullW - Tokens.spacingSm * 2
+            opacity: root._melt ? Math.max(0, Math.min(root.grow, root.narrow) * 2 - 1) : 1
             spacing: 0
 
             Item {

@@ -42,11 +42,11 @@ REPO_DIR="$(dirname "$SCRIPT_DIR")"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 HYPR_DIR="$CONFIG_HOME/hypr"
 
-LAUNCH_CMD="bash -c 'source $REPO_DIR/scripts/shell-env.sh && exec qs -p $REPO_DIR'"
+# shell-run.sh sources shell-env.sh itself and restarts the shell after a startup crash.
+LAUNCH_CMD="$REPO_DIR/scripts/shell-run.sh"
 
-# Lua form: double-quoted Lua string, single-quoted inner bash -c body — matches
-# this repo's own committed autostart.lua. $REPO_DIR came from readlink -f above,
-# never user-typed, so it can't break either quoting layer.
+# Lua form: a double-quoted Lua string, matching this repo's own committed autostart.lua.
+# $REPO_DIR came from readlink -f above, never user-typed.
 LUA_FILE="$HYPR_DIR/autostart.lua"
 LUA_ANCHOR='hl.on("hyprland.start", function()'
 LUA_LINE="    hl.exec_cmd(\"$LAUNCH_CMD\")"
@@ -75,17 +75,18 @@ elif [ -f "$CONF_FILE" ]; then
 fi
 
 if [ "${1:-}" = "--uninstall" ]; then
+    # Either launch line: shell-run.sh (now) or the older bash -c 'source shell-env.sh …'.
     removed=0
-    if [ -f "$LUA_FILE" ] && grep -qF "$REPO_DIR/scripts/shell-env.sh" "$LUA_FILE"; then
+    if [ -f "$LUA_FILE" ] && grep -qF -e "$REPO_DIR/scripts/shell-run.sh" -e "$REPO_DIR/scripts/shell-env.sh" "$LUA_FILE"; then
         cp "$LUA_FILE" "$LUA_FILE.bak.$(date +%s)"
-        grep -vF "$REPO_DIR/scripts/shell-env.sh" "$LUA_FILE" > "$LUA_FILE.tmp" \
+        grep -vF -e "$REPO_DIR/scripts/shell-run.sh" -e "$REPO_DIR/scripts/shell-env.sh" "$LUA_FILE" > "$LUA_FILE.tmp" \
             && mv "$LUA_FILE.tmp" "$LUA_FILE"
         echo "Removed the line from $LUA_FILE (backup kept alongside it)."
         removed=1
     fi
-    if [ -f "$CONF_FILE" ] && grep -qF "$REPO_DIR/scripts/shell-env.sh" "$CONF_FILE"; then
+    if [ -f "$CONF_FILE" ] && grep -qF -e "$REPO_DIR/scripts/shell-run.sh" -e "$REPO_DIR/scripts/shell-env.sh" "$CONF_FILE"; then
         cp "$CONF_FILE" "$CONF_FILE.bak.$(date +%s)"
-        grep -vF "$REPO_DIR/scripts/shell-env.sh" "$CONF_FILE" > "$CONF_FILE.tmp" \
+        grep -vF -e "$REPO_DIR/scripts/shell-run.sh" -e "$REPO_DIR/scripts/shell-env.sh" "$CONF_FILE" > "$CONF_FILE.tmp" \
             && mv "$CONF_FILE.tmp" "$CONF_FILE"
         echo "Removed the line from $CONF_FILE (backup kept alongside it)."
         removed=1
@@ -117,11 +118,11 @@ mkdir -p "$HYPR_DIR" || { echo "Could not create $HYPR_DIR" >&2; exit 1; }
 # rather than risking the duplicate.
 _already_present() {
     local f="$1"
-    [ -f "$f" ] && grep -qE 'exec qs -p|shell-env\.sh' "$f"
+    [ -f "$f" ] && grep -qE 'exec qs -p|shell-env\.sh|shell-run\.sh' "$f"
 }
 _exactly_this_repo() {
     local f="$1"
-    [ -f "$f" ] && grep -qF "$REPO_DIR/scripts/shell-env.sh" "$f"
+    [ -f "$f" ] && { grep -qF "$REPO_DIR/scripts/shell-run.sh" "$f" || grep -qF "$REPO_DIR/scripts/shell-env.sh" "$f"; }
 }
 
 if [ "$STYLE" = "lua" ]; then

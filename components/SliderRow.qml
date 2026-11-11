@@ -123,7 +123,8 @@ ColumnLayout {
 
     ValueSlider {
         Layout.fillWidth: true
-        thickness: 14
+        thickness: 16
+        expressive: true
         accent: sliderRow.accent
         maximum: 1.0
         value: sliderRow.to > sliderRow.from

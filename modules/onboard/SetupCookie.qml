@@ -52,7 +52,7 @@ Item {
             // Slow turn, only while it is on screen and motion is on.
             RotationAnimator on rotation {
                 from: 0; to: 360; duration: 28000; loops: Animation.Infinite
-                running: root.turning && Config.motionEnabled && root.visible
+                running: root.turning && Motion.ambientOn && root.visible
             }
             ShapeBox {
                 anchors.fill: parent

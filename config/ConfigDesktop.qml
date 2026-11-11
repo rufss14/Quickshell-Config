@@ -348,6 +348,9 @@ ConfigSystem {
     property bool screenTime: false
     property int  screenTimeKeepDays: 30
     property int  screenTimeIdleMinutes: 5
+    // A daily limit, in minutes (0 = none): the Screen time panel draws a ring round its hero toward it and
+    // counts the days you stayed under it.
+    property int  screenTimeGoalMinutes: 0
     // Anti-flashbang (services/AntiFlash): dim the screen while what's on it is very
     // bright. Off by default — it puts a Hyprland screen shader in place while dimming.
     property bool antiFlash: false
@@ -593,6 +596,9 @@ ConfigSystem {
     // no call panel is built. On is only half the story: the panel also needs
     // ~/.local/state/quicktest/secrets/discord-rpc.json, and says so itself when it's missing.
     property bool discordEnabled: true
+    // Keep a tally of who you have been in calls with, for the scoreboard on the voice panel (services/CallLog).
+    // On, by the user's choice; Settings › Discord › Call log turns it off or forgets it.
+    property bool callLog: true
 
     // ── Claude Code presence ──────────────────────────────────────────────────
     // Off ⇒ the helper never starts, so nothing connects to Discord's socket and no

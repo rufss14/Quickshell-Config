@@ -16,6 +16,11 @@ Spotify restyle the other way — see "The wave"), decoded by
 `bun scripts/test-objpack.js`). Diagnose it with
 `qs ipc -c ~/.config/quicktest call spotify lyrics`.
 
+- **Who may talk to the bridge** (`trusted_request`, tested): a loopback `Host`, and either no
+  `Origin` or an https `*.spotify.com` one. Loopback alone let any browser tab drive it (play
+  tracks, inject lyrics, read what's playing). If Spotify's poll ever starts getting 403, its
+  Origin changed: `touch "$XDG_RUNTIME_DIR/quickshell-spotify-bridge.trace"` and read the
+  `.trace.log` beside it.
 - **The bridge exists because the token does.** Spicy Lyrics' API authenticates
   with a LIVE Spotify access token, so it only works from inside the client —
   hence a Spicetify extension, not a Python provider. NetEase stays as the

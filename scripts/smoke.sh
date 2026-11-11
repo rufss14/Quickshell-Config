@@ -105,7 +105,9 @@ if kill -0 "$pid" 2>/dev/null; then
     targets=$(qs ipc --pid "${qspid:-0}" show 2>&1)
     # shell.qml's eager list: a target missing here means the service was never built
     # (the `readonly property var _x: Services.X` trap — see CLAUDE.md, shell.qml).
-    for t in cursor cursoreffects albumscheme osd overview; do
+    # `cursor` and `cursoreffects` are not here: they are built only once their Config switch is on
+    # (shell.qml's `target: Config.cursorTheme ? …`), and a fresh profile has both off.
+    for t in albumscheme osd overview; do
         if grep -qE "^target $t\$" <<<"$targets"; then ok "ipc target: $t"
         else fail "ipc target missing: $t"; fi
     done
@@ -150,6 +152,27 @@ if kill -0 "$pid" 2>/dev/null; then
         ok "opened ${#panels[@]} bar panels, no load failure or TypeError"
     fi
     kill -0 "$pid" 2>/dev/null || fail "the shell died while opening bar panels"
+fi
+
+# The Clips gallery is a window of its own, not a bar panel: its tiles, day headings and the
+# Latest row exist only with clips in the library (smoke-headless.sh seeds three).
+echo "── clips gallery"
+if kill -0 "$pid" 2>/dev/null; then
+    before=$(wc -l <"$log")
+    qs ipc --pid "${qspid:-0}" call clips gallery >/dev/null 2>&1 || fail "clips gallery: ipc failed"
+    sleep 3
+    shot gallery-clips
+    qs ipc --pid "${qspid:-0}" call clips galleryClose >/dev/null 2>&1
+    sleep 0.5
+    qs ipc --pid "${qspid:-0}" call panel toggle clips >/dev/null 2>&1; sleep 2; shot panel-clips-full
+    qs ipc --pid "${qspid:-0}" call panel close >/dev/null 2>&1; sleep 0.4
+    hits=$(tail -n +"$((before + 1))" "$log" | grep -iE "$hard|TypeError|Binding loop|ReferenceError")
+    if [ -n "$hits" ]; then
+        fail "errors while opening the clips gallery:"; echo "$hits" | sort | uniq -c | sort -rn | head -10 | sed 's/^/        /'
+    else
+        ok "opened the clips gallery and panel, no load failure or TypeError"
+    fi
+    kill -0 "$pid" 2>/dev/null || fail "the shell died while opening the clips gallery"
 fi
 
 # Settings pages are built only when shown, so a page that fails to load (a bad

@@ -42,6 +42,8 @@ var SETTINGS = {
     cornerStyle:     { type: "enum", options: ["default", "ii"], label: "Corner style",
                        about: "default ladder, or ii (rounder)" },
     motionEnabled:   { type: "bool", label: "Animations", about: "all animation on/off" },
+    motionReduced:   { type: "bool", label: "Reduced motion", about: "fades only: no bounce, parallax or ambient movement" },
+    highContrast:    { type: "bool", label: "High contrast", about: "7:1 text and accents, solid borders, opaque surfaces" },
     motionScale:     { type: "real", min: 0.25, max: 2, label: "Animation speed",
                        about: "duration multiplier, 0.5 = twice as fast" },
     colorizeIcons:   { type: "bool", label: "Tint icons", about: "tint tray icons with the accent" },

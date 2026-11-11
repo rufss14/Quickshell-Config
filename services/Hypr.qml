@@ -478,10 +478,10 @@ Singleton {
     }
 
     // Monitors off / on (the Inactivity panel's screen-off rule). The stub declares
-    // `dpms` as `fun(...)` without saying what it takes, so the `{ action = … }` table is
-    // modelled on the other dispatchers and NOT YET MEASURED on 0.56.2 — test it from a
-    // terminal before trusting it: `hyprctl dispatch 'hl.dsp.dpms({ action = "off" })'`
-    // (wiggle the mouse, or `… "on"`, to come back).
+    // `dpms` as `fun(...)`; the 0.56.2 binary has `Config::Actions::dpms(eTogglableAction,
+    // monitor?)` and an "Invalid DPMS action" error, the same togglable `{ action = … }`
+    // table `hl.dsp.window.float` takes. Not run live: `hyprctl dispatch 'hl.dsp.dpms({
+    // action = "off" })'` from a terminal confirms it (wiggle the mouse to come back).
     function setDpms(on) {
         Hyprland.dispatch(`hl.dsp.dpms({ action = "${on ? "on" : "off"}" })`)
     }

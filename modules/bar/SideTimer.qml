@@ -127,7 +127,7 @@ Item {
                 // On the hero's chip (primaryContainer already) the running shape is filled `primary`.
                 tone: root.alert ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).danger, 0.22)
                     : Timers.timerPaused ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).warning, 0.22)
-                    : Config.sidebarHero === "timer" ? Colors.of(QsWindow.window).primary
+                    : Config.moduleHero("timer") ? Colors.of(QsWindow.window).primary
                     : Colors.of(QsWindow.window).primaryContainer
                 opacity: gauge.number ? 0 : 1
                 Behavior on opacity { NumberAnimation { duration: Motion.respond } }
@@ -142,7 +142,7 @@ Item {
                 font.pixelSize: root.innerGlyphPx
                 color: root.alert ? Colors.of(QsWindow.window).danger
                      : Timers.timerPaused ? Colors.of(QsWindow.window).warning
-                     : Config.sidebarHero === "timer" ? Colors.of(QsWindow.window).fgOnPrimary
+                     : Config.moduleHero("timer") ? Colors.of(QsWindow.window).fgOnPrimary
                      : Colors.of(QsWindow.window).fgOnPrimaryContainer
                 opacity: gauge.number ? 0 : 1
                 Behavior on opacity { NumberAnimation { duration: Motion.respond } }

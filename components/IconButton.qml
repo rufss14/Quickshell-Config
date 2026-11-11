@@ -39,8 +39,11 @@ Item {
     id: root
     // Screen readers (AT-SPI): what this is and what pressing it does. Keyboard focus
     // order is not wired yet — see docs/standards.md, Accessibility.
+    // An icon-only button has no words of its own: the caller names it (a bar module passes its
+    // catalogue label), else it falls back to the label, then the symbol's name.
+    property string accessibleName: ""
     Accessible.role: Accessible.Button
-    Accessible.name: root.label !== "" ? root.label : root.symbol
+    Accessible.name: root.accessibleName !== "" ? root.accessibleName : root.label !== "" ? root.label : root.symbol
     Accessible.checkable: root.active
     Accessible.checked: root.active
     Accessible.onPressAction: root.clicked()
@@ -194,6 +197,11 @@ Item {
 
     // Extra content (badges, indicator dots) layers on top of the fill.
     default property alias content: overlay.data
+
+    // A tooltip worked out when the pointer arrives (HelpTip.provide): a function returning the words,
+    // or null for none. The caller owns the wording; this file stays free of services.
+    property var tipProvider: null
+    HelpTip { provide: root.tipProvider; pill: true }
 
     signal clicked()
     signal rightClicked()

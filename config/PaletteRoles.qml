@@ -222,8 +222,13 @@ QtObject {
     //
     // Material You has no such problem: its primary is generated at a fixed light
     // TONE for dark schemes. This is the equivalent floor for a hue-ordered ramp.
+    //
+    // High contrast (Config.highContrast) raises every text floor in this file from 4.5 to
+    // 7:1 (WCAG AAA), lifts the secondary text roles to match, and draws outlines solid.
+    readonly property bool _hc: Config.highContrast
+    readonly property real _textFloor: root._hc ? 7.0 : 4.5
     readonly property color primary:
-        Palette.legible(String(root.ramp1), String(root.base), 4.5, String(root.text))
+        Palette.legible(String(root.ramp1), String(root.base), root._textFloor, String(root.text))
     readonly property color fgOnPrimary: base   // text/icon drawn ON a primary fill
     // The ramp's most colourful slot, made legible the same way — for a TINT meant to carry the
     // scheme's colour (the wallpaper effects' glow, WallFx; 2026-10-31). `primary` is the first
@@ -235,10 +240,10 @@ QtObject {
         let best = c[0]
         for (const x of c)
             if (x.hsvSaturation * x.hsvValue > best.hsvSaturation * best.hsvValue) best = x
-        return Palette.legible(String(best), String(root.base), 4.5, String(root.text))
+        return Palette.legible(String(best), String(root.base), root._textFloor, String(root.text))
     }
     readonly property color focus:
-        Palette.legible(String(root.ramp4), String(root.base), 4.5, String(root.text))
+        Palette.legible(String(root.ramp4), String(root.base), root._textFloor, String(root.text))
 
     // ── Surfaces ──────────────────────────────────────────────────────────────
     // Elevation → fill. Higher levels sit closer to the user, so they lift away
@@ -278,7 +283,7 @@ QtObject {
     // 4.5:1 on the container — text on it, so the text floor.
     readonly property color primaryContainer: mix(surfaceContainer, primary, 0.26)
     readonly property color fgOnPrimaryContainer:
-        Palette.legible(String(mix(primary, text, 0.6)), String(root.primaryContainer), 4.5, String(root.text))
+        Palette.legible(String(mix(primary, text, 0.6)), String(root.primaryContainer), root._textFloor, String(root.text))
 
     function surfaceFor(elevation) {
         switch (elevation) {
@@ -314,13 +319,14 @@ QtObject {
     // flip fine, and per-mode-tuning everything would be a second theme.
     readonly property bool _lightMode: Config.themeMode === "light"
 
-    readonly property color outline:       alpha(text, root._lightMode ? 0.32 : 0.22)
-    readonly property color outlineBar:    alpha(text, 0.85)
-    readonly property color outlineNested: alpha(text, 0.36)
+    // Under high contrast the ladder keeps its order (outline < nested < bar) at full strength.
+    readonly property color outline:       alpha(text, root._hc ? 0.6 : root._lightMode ? 0.32 : 0.22)
+    readonly property color outlineBar:    alpha(text, root._hc ? 1.0 : 0.85)
+    readonly property color outlineNested: alpha(text, root._hc ? 0.75 : 0.36)
     // Raised to sit at outlineBar's weight: hover should read as a change of HUE,
     // not a change of strength. At 0.55 against a 0.85 idle border, hovering a bar
     // pill visibly DIMMED its outline — the opposite of what a focus state says.
-    readonly property color outlineFocus:  alpha(focus, 0.85)
+    readonly property color outlineFocus:  alpha(focus, root._hc ? 1.0 : 0.85)
 
     function outlineFor(elevation) {
         if (elevation >= Tokens.elevationNested) return root.outlineNested
@@ -338,19 +344,20 @@ QtObject {
     // ground (surfaceHigh — the worst case, as scripts/check-contrast.py measures) nothing changes;
     // where it doesn't, it is lifted to the least alpha that does (services/contrast.js, tested).
     // fgMuted stays at least `+0.06` above fgDim, so the two never collapse into one.
-    // fgFaint is MEANT to recede and is not guarded.
-    readonly property real _dimAlpha: Contrast.alphaFor(text, surfaceHigh, 4.0, root._lightMode ? 0.68 : 0.66)
-    readonly property real _mutedAlpha: Math.max(Contrast.alphaFor(text, surfaceHigh, 4.5, 0.72),
+    // fgFaint is MEANT to recede and is not guarded. Under high contrast the targets are 4.5
+    // (fgDim) and 7 (fgMuted), and fgFaint is raised so a disabled control is still legible.
+    readonly property real _dimAlpha: Contrast.alphaFor(text, surfaceHigh, root._hc ? 4.5 : 4.0,
+                                                        root._lightMode ? 0.68 : 0.66)
+    readonly property real _mutedAlpha: Math.max(Contrast.alphaFor(text, surfaceHigh, root._hc ? 7.0 : 4.5, 0.72),
                                                  Math.min(1, root._dimAlpha + 0.06))
     readonly property color fgMuted: alpha(text, root._mutedAlpha)   // secondary text, idle icons
     // Measured against the lightest common ground (surfaceHigh) on every bundled scheme
-    // (scripts/check-contrast.py): fgMuted 4.2-5.4:1, fgDim 4.0-6.3:1 (floor raised from 0.58 on 2026-10-27, then guarded: contrast.js lifts either role on a palette that falls short) — secondary text and
-    // placeholders, fine for UI but under AA for small body copy — and fgFaint ~2:1,
-    // which is only for things that are MEANT to recede (a disabled control, a
-    // decorative glyph). The old fgDim was 0.30 and was used for ~600 pieces of real
-    // text; it is now fgFaint's value and fgDim is readable.
+    // (scripts/check-contrast.py): fgMuted 4.2-5.4:1, fgDim 4.0-6.3:1 (contrast.js lifts either
+    // role on a palette that falls short) — secondary text and placeholders, fine for UI but
+    // under AA for small body copy — and fgFaint ~2:1, which is only for things that are
+    // MEANT to recede (a disabled control, a decorative glyph). Real text never uses fgFaint.
     readonly property color fgDim:   alpha(text, root._dimAlpha)   // tertiary text, placeholder (floor 0.66 / 0.68 light)
-    readonly property color fgFaint: alpha(text, root._lightMode ? 0.45 : 0.30)   // disabled, decorative
+    readonly property color fgFaint: alpha(text, root._hc ? 0.55 : root._lightMode ? 0.45 : 0.30)   // disabled, decorative
 
     // ── Interactive states ────────────────────────────────────────────────────
     // One ladder, used by every control in the shell. A control is exactly one
@@ -387,25 +394,20 @@ QtObject {
     // ring cannot drift from the pills it fuses with.
     //
     // ── BOTH of Surface's translucencies, not just one ────────────────────────
-    // This used to bake `Config.barOpacity` alone, on the stated reasoning that
-    // "Surface applies barOpacity to its fill alone for exactly the same reason".
-    // That reasoning missed the second one: `Surface` also carries a plain
+    // Baking the bar opacity alone is not enough: `Surface` also carries a plain
     // `opacity: Tokens.surfaceOpacity` (Surface.qml:63), the shell-wide
     // translucency preference, and item opacity multiplies EVERYTHING — fill and
     // border alike.
     //
-    // So a pill drew its fill at barOpacity × surfaceOpacity and its border at
-    // outlineBar's own 0.85 × surfaceOpacity, while the ring drew the same two
-    // roles one factor short. At the 0.97/0.97 defaults that is a pill sitting at
-    // α 0.941 against a frame at α 0.970 — the same colour on paper, measurably
-    // not the same colour on screen, along every edge the two are supposed to be
-    // one continuous piece of material. It is why the bar never quite merged with
-    // the frame no matter what the geometry did.
+    // A pill draws its fill at barOpacity × surfaceOpacity and its border at
+    // outlineBar's own 0.85 × surfaceOpacity, so the ring must too. One factor short,
+    // at the 0.97/0.97 defaults, is a pill at α 0.941 against a frame at α 0.970: the
+    // same colour on paper, measurably not on screen, along every edge the two share.
+    // Both are Tokens' DRAWN values, so high contrast makes the ring solid with the pills.
     //
     // `fade`, not `alpha`: it MULTIPLIES the role's existing alpha, which is what
-    // item opacity does. See fade()'s own comment — getting this backwards is a
-    // bug this file has already shipped once.
-    readonly property real frameAlpha: Config.barOpacity * Tokens.surfaceOpacity
+    // item opacity does. See fade()'s own comment.
+    readonly property real frameAlpha: Tokens.barOpacity * Tokens.surfaceOpacity
     readonly property color frameFill: fade(surfaceFor(Tokens.elevationBar), root.frameAlpha)
     readonly property color frameLine: fade(outlineFor(Tokens.elevationBar), Tokens.surfaceOpacity)
 

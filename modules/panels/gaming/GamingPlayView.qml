@@ -113,7 +113,7 @@ ColumnLayout {
                 Item {
                     anchors.fill: parent
                     RotationAnimator on rotation {
-                        running: Gamemode.active && Config.motionEnabled
+                        running: Gamemode.active && Motion.ambientOn
                         from: 0; to: 360
                         duration: Motion.glide * 40
                         loops: Animation.Infinite

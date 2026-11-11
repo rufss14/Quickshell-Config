@@ -108,7 +108,7 @@ pw = __import__("importlib.util").util.module_from_spec(spec); spec.loader.exec_
 palette, special = pw.load_pywal(__import__("pathlib").Path(DARK))
 want = pw.generate_spicetify_colors(palette, special)
 assert b["primary"] == "#" + want["button"].lower() and b["focus"] == "#" + want["button-active"].lower()
-ok("primary/focus are the SAME colours QuickSpice gets (one derivation, pwspice.py)")
+ok("primary/focus are the SAME colours the Spotify theme gets (one derivation, pwspice.py)")
 
 after = open(css, encoding="utf-8").read()
 a1, a2 = before.index(BEGIN), before.index(END) + len(END)
@@ -207,8 +207,7 @@ ok("hostile or malformed shapes (a font that closes the string, wrong types, NaN
 
 # Icon shape. The petalled outlines are generated, not typed: WHEN the committed theme defines
 # them at all (it doesn't while scaled back to colours + progress bar only, 2026-11-01 — nothing
-# in the file references an icon-shape clip-path any more), they must be what the generator makes,
-# and the cookie must be the one QuickSpice already draws (so the two themes show the same shape).
+# in the file references an icon-shape clip-path any more), they must be what the generator makes.
 spec2 = __import__("importlib.util").util.spec_from_file_location("qt", PALETTE)
 qt = __import__("importlib.util").util.module_from_spec(spec2); spec2.loader.exec_module(qt)
 src_all = open(THEME, encoding="utf-8").read()
@@ -220,9 +219,7 @@ if committed("cookie") is not None:
         assert committed(name) == qt.scallop_polygon(n, depth), name
         assert committed(name + "-hot") == qt.scallop_polygon(n, depth + qt.HOT_DEPTH), name + "-hot"
         assert committed(name).count("%,") + 1 == committed(name + "-hot").count("%,") + 1 == 120, "rest and hot must have equal vertex counts to interpolate"
-    qs_css = open(os.path.join(ROOT, "spicetify", "Themes", "QuickSpice", "user.css"), encoding="utf-8").read()
-    assert committed("cookie") == re.search(r"--qs-mark: (polygon\([^;]*\));", qs_css).group(1), "the cookie must be QuickSpice's"
-    ok("the committed cookie and clover outlines are the generator's (rest and hot, 120 vertices each); the cookie is QuickSpice's")
+    ok("the committed cookie and clover outlines are the generator's (rest and hot, 120 vertices each)")
 else:
     ok("icon-shape polygons aren't defined in this theme right now (colours + progress bar only) — skipped")
 

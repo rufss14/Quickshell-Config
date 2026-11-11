@@ -60,7 +60,7 @@ Item {
         return (h > 0 ? h + "h " : "") + m + "m"
     }
 
-    readonly property var profiles: PowerProfiles.hasPerformanceProfile
+    readonly property var profiles: PowerSaver.profilesOk && PowerProfiles.hasPerformanceProfile
         ? [PowerProfile.PowerSaver, PowerProfile.Balanced, PowerProfile.Performance]
         : [PowerProfile.PowerSaver, PowerProfile.Balanced]
 
@@ -237,10 +237,19 @@ Item {
                 Layout.fillWidth: true
                 accent:  Colors.of(QsWindow.window).primary
                 model:   root.profileSegments
-                current: PowerProfiles.profile
+                enabled: PowerSaver.profilesOk
+                current: PowerSaver.profilesOk ? PowerProfiles.profile : -1
                 // A plain assignment: `profile` is a writable D-Bus property and the
                 // daemon's reply drives the selection back through the binding.
-                onPicked: function (v) { PowerProfiles.profile = v }
+                onPicked: function (v) { if (PowerSaver.profilesOk) PowerProfiles.profile = v }
+            }
+            StyledText {
+                Layout.fillWidth: true
+                visible: !PowerSaver.profilesOk
+                text: Translation.tr("Needs power-profiles-daemon (or tuned-ppd), which isn't running on this machine.")
+                variant: "caption"
+                emphasis: "dim"
+                wrapMode: Text.Wrap
             }
         }
 

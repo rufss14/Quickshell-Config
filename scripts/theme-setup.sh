@@ -19,12 +19,12 @@
 # a step actually needs it.
 #
 # ── Third-party themes are downloaded, never bundled ─────────────────────────
-# Simply Dark (ejalxndr, no licence file) is another person's work, fetched from
-# its own repo at a PINNED commit: a later upstream change can't break a setup that
-# worked, and nothing of theirs is redistributed with the shell. Bump a pin by
-# changing its commit below and re-running setup. Discord's theme (Quicktest) and
-# Spotify's (QuickSpice) are ours, so they are copied from the repo instead, and the
-# recolour scripts that map the palette onto them are ours too: scripts/themes/.
+# Material (Steam), kuska1's MIT-licensed theme, is fetched from its own repo at a PINNED
+# commit and used unmodified: a later upstream change can't break a setup that worked, and
+# none of it is redistributed with the shell. Bump a pin by changing its commit below and
+# re-running setup. Discord's theme (Quicktest) and Spotify's (QuickZiro) are ours, so they
+# are copied from the repo instead, and the recolour scripts that map the palette onto all
+# of them are ours too: scripts/themes/ and scripts/steam-colors.py.
 #
 # ── Compatibility ─────────────────────────────────────────────────────────────
 # Detect, don't assume: every Vencord-family Discord client (themes/discord/lib.sh),
@@ -48,7 +48,6 @@ DISCORD_SHAPE="${XDG_CACHE_HOME:-$HOME/.cache}/quickshell-quicktest/discord-shap
 # Pinned upstreams. GH_RAW / GH_CODELOAD exist for scripts/test-theme-setup.sh.
 GH_RAW="${GH_RAW:-https://raw.githubusercontent.com}"
 GH_CODELOAD="${GH_CODELOAD:-https://codeload.github.com}"
-SIMPLY_DARK_URL="$GH_CODELOAD/ejalxndr/simply-dark/tar.gz/5163dcbca3cbde75e6aad29af0c6025612ba8607"
 
 # shellcheck source=themes/discord/lib.sh
 source "$SHELL_DIR/scripts/themes/discord/lib.sh"
@@ -233,10 +232,10 @@ json.dump(d, open(tmp, "w"), indent=4); os.replace(tmp, p)' "$dir/settings/setti
     say "Restart Discord to load the theme; after that it follows every colour change live."
 }
 
-# ══ Spotify — Spicetify + QuickSpice, recoloured by scripts/themes/spotify/pwspice.py ══
-# QuickSpice is ours (spicetify/Themes/QuickSpice, drawn from the shell's own tokens), so it
-# is copied from the repo rather than fetched. user.css and theme.js are the theme and are
-# refreshed whenever they differ; color.ini holds the palette pwspice.py writes, so an
+# ══ Spotify — Spicetify + QuickZiro, recoloured by scripts/themes/spotify/pwspice.py ══
+# QuickZiro is ours (spicetify/Themes/QuickZiro: Ziro by schnensch under its MIT licence, with
+# local changes), so it is copied from the repo rather than fetched. user.css is the theme and
+# is refreshed whenever it differs; color.ini holds the palette pwspice.py writes, so an
 # existing one is kept.
 spotify_installed() {
     have spotify || have spotify-launcher || flatpak info com.spotify.Client >/dev/null 2>&1
@@ -252,25 +251,24 @@ spotify_prefs() {
 }
 spotify_status() {
     spotify_installed || { line spotify absent 0 "Spotify isn't installed"; return; }
-    have spicetify || { line spotify todo 0 "Installs Spicetify and the QuickSpice theme"; return; }
+    have spicetify || { line spotify todo 0 "Installs Spicetify and the QuickZiro theme"; return; }
     spotify_prefs || { line spotify blocked 0 "Open Spotify once and sign in, then set this up"; return; }
     local w=0; spotify_writable || w=1
-    local td; td="$(spicetify path userdata 2>/dev/null)/Themes/QuickSpice"
-    if [[ "$(spicetify_cfg current_theme)" = QuickSpice && "$(spicetify_cfg color_scheme)" = Pywal ]] \
+    local td; td="$(spicetify path userdata 2>/dev/null)/Themes/QuickZiro"
+    if [[ "$(spicetify_cfg current_theme)" = QuickZiro && "$(spicetify_cfg color_scheme)" = Pywal ]] \
        && [[ -d "$td" ]] && spotify_theme_current "$td" \
        && spicetify config extensions 2>/dev/null | grep -q 'quickshell-bridge.js'; then
-        line spotify ready 0 "QuickSpice, following the palette"
+        line spotify ready 0 "QuickZiro, following the palette"
     else
-        line spotify todo "$w" "Applies the QuickSpice theme and the shell's bridge extension"
+        line spotify todo "$w" "Applies the QuickZiro theme and the shell's bridge extension"
     fi
 }
 # The installed copy still matches the repo's. Bash comparison, not cmp: setup runs on a
 # PATH of what it needs, and a stale theme should read as "to do", not "ready".
 spotify_theme_current() {
     local f
-    for f in user.css theme.js; do
-        [[ -f "$1/$f" && "$(<"$1/$f")" == "$(<"$SHELL_DIR/spicetify/Themes/QuickSpice/$f")" ]] || return 1
-    done
+    local f=user.css
+    [[ -f "$1/$f" && "$(<"$1/$f")" == "$(<"$SHELL_DIR/spicetify/Themes/QuickZiro/$f")" ]]
 }
 spicetify_install() {
     have spicetify && return 0
@@ -300,26 +298,33 @@ spotify_setup() {
     fi
     local ud; ud="$(spicetify path userdata 2>/dev/null)"
     [[ -n "$ud" ]] || { say "spicetify path userdata returned nothing."; return 1; }
-    local src="$SHELL_DIR/spicetify/Themes/QuickSpice"
-    mkdir -p "$ud/Themes/QuickSpice" "$ud/Extensions"
-    cp -f "$src/user.css" "$src/theme.js" "$ud/Themes/QuickSpice/" || return 1
-    [[ -f "$ud/Themes/QuickSpice/color.ini" ]] || cp "$src/color.ini" "$ud/Themes/QuickSpice/" || return 1
+    local src="$SHELL_DIR/spicetify/Themes/QuickZiro"
+    mkdir -p "$ud/Themes/QuickZiro" "$ud/Extensions"
+    cp -f "$src/user.css" "$src/LICENSE" "$ud/Themes/QuickZiro/" || return 1
+    [[ -f "$ud/Themes/QuickZiro/color.ini" ]] || cp "$src/color.ini" "$ud/Themes/QuickZiro/" || return 1
     cp -f "$SHELL_DIR/spicetify/Extensions/quickshell-bridge.js" "$ud/Extensions/" || return 1
-    spicetify config current_theme QuickSpice color_scheme Pywal inject_css 1 inject_theme_js 1 replace_colors 1 >/dev/null || return 1
+    spicetify config current_theme QuickZiro color_scheme Pywal inject_css 1 replace_colors 1 >/dev/null || return 1
     spicetify config extensions 2>/dev/null | grep -q 'quickshell-bridge.js' \
         || spicetify config extensions quickshell-bridge.js >/dev/null || return 1
     [[ -s "$WAL_COLORS" ]] && python3 "$SHELL_DIR/scripts/themes/spotify/pwspice.py" \
-        -w "$WAL_COLORS" -o "$ud/Themes/QuickSpice/color.ini" --wait-for-wal 0 >/dev/null
+        -w "$WAL_COLORS" -o "$ud/Themes/QuickZiro/color.ini" --style ziro --wait-for-wal 0 >/dev/null
     # First apply needs a backup of the stock client; later ones don't.
     if grep -A2 '^\[Backup\]' "$ud/config-xpui.ini" 2>/dev/null | grep -qE '^version *= *[^ ]'; then
         spicetify apply || return 1
     else
         spicetify backup apply || return 1
     fi
-    say "Spotify now wears QuickSpice in the shell's colours."
+    say "Spotify now wears QuickZiro in the shell's colours."
 }
 
-# ══ Steam — Millennium + Simply Dark, recoloured by scripts/steam-colors.py ═════
+# ══ Steam — Millennium + Material, recoloured by scripts/steam-colors.py ═══════
+# Material (kuska1/Material-Theme, MIT) is fetched at a PINNED commit, like the other
+# third-party pieces, and used UNMODIFIED: its "Matugen" colour source reads a stylesheet of
+# Material 3 colours that steam-colors.py writes from the shell's palette, and the theme
+# re-reads it every 1.5 s, so a running Steam follows the palette with no restart.
+# Setup therefore only has to install it, make it the active theme, and pick that colour
+# source. Every other setting of the user's (fonts, shapes, toolbar…) is left alone.
+MATERIAL_URL="$GH_CODELOAD/kuska1/Material-Theme/tar.gz/f91b4e9cbc5436f149e6b293391a9a96ab47fbe9"
 steam_root() {
     local d; for d in "$DATA/Steam" "$HOME/.steam/steam"; do
         [[ -d "$d" ]] && { readlink -f "$d"; return 0; }; done; return 1
@@ -328,10 +333,13 @@ steam_root() {
 MILLENNIUM_LIB="${MILLENNIUM_LIB:-/usr/lib/millennium}"
 millennium_present() { pkg millennium-bin || pkg millennium || [[ -d "$MILLENNIUM_LIB" ]]; }
 MILLENNIUM_CFG="$CFG/millennium/config.json"
-steam_active_theme() {
+# "<active theme>|<Material's colour source>", either empty when unset.
+steam_config() {
     python3 -c 'import json, sys
-try: print(json.load(open(sys.argv[1])).get("themes", {}).get("activeTheme", ""))
-except Exception: pass' "$MILLENNIUM_CFG" 2>/dev/null
+try:
+    t = json.load(open(sys.argv[1])).get("themes", {})
+    print("%s|%s" % (t.get("activeTheme", ""), t.get("conditions", {}).get("Material-Theme", {}).get("Color", "")))
+except Exception: print("|")' "$MILLENNIUM_CFG" 2>/dev/null
 }
 steam_status() {
     if ! have steam || ! steam_root >/dev/null; then
@@ -341,16 +349,16 @@ steam_status() {
         return
     fi
     if ! millennium_present; then
-        { have yay || have paru; } && line steam todo 1 "Installs Millennium (AUR) and the Simply Dark theme" \
+        { have yay || have paru; } && line steam todo 1 "Installs Millennium (AUR) and the Material theme" \
                                     || line steam blocked 0 "Millennium is in the AUR — install yay or paru first"
         return
     fi
     [[ -f "$MILLENNIUM_CFG" ]] || { line steam blocked 0 "Start Steam once so Millennium finishes installing"; return; }
     local root; root="$(steam_root)"
-    if [[ -d "$root/millennium/themes/simply-dark" && "$(steam_active_theme)" = simply-dark ]]; then
-        line steam ready 0 "Simply Dark, following the palette"
+    if [[ -f "$root/millennium/themes/Material-Theme/skin.json" && "$(steam_config)" = "Material-Theme|Matugen" ]]; then
+        line steam ready 0 "Material, following the palette"
     else
-        line steam todo 0 "Installs the Simply Dark theme"
+        line steam todo 0 "Sets up the Material theme to follow the palette"
     fi
 }
 steam_setup() {
@@ -358,26 +366,28 @@ steam_setup() {
     if ! millennium_present; then
         say "Installing Millennium…"; aur_install millennium-bin || return 1
     fi
-    local root dir tmp; root="$(steam_root)"; dir="$root/millennium/themes/simply-dark"
-    if [[ ! -d "$dir" ]]; then
-        say "Downloading Simply Dark…"
-        tmp="$(mktemp -d)"
-        if fetch "$SIMPLY_DARK_URL" "$tmp/t.tgz" && mkdir -p "$dir" \
-           && tar -xzf "$tmp/t.tgz" -C "$dir" --strip-components=1; then rm -rf "$tmp"
-        else rm -rf "$tmp" "$dir"; say "Download failed."; return 1; fi
-    fi
     [[ -f "$MILLENNIUM_CFG" ]] || { say "Start Steam once so Millennium finishes installing, then run this again."; return 1; }
     # Millennium keeps its config in memory and writes it back, so an edit made while
     # Steam runs is lost on exit.
     if pgrep -x steam >/dev/null 2>&1; then
         say "Close Steam, then run this again — Millennium would undo the theme switch on exit."; return 1
     fi
+    local root dir tmp; root="$(steam_root)"; dir="$root/millennium/themes/Material-Theme"
+    if [[ ! -f "$dir/skin.json" ]]; then
+        say "Downloading Material…"
+        tmp="$(mktemp -d)"
+        if fetch "$MATERIAL_URL" "$tmp/t.tgz" && mkdir -p "$dir" \
+           && tar -xzf "$tmp/t.tgz" -C "$dir" --strip-components=1; then rm -rf "$tmp"
+        else rm -rf "$tmp" "$dir"; say "Download failed."; return 1; fi
+    fi
     python3 -c 'import json, os, sys
 p = sys.argv[1]; d = json.load(open(p))
-d.setdefault("themes", {})["activeTheme"] = "simply-dark"
+t = d.setdefault("themes", {})
+t["activeTheme"] = "Material-Theme"
+t.setdefault("conditions", {}).setdefault("Material-Theme", {})["Color"] = "Matugen"
 tmp = p + ".qs-new"; json.dump(d, open(tmp, "w"), indent=4); os.replace(tmp, p)' "$MILLENNIUM_CFG" || return 1
-    [[ -s "$WAL_COLORS" ]] && python3 "$SHELL_DIR/scripts/steam-colors.py" "$MILLENNIUM_CFG" "$WAL_COLORS" >/dev/null
-    say "Steam will open in Simply Dark, in the shell's colours."
+    [[ -s "$WAL_COLORS" ]] && python3 "$SHELL_DIR/scripts/steam-colors.py" "$WAL_COLORS" --theme-dir "$dir" >/dev/null
+    say "Steam will open in Material, in the shell's colours."
 }
 
 # ══ Dispatch ═════════════════════════════════════════════════════════════════

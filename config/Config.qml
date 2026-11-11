@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 import "layout.js" as Layout
+import "surfaces.js" as Surfaces
 import "modules.js" as Catalogue
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -35,7 +36,7 @@ ConfigDesktop {
     // BUMP THIS when you tag a release, or the shell will report itself as whatever
     // the last person to think about it said. It is the one number here that a
     // machine can't check for you.
-    readonly property string version: "0.4"
+    readonly property string version: "0.4.1"
     readonly property string repo:    "rufss14/Quickshell-Config"
 
     // ShellPresets (ConfigBarLayout) waits on this store; that file can't see its id.
@@ -243,7 +244,7 @@ ConfigDesktop {
         { key: "barIconScale", load: function (v) { root.barIconScalePref = v.barIconScale ?? root.barIconScalePref },
                                 save: function ()  { return root.barIconScalePref } },
         "barInnerPill", "railCollapsed",
-        "motionScale", "motionEnabled", "barHoverGrow", "cavaBg", "cavaBgStyle", "cavaBgIntensity",
+        "motionScale", "motionEnabled", "motionReduced", "highContrast", "barHoverGrow", "cavaBg", "cavaBgStyle", "cavaBgIntensity",
         "sfxEnabled", "sfxVolume", "sfxPanels", "sfxTyping", "sfxSwitches", "sfxNotify",
         "sfxAlerts", "sfxCapture",
         "sfxTypingScope",
@@ -296,7 +297,7 @@ ConfigDesktop {
 
         // Settings app, and the feature switches
         "settingsPage", "settingsPanel", "settingsPanelSide", "settingsPinned", "panelCookies", "barCookies", "barCookiesFrom",
-        "setupSeen", "setupAutoOpenDisabled", "defaultPresetApplied", "widgetsEnabled", "discordEnabled",
+        "setupSeen", "setupAutoOpenDisabled", "defaultPresetApplied", "widgetsEnabled", "discordEnabled", "callLog",
         "claudePresenceEnabled", "claudePresenceUseAiTitle", "claudePresenceShowWorkspace",
         "claudePresenceShowModel", "claudePresenceShowTokens", "claudePresenceShowSessionCount",
         "cs2PresenceEnabled", "cs2PresenceShowScore", "cs2PresenceShowKd",
@@ -349,7 +350,7 @@ ConfigDesktop {
           } },
         "sidebarEmptyReveal", "sidebarEdgeReveal",
         "peekTimer", "peekClaude", "peekColour", "peekClipboard",
-        "sidebarIslands", "sidebarHero", "barMusicReact",
+        "sidebarIslands", "sidebarHero", "barMusicReact", "barTooltips",
         "karaokeWords", "karaokeSkipHeadphoneCheck", "karaokeStayAtEnd", "karaokeLanguage", "karaokeModHidden", "karaokeModHardRock", "karaokeModTimeHell", "karaokeModelDir",
         { key: "sidebarStats", notify: false, save: function () { return root.sidebarStats } },
         "sidebarStatsMetrics", "sidebarStatsNetMbps",
@@ -361,6 +362,7 @@ ConfigDesktop {
         "clipsFps", "clipsBitrateMode", "clipsQuality", "clipsKbps", "clipsCodec", "clipsContainer",
         "clipsResolution", "clipsCursor", "clipsDesktopAudio", "clipsMic", "clipsSplitAudio",
         "clipsPeek", "clipsNotify", "clipsNameByWindow", "clipsAhead", "clipsRecordLimit", "clipsFileManager",
+        "clipsStampMusic", "clipsStampCall", "clipsDiscordMB", "clipsPruneDays", "clipsPruneGB", "clipsSeenAt",
 
         // Night light — the switch, the temperature and the schedule. Without these the
         // warmth turned itself off on every shell reload, and the schedule reset.
@@ -369,7 +371,7 @@ ConfigDesktop {
               const x = v.lensOcrLangs
               root.lensOcrLangs = (typeof x === "string" && x !== "" && x !== "eng") ? x : "auto"
           } },
-        "lensTranslateLang", "snapZones", "snapToGrid", "screenTime", "screenTimeKeepDays", "screenTimeIdleMinutes", "antiFlash", "antiFlashNightOnly", "antiFlashThreshold", "antiFlashFloor",
+        "lensTranslateLang", "snapZones", "snapToGrid", "screenTime", "screenTimeKeepDays", "screenTimeIdleMinutes", "screenTimeGoalMinutes", "antiFlash", "antiFlashNightOnly", "antiFlashThreshold", "antiFlashFloor",
         "nightLight", "nightLightTemp", "nightLightAuto", "nightLightFollowSun",
         "nightLightFrom", "nightLightTo",
 
@@ -423,8 +425,29 @@ ConfigDesktop {
 
         // Truthiness rather than `??`, which is the test the hand-written load used: a
         // document carrying a falsy moduleSettings is malformed, not meaningful.
+        // The retired per-module `hero` flags are stripped (barHero below holds the bar's
+        // hero now), so a module whose only setting was the hero doesn't keep Reset lit.
         { key: "moduleSettings",
-          load: function(v) { if (v.moduleSettings) root.moduleSettings = v.moduleSettings } },
+          load: function(v) { if (v.moduleSettings) root.moduleSettings = Surfaces.stripHeroFlags(v.moduleSettings) } },
+
+        // The bar's one hero (ConfigBarLayout). A document from before it existed has
+        // `hero` flags in moduleSettings instead: the first flagged module in bar order,
+        // else the clock (surfaces.js heroFromFlags). Reads the DOCUMENT's moduleSettings
+        // and layout, not the live ones, so this entry's place in the list doesn't matter.
+        // A document with none of the three (an older shell preset) leaves it alone.
+        // The sidebar's unlinked style knobs (ConfigEdges), cleaned: a hand-edited key
+        // of the wrong type or out of range must not reach a radius or an opacity.
+        { key: "sidebarStyle",
+          load: function(v) { if (v.sidebarStyle) root.sidebarStyle = Surfaces.cleanStyle(v.sidebarStyle) } },
+
+        { key: "barHero",
+          load: function(v) {
+                    if (typeof v.barHero === "string")
+                        root.barHero = v.barHero
+                    else if (v.moduleSettings || v.layout)
+                        root.barHero = Surfaces.heroFromFlags(v.moduleSettings, v.layout ?? root.layout,
+                                                              root.regionIds, root._heroable)
+                } },
 
         // Per-group spacing overrides — same shape and the same reasoning as
         // moduleSettings just above.
@@ -511,6 +534,9 @@ ConfigDesktop {
           load: function(v) {
                     if (v.layout && Object.keys(v.layout).length > 0)
                         root.layout = root._reconcile(v.layout, root._barKnown(v.knownModules ?? []))
+                    // One place per module, whatever the document said (sidebarLayout is
+                    // loaded above this entry): the bar's copy wins.
+                    root._dedupeSurfaces()
                 } },
 
         // The catalogue as it stood when this was last written. Kept BESIDE the layout,

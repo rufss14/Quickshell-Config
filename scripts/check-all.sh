@@ -15,9 +15,7 @@
 # status would report them green while they listed a hard load failure. So a
 # `name=N` line with N > 0 is a failure too, whatever the exit code said.
 #
-# check-qml-fillheight.py is not gated: it has existing findings that want triage
-# one by one, so it is reported as a count and never fails the run. Same for
-# check-qml-hotpaths.py (animations that run every frame with nothing to stop them).
+# check-qml-fillheight.py is gated against a per-file baseline of known, untriaged findings.
 # ─────────────────────────────────────────────────────────────────────────────
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
@@ -40,7 +38,7 @@ run() {
 skip() { skips+=("$1: $2"); printf '  skip  %s (%s)\n' "$1" "$2"; }
 
 echo "── static checkers"
-for c in aliases duplicates readonly-anim final palette imports singletons; do
+for c in aliases duplicates readonly-anim final palette imports singletons qmldir; do
     run "check-qml-$c" python3 scripts/check-qml-$c.py
 done
 run check-config-persisted python3 scripts/check-config-persisted.py
@@ -52,11 +50,27 @@ else
 fi
 
 # Informational only — see the header.
+# Gated against a per-file baseline (scripts/fillheight-baseline.txt): the known findings each
+# want a look at the panel, so only a file that GAINS one fails.
 mapfile -t qml < <(find . -name '*.qml' -not -path './config/settings/*' -not -path './plugin/build/*')
-fh=$(python3 scripts/check-qml-fillheight.py "${qml[@]}" 2>&1 | grep -c 'no explicit Layout.fillHeight')
-printf '  note  check-qml-fillheight: %s existing finding(s), not gated\n' "$fh"
+fh_over=$(python3 scripts/check-qml-fillheight.py "${qml[@]}" 2>&1 | cut -d: -f1 | sed 's|^\./||' | sort | uniq -c \
+    | awk 'NR == FNR { if ($0 !~ /^#/ && NF == 2) base[$1] = $2; next } $1 > ($2 in base ? base[$2] : 0) { print "        " $2 ": " $1 " (baseline " ($2 in base ? base[$2] : 0) ")" }' \
+        scripts/fillheight-baseline.txt -)
+if [ -z "$fh_over" ]; then
+    passed=$((passed + 1)); printf '  ok    check-qml-fillheight (against its baseline)\n'
+else
+    fails+=("check-qml-fillheight"); printf '  FAIL  check-qml-fillheight: new layout(s) inside a ColumnLayout with no Layout.fillHeight\n%s\n' "$fh_over"
+fi
+# Informational: comments that narrate history (docs/standards.md, "Comments"). Should only go down.
+printf '  note  check-comment-history: %s comment(s) narrating history\n' "$(python3 scripts/check-comment-history.py --count)"
+# Gated: there are zero findings, so any new one is a regression.
 hp=$(python3 scripts/check-qml-hotpaths.py --count 2>/dev/null)
-printf '  note  check-qml-hotpaths: %s ungated per-frame source(s), not gated (docs/performance.md)\n' "$hp"
+if [ "$hp" = "0" ]; then
+    passed=$((passed + 1)); printf '  ok    check-qml-hotpaths\n'
+else
+    fails+=("check-qml-hotpaths"); printf '  FAIL  check-qml-hotpaths: %s per-frame source(s) with nothing to stop them\n' "$hp"
+    python3 scripts/check-qml-hotpaths.py | sed -n '2,/^$/p' | sed 's/^/        /'
+fi
 
 echo "── syntax sweep (${#qml[@]} files)"
 qmlformat=/usr/lib/qt6/bin/qmlformat

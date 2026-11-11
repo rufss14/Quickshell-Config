@@ -9,7 +9,7 @@ import "../../../services"
 import "../../../state"
 import "../../../services/clips.js" as ClipsJs
 
-// ── ClipsPage — Sidebar & dock › Clips ────────────────────────────────────────
+// ── ClipsPage — Apps & tools › Clips ──────────────────────────────────────────
 // gpu-screen-recorder's settings: the replay buffer behind "clip it", recording, and
 // what a clip is made of. services/Clips owns the recorder; this shows and sets.
 //
@@ -23,6 +23,15 @@ import "../../../services/clips.js" as ClipsJs
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
+
+    ArmLatch {
+        id: pruneLatch
+        onConfirmed: Clips.prune()
+    }
+    ArmLatch {
+        id: forgetLatch
+        onConfirmed: Clips.forgetContexts()
+    }
 
     readonly property string blocked: Clips.blocker()
     readonly property bool usable: Config.clips && root.blocked === ""
@@ -71,7 +80,7 @@ Item {
         bento:     true
         glyph:     "\u{F0567}"
         title:     Translation.tr("Clips")
-        titleTail: "& recording"
+        titleTail: Translation.tr("& recording")
         accent:    Colors.of(QsWindow.window).primary
         subtitle:  !Config.clips ? "Off"
                  : root.blocked !== "" ? root.blocked
@@ -479,6 +488,95 @@ Item {
                 Toggle {
                     checked: Config.clipsNameByWindow
                     onToggled: Config.clipsNameByWindow = !Config.clipsNameByWindow
+                }
+            }
+        }
+
+        // ══ Sharing, and keeping the library in check ══════════════════════════════════════════════════
+        Section {
+            span:    1
+            enabled: Config.clips
+            opacity: enabled ? 1 : 0.5
+            glyph:   "\u{F0567}"                                  // 󰕧 video
+            title:   Translation.tr("Share & keep")
+            subtitle: Translation.tr("Discord upload size, what a clip remembers, clean-up")
+            help:    Translation.tr("Send to Discord shrinks a clip that is over the upload cap, then copies it. A saved clip can remember the song that was playing and who was in your Discord call. Clean-up only ever trashes what these limits name, never a favourite, and only when you press the button.")
+            accent:  Colors.of(QsWindow.window).primary
+
+            FormatRow {
+                label: Translation.tr("Discord upload cap")
+                ChipRow {
+                    width: parent.width
+                    accent: Colors.of(QsWindow.window).primary
+                    model: ClipsJs.DISCORD_CAPS.map(c => ({ value: c, label: c + " MB" }))
+                    current: Config.clipsDiscordMB
+                    onPicked: function (v) { Config.clipsDiscordMB = v }
+                }
+            }
+            SettingRow {
+                label:  Translation.tr("Remember the song")
+                detail: Config.clipsStampMusic ? Translation.tr("A clip knows what was playing") : Translation.tr("Off")
+                help:   Translation.tr("Stamp a saved clip with the song your media player was playing (Spotify included). It shows in the library and can be searched.")
+                Toggle {
+                    checked: Config.clipsStampMusic
+                    onToggled: Config.clipsStampMusic = !Config.clipsStampMusic
+                }
+            }
+            SettingRow {
+                label:  Translation.tr("Remember who was in the call")
+                detail: Config.clipsStampCall ? Translation.tr("Names of people in your Discord call") : Translation.tr("Off")
+                help:   Translation.tr("Stamp a saved clip with the names of the people in your Discord voice channel. The names are written to a file in your state folder; they are never sent anywhere.")
+                Toggle {
+                    checked: Config.clipsStampCall
+                    onToggled: Config.clipsStampCall = !Config.clipsStampCall
+                }
+            }
+            SettingRow {
+                label:  Translation.tr("Forget what clips remember")
+                detail: Object.keys(Clips.contexts).length + " " + Translation.tr("stamped")
+                PanelButton {
+                    capsule: true
+                    label: forgetLatch.armed ? Translation.tr("Sure?") : Translation.tr("Forget")
+                    variant: forgetLatch.armed ? "primary" : "ghost"
+                    accent: Colors.of(QsWindow.window).danger
+                    enabled: Object.keys(Clips.contexts).length > 0
+                    onActivated: forgetLatch.trigger()
+                }
+            }
+            FormatRow {
+                label: Translation.tr("Older than")
+                ChipRow {
+                    width: parent.width
+                    accent: Colors.of(QsWindow.window).primary
+                    model: [{ value: 0, label: "Never" }, { value: 30, label: "30 days" },
+                            { value: 60, label: "60 days" }, { value: 90, label: "90 days" }]
+                    current: Config.clipsPruneDays
+                    onPicked: function (v) { Config.clipsPruneDays = v }
+                }
+            }
+            FormatRow {
+                label: Translation.tr("Library over")
+                ChipRow {
+                    width: parent.width
+                    accent: Colors.of(QsWindow.window).primary
+                    model: [{ value: 0, label: "No limit" }, { value: 10, label: "10 GB" }, { value: 50, label: "50 GB" },
+                            { value: 100, label: "100 GB" }, { value: 250, label: "250 GB" }]
+                    current: Config.clipsPruneGB
+                    onPicked: function (v) { Config.clipsPruneGB = v }
+                }
+            }
+            SettingRow {
+                label:  Translation.tr("Clean up now")
+                detail: Clips.prunePreview.count > 0
+                        ? Clips.prunePreview.count + " " + Translation.tr("clips would go to the trash") + " (" + ClipsJs.bytesText(Clips.prunePreview.bytes) + ")"
+                        : Translation.tr("Nothing the limits name")
+                PanelButton {
+                    capsule: true
+                    label: pruneLatch.armed ? Translation.tr("Sure?") : Translation.tr("Clean up")
+                    variant: pruneLatch.armed ? "primary" : "ghost"
+                    accent: Colors.of(QsWindow.window).warning
+                    enabled: Clips.prunePreview.count > 0
+                    onActivated: pruneLatch.trigger()
                 }
             }
         }

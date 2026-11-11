@@ -5,7 +5,7 @@ import "../config"
 import "../services"
 
 // ── Watermark ─────────────────────────────────────────────────────────────────
-// [Quickshell mark] "Quicktest v0.3 by rufss", with a shine that travels across the name
+// [Quickshell mark] "Quicktest v<Config.version> by rufss", with a shine that travels across the name
 // every few seconds. One component, so the desktop, the lock screen and the overview wear
 // the same mark; each places it (the overview's middle card and the settings rail, both
 // bottom left). There is no switch for it — it is always on where it is mounted.
@@ -213,7 +213,7 @@ Rectangle {
     }
 
     SequentialAnimation {
-        running: Config.motionEnabled && root.active && root.visible
+        running: Motion.ambientOn && root.active && root.visible
 
         // A short first wait, so it is seen soon after appearing; then a long rest between.
         PauseAnimation { duration: 900 }

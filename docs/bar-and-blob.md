@@ -17,6 +17,15 @@ Moved from CLAUDE.md; the project rules there still apply.
   (a 33ms socket poll, only for the drag) and lights the slot under the cursor. The
   highlight and the drop share `WorkspacesPill.slotAt()`, so what lights is what you get.
   A lost release can't strand it: `windowDrag` clears itself after a minute.
+- **Workspace glance (2026-11-09).** Rest on a slot of the bar's workspace pill (400ms, the dock's dwell) and that
+  workspace's windows melt out of the bar's underside as live tiles. It is `DockPreview` itself in a workspace mode
+  (`key` = `__ws:<id>`, `edge: "top"`, `fused` while `Bar.blobRing`), not a second card: `modules/bar/WorkspaceGlance`
+  plays the dock strip (`previewKey`, `groupFor` = `Taskbar.workspaceGroups`, dwell/grace as `DockIconStrip`), the
+  pill reports its hovered slot through `hover()`, and `BlobBarLayer` has its own `glance*` lobe (not `previewRect`,
+  which the sidebar's dock owns). Tiles name and icon their own app (`DockPreview.keyOf`), the workspace badge is
+  hidden, an empty workspace gets the label card. Click goes there, middle-click closes, right-click brings it here;
+  `Config.dockPreviews` / `dockPeek` apply. Bar pill only — the sidebar's workspaces row has no glance. No Config
+  switch for it yet. Unverified visually: nothing loaded.
 - `BarPanelDock.panelWidth` (535) is the shared panel width. The wallpaper gallery
   pins wider (620×394); every other panel content-hugs via `implicitHeight`, and
   `heightFor()` / `widthFor()` only enforce a ceiling.
@@ -62,6 +71,17 @@ Moved from CLAUDE.md; the project rules there still apply.
   `$XDG_CACHE_HOME/quickshell-quicktest`, never the system Qt QML dir. `plugin/build/`
   is gitignored.
 
+
+## Arrange mode (2026-11-11)
+
+`UiState.arrange` arms the bar and the sidebar together. It closes every panel and keeps them shut
+(`UiState.closeAllPanels()` and a `Connections` that resets any key set while arranging). The window then wears
+what the desktop widgets' arrange mode wears (`ArrangeBackdrop`: the 45% dim and the snap dots, z -2 under the blob
+layer; each module's primary outline, brighter in the hand; the "Done arranging" button and Escape; the window
+grows to the screen's height so the dim reaches the bottom). The hint card is `components/ArrangeHint`: welded
+(`blobRing`, and `rail.welded` for the sidebar) it is a lobe of the blob (`arrBarRect` under the bar,
+`arrSideRect` off the sidebar's face, hero corner) that melts out of the surface it stands on; floating it is a
+popup card. The Settings window (class `org.quickshell`, title "Settings", found in `Hypr.windows`) is cut out of the dim by an inverted `MultiEffect` mask and edged in primary, so it reads as lit; the dots sit inside the shade and are cut with it. Pill tooltips (`PillTip`) stand down while arranging. Unverified visually: nothing loaded.
 
 ## The entrance (2026-10-06)
 

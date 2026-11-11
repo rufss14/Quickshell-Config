@@ -9,3 +9,4 @@ WallpaperOptionRow        1.0 WallpaperOptionRow.qml
 WallpaperPopover          1.0 WallpaperPopover.qml
 WallpaperSubBar           1.0 WallpaperSubBar.qml
 WallpaperPanelBody 1.0 WallpaperPanelBody.qml
+WallpaperEffects          1.0 WallpaperEffects.qml

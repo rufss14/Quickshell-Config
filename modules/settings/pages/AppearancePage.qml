@@ -243,7 +243,7 @@ Item {
             span:     2
             glyph:    "󰌁"
             title:    Translation.tr("Accent")
-            subtitle: (Config.accentRoles.find(function (r) { return r.id === Config.accentRole }) || { label: "Default" }).label || "Default"
+            subtitle: (Config.accentRoles.find(function (r) { return r.id === Config.accentRole }) || { label: Translation.tr("Default") }).label || "Default"
             help:     Translation.tr("The fallback colour, for widgets that ask for one. Picked by role, so it follows the next wallpaper.")
             accent:   Colors.of(QsWindow.window).info
 
@@ -295,6 +295,113 @@ Item {
 
                         HoverHandler { id: roleHover; cursorShape: Qt.PointingHandCursor }
                         TapHandler   { onTapped: Config.accentRole = role.modelData.id }
+                    }
+                }
+            }
+        }
+
+        // ══ Looks ═════════════════════════════════════════════════════════════
+        // How the shell looks, as one small .json file (services/Look.qml, look.js). Import never
+        // applies on its own: it lists what the file would change and waits for Apply, and a look
+        // rewrites the bar, the sidebar and the colours, so there is an Undo for as long as it is
+        // the last thing done. Motion settings are never in a file and never changed by one.
+        Section {
+            span:     3
+            symbol:   "style"
+            title:    Translation.tr("Looks")
+            subtitle: Look.status !== "" && !Look.statusBad ? Look.status
+                                                            : Translation.tr("Share how your shell looks as one small file")
+            help:     Translation.tr("A look is the bar, the sidebar, the style settings and your current colours in one .json file. No wallpaper, no paths, nothing personal, and never your motion settings. Import shows what it would change first, and you can undo it.")
+            accent:   Colors.of(QsWindow.window).primary
+
+            actions: ChipTray {
+                ChipButton {
+                    symbol:  "ios_share"
+                    label:   Translation.tr("Export")
+                    tint:    Colors.of(QsWindow.window).primary
+                    enabled: Look.blocker() === "" && !Look.busy
+                    onActivated: Look.exportLook(lookName.text)
+                }
+                ChipButton {
+                    symbol:  "download"
+                    label:   Translation.tr("Import")
+                    tint:    Colors.of(QsWindow.window).primary
+                    enabled: Look.blocker() === "" && !Look.busy
+                    onActivated: Look.importLook()
+                }
+                ChipButton {
+                    visible: Look.canUndo
+                    symbol:  "undo"
+                    label:   Translation.tr("Undo")
+                    tint:    Colors.of(QsWindow.window).primary
+                    onActivated: Look.undo()
+                }
+            }
+
+            InputField {
+                id: lookName
+                Layout.fillWidth: true
+                cornerRadius: implicitHeight / 2
+                placeholder: Translation.tr("Name this look (used by Export)")
+            }
+
+            // A missing file dialog disables both buttons; this is the reason.
+            StyledText {
+                Layout.fillWidth: true
+                visible: Look.blocker() !== "" || Look.statusBad
+                text:    Look.blocker() !== "" ? Look.blocker() : Look.status
+                variant: "caption"
+                wrapMode: Text.WordWrap
+                color:   Colors.of(QsWindow.window).danger
+            }
+
+            // What an imported file would change, until you say yes.
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+                visible: Look.pending !== null
+                spacing: Tokens.spacingSm
+
+                StyledText {
+                    text: Look.pending ? "Apply “" + Look.pending.name + "”?" : ""
+                    variant: "label"
+                }
+                Repeater {
+                    model: Look.pendingLines
+                    StyledText {
+                        required property string modelData
+                        Layout.fillWidth: true
+                        text: "·  " + modelData
+                        variant: "caption"
+                        emphasis: "dim"
+                        wrapMode: Text.WordWrap
+                    }
+                }
+                StyledText {
+                    visible: Look.pendingSkipped > 0
+                    Layout.fillWidth: true
+                    text: Look.pendingSkipped + (Look.pendingSkipped === 1 ? " value in the file isn't valid and will be skipped"
+                                                                           : " values in the file aren't valid and will be skipped")
+                    variant: "caption"
+                    emphasis: "dim"
+                    wrapMode: Text.WordWrap
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: false
+                    spacing: Tokens.spacingSm
+                    ChipButton {
+                        symbol: "check"
+                        label:  Translation.tr("Apply")
+                        solid:  true
+                        tint:   Colors.of(QsWindow.window).primary
+                        onActivated: Look.applyPending()
+                    }
+                    ChipButton {
+                        symbol: "close"
+                        label:  Translation.tr("Cancel")
+                        tint:   Colors.of(QsWindow.window).primary
+                        onActivated: Look.discard()
                     }
                 }
             }

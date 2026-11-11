@@ -142,6 +142,16 @@ def expand(path, seen=()):
         d = path.parent / sub
         if d.is_dir():
             parts.update({f.stem: f for f in d.glob("*.qml")})
+    # And the settings components a page uses (`import ".."`), and theirs in turn — a
+    # component's siblings need no import. Bar › Modules' rows live in ModuleInspector,
+    # which holds DockOptions and StatsOptions (the dock's and the stats' settings since
+    # their tabs went, 2026-11-08); left out, every one of them silently stopped being
+    # searchable — the drop QuickToggleTile's note below warns about.
+    settings = PAGES.parent
+    if path.parent == PAGES and re.search(r'^import "\.\."\s*$', text, re.M):
+        parts.update({f.stem: f for f in settings.glob("*.qml")})
+    elif path.parent == settings:
+        parts.update({f.stem: f for f in settings.glob("*.qml") if f != path})
     out = []
     for raw in text.splitlines():
         m = re.match(r"\s*(?:delegate:\s*)?(\w+)\s*\{", strip_noise(raw))

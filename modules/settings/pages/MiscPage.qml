@@ -66,7 +66,7 @@ Item {
         bento:     true
         glyph:     "󰲹"
         title:     Translation.tr("Lyrics")
-        titleTail: "& translation"
+        titleTail: Translation.tr("& translation")
         accent:    Colors.of(QsWindow.window).primary
         subtitle:  (Lyrics.viaBridge ? "Spotify bridge"
                     : Lyrics.hasSynced   ? "Fallback lookup"
@@ -198,7 +198,7 @@ Item {
                     anchors.bottom: parent.bottom
                     anchors.margins: Tokens.spacingSm
                     visible: !stageHover.containsMouse && !replayHold.running
-                    text: "hover to play"
+                    text: Translation.tr("hover to play")
                     variant: "micro"
                     emphasis: "dim"
                 }

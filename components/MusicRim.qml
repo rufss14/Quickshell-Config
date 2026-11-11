@@ -23,8 +23,11 @@ Item {
 
     // The pill's own corner radius, so the rim lies exactly on its edge.
     property real radius: 0
+    // Whose switch: the top bar's by default; the sidebar passes Config.sideMusicReact
+    // (its own once unlinked in Bar & sidebar › Style).
+    property bool react: Config.barMusicReact
 
-    readonly property bool _wanted: Config.barMusicReact && root.visible
+    readonly property bool _wanted: root.react && root.visible
     property bool _held: false
     on_WantedChanged: {
         if (root._wanted && !root._held) { MusicPulse.acquire(); root._held = true }

@@ -255,7 +255,7 @@ Item {
             },
             Translate {
                 x: strip.edge === "left" ? face.away : strip.edge === "right" ? -face.away : 0
-                y: strip.vertical ? 0 : -face.away
+                y: strip.vertical ? 0 : strip.edge === "top" ? face.away : -face.away
             }
         ]
 
@@ -602,6 +602,7 @@ Item {
             // How far INTO the screen the pointer is past the strip's inner edge.
             const inward = strip.edge === "left"  ? p.x - strip.button
                          : strip.edge === "right" ? -p.x
+                         : strip.edge === "top"   ? p.y - strip.button
                          :                         -p.y
             strip.dragOff = btn.index < strip.pinCount && inward > strip.button
             strip.dragScene = mouse.mapToItem(null, m.x, m.y)

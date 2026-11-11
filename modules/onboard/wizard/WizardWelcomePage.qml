@@ -42,7 +42,7 @@ WizardPage {
                 scale: heroPop.scale
                 RotationAnimator on rotation {
                     from: 0; to: 360; duration: 40000; loops: Animation.Infinite
-                    running: Config.motionEnabled && wizard.on(0)
+                    running: Motion.ambientOn && wizard.on(0)
                 }
             }
             Scallop {
@@ -54,7 +54,7 @@ WizardPage {
                 opacity: heroPop.opacity
                 RotationAnimator on rotation {
                     from: 360; to: 0; duration: 22000; loops: Animation.Infinite
-                    running: Config.motionEnabled && wizard.on(0)
+                    running: Motion.ambientOn && wizard.on(0)
                 }
             }
             Scallop {
@@ -66,7 +66,7 @@ WizardPage {
                 opacity: heroPop.opacity
                 RotationAnimator on rotation {
                     from: 0; to: 360; duration: 18000; loops: Animation.Infinite
-                    running: Config.motionEnabled && wizard.on(0)
+                    running: Motion.ambientOn && wizard.on(0)
                 }
             }
             Image {
@@ -234,7 +234,7 @@ WizardPage {
                     { i: "widgets",     t: "Morphing",     p: 2, ids: ["blob"], opt: true },
                     { i: "tune",        t: "Hyprland",     p: 3, ids: ["hypr", "autostart"], opt: true },
                     { i: "extension",   t: "Integrations", p: 4, ids: ["spotify", "wpe", "argos", "songrec", "awww", "ddc", "beatsync", "discordkeys"], opt: true },
-                    { i: "palette",     t: "Colours",      p: 5, ids: ["themes", "colours"], opt: true },
+                    { i: "palette",     t: "Colours",      p: 5, ids: ["themes", "colours", "discordtheme", "spotifytheme"], opt: true },
                     { i: "auto_awesome", t: "Style",       p: 6, ids: [], opt: true }
                 ]
                 delegate: WizardTopic {

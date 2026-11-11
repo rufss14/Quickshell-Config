@@ -1,5 +1,6 @@
 .pragma library
 .import "clockfmt.js" as ClockFmt
+.import "calllog.js" as CallLog
 
 // ── clips.js ──────────────────────────────────────────────────────────────────
 // The clips module's logic, as pure functions: the recorder's argv from the
@@ -240,13 +241,25 @@ function clipKind(name, ext) {
 
 // `filter`: "all" | "today" | "favourites" | "clip" | "recording" | "edit"; `favs`: paths.
 // `sort`: "newest" | "oldest" | "longest" | "largest". `game`: "" for every game, else one
-// `gameOf` name. `now`: ms, for "today". A new array, never the input.
-function libraryView(list, query, filter, favs, sort, game, now) {
+// `gameOf` name. `now`: ms, for "today". `ctx`: path → what was going on (contextOf), searched too.
+// `extra` { stamp: "music" | "call" | "", tag: "", tags: path → [tag] } narrows to clips that were
+// stamped with a song / with company, or carry a tag; the tags are searched too.
+// A new array, never the input.
+function libraryView(list, query, filter, favs, sort, game, now, ctx, extra) {
     const q = String(query ?? "").trim().toLowerCase()
     const fav = Array.isArray(favs) ? favs : []
     const g = String(game ?? "")
+    const book = ctx || {}
+    const x = extra || {}
+    const tagBook = x.tags || {}
+    const stamp = x.stamp || "", tag = x.tag || ""
     const out = (Array.isArray(list) ? list : []).filter(c =>
-        (q === "" || String(c.name).toLowerCase().indexOf(q) >= 0)
+        (q === "" || String(c.name).toLowerCase().indexOf(q) >= 0
+                  || contextLine(book[c.path]).toLowerCase().indexOf(q) >= 0
+                  || (tagBook[c.path] || []).some(t => t.toLowerCase().indexOf(q) >= 0))
+        && (stamp === "" || (stamp === "music" ? !!(book[c.path] && book[c.path].title)
+                                               : !!(book[c.path] && book[c.path].with && book[c.path].with.length > 0)))
+        && (tag === "" || (tagBook[c.path] || []).indexOf(tag) >= 0)
         && (g === "" || gameOf(c.name) === g)
         && (filter === "favourites" ? fav.indexOf(c.path) >= 0
             : filter === "today" ? isToday(c.mtime, now)
@@ -527,4 +540,183 @@ function stamp(secs) {
     const t = Math.max(0, Number(secs) || 0)
     const tenths = Math.floor((t - Math.floor(t)) * 10)
     return ClockFmt.clock(t) + "." + tenths
+}
+
+// ── Discord's upload cap ──────────────────────────────────────────────────────
+// A paste over the cap fails in Discord with nothing said here, so a clip bigger than `capMB` is
+// shrunk first (clips-lib.py export, `sizeMB`, which keeps its own 8% back for the container).
+//   → { shrink, sizeMB, cap, fits }   `fits` false: even at the lowest bitrate the export will use
+// (150 kbps video + 128 kbps audio, as clips-lib.py) this length can't get under it — say so rather
+// than ship an export that still fails. An unknown size (0) is left alone: nothing to compare.
+const DISCORD_CAPS = [10, 25, 50, 500]
+function discordPlan(bytes, capMB, duration) {
+    const cap = clampInt(capMB, 1, 500, 10)
+    const mb = Math.max(0, Number(bytes) || 0) / 1048576
+    if (!(mb > cap * 0.97)) return { shrink: false, sizeMB: 0, cap: cap, fits: true }
+    const floorMB = Math.max(0, Number(duration) || 0) * (150 + 128) * 1000 / 8 / 1048576
+    return { shrink: true, sizeMB: cap, cap: cap, fits: floorMB <= cap * 0.92 }
+}
+
+// ── Clearing out the library ──────────────────────────────────────────────────
+// What a clean-up would put in the trash, oldest first: older than `days`, then — if the library is
+// still over `gb` — more of the oldest, until it fits. 0 = no limit on that axis (both 0: nothing).
+// Never a favourite, never anything touched in the last 15 minutes (a recording still being written
+// has a fresh mtime), never an entry without a time. `list` is newest-first, as the index gives it.
+// → { paths, bytes, count }
+const PRUNE_GRACE_MS = 15 * 60 * 1000
+function prunePlan(list, favs, opts, now) {
+    const o = opts || {}
+    const days = clampInt(o.days, 0, 3650, 0), gb = clampInt(o.gb, 0, 100000, 0)
+    const all = Array.isArray(list) ? list : []
+    const t = Number(now) || Date.now()
+    const fav = {}
+    for (const p of (Array.isArray(favs) ? favs : [])) fav[p] = true
+    const cand = all.filter(c => c && !fav[c.path] && Number(c.mtime) > 0 && t - c.mtime > PRUNE_GRACE_MS)
+                    .sort((a, b) => a.mtime - b.mtime)
+    const out = {}
+    let total = all.reduce((n, c) => n + (Number(c && c.size) || 0), 0)
+    const take = c => { out[c.path] = c; total -= Number(c.size) || 0 }
+    if (days > 0) for (const c of cand) if (t - c.mtime > days * 86400000) take(c)
+    if (gb > 0) for (const c of cand) {
+        if (total <= gb * 1073741824) break
+        if (!out[c.path]) take(c)
+    }
+    const hit = cand.filter(c => out[c.path])
+    return { paths: hit.map(c => c.path), bytes: hit.reduce((n, c) => n + (Number(c.size) || 0), 0), count: hit.length }
+}
+
+// "3.2 GB" / "412 MB" for a byte count.
+function bytesText(n) {
+    const b = Math.max(0, Number(n) || 0)
+    return b >= 1073741824 ? (Math.round(b / 107374182.4) / 10) + " GB" : Math.round(b / 1048576) + " MB"
+}
+
+// ── What was going on when it was saved ───────────────────────────────────────
+// Stamped at save time from what the shell already knows — the song the MPRIS player (Spotify, through
+// its bridge or not) is playing, and who is in your Discord call — so the library can say "♪ Artist —
+// Title" and be searched for it. Names are what strangers typed: CallLog's cleaning (control and bidi
+// characters out, cut at 64), only ever drawn as plain text.
+// → { artist, title, with } — `title` "" = no song — or null when there is neither song nor company.
+function contextOf(track, callers, wantMusic, wantCall) {
+    const t = track || {}
+    const title = wantMusic ? CallLog.cleanName(t.title) : ""
+    const artist = title === "" ? "" : CallLog.cleanName(t.artist)
+    const names = wantCall ? CallLog.people(callers).map(p => p.name).filter(n => n !== "").slice(0, 8) : []
+    return title === "" && names.length === 0 ? null : { artist: artist, title: title, with: names }
+}
+
+function contextLine(ctx) {
+    if (!ctx) return ""
+    const parts = []
+    if (ctx.title) parts.push("♪ " + (ctx.artist ? ctx.artist + " — " : "") + ctx.title)
+    if (Array.isArray(ctx.with) && ctx.with.length > 0) parts.push("with " + ctx.with.join(", "))
+    return parts.join("  ·  ")
+}
+
+// The stored book, cleaned at the door (it is hand-editable): { "/abs/path": { artist, title, with } },
+// at most MAX_CONTEXT entries (the latest kept). A new object.
+const MAX_CONTEXT = 5000
+function cleanBook(raw) {
+    const src = raw && typeof raw === "object" && raw.paths && typeof raw.paths === "object" ? raw.paths : {}
+    const out = {}
+    for (const k of Object.keys(src).filter(k => k.charAt(0) === "/").slice(-MAX_CONTEXT)) {
+        const v = src[k] || {}
+        const str = x => typeof x === "string" ? x : ""
+        const c = contextOf({ artist: str(v.artist), title: str(v.title) }, [], true, false)
+        const names = (Array.isArray(v.with) ? v.with : []).filter(n => typeof n === "string")
+                          .map(n => CallLog.cleanName(n)).filter(n => n !== "").slice(0, 8)
+        if (c || names.length > 0)
+            out[k] = { artist: c ? c.artist : "", title: c ? c.title : "", with: names }
+    }
+    return out
+}
+
+// A list's identity for "did anything I show change": the first `n` entries' path, time, size, frame.
+// A panel that rebuilds its delegates on every index refresh flickers; one that compares this does not.
+function listSig(list, n) {
+    return (Array.isArray(list) ? list : []).slice(0, n)
+        .map(c => [c.path, c.mtime, c.size, c.thumb ?? "", c.duration ?? 0].join("|")).join("\n")
+}
+
+// ── The library as rows, so a list can build only what is on screen ───────────
+// `groups` (groupByDay) cut into what a virtualised ListView draws: a heading per labelled group (with how
+// many clips, how many bytes and how much footage it holds) and rows of `cols` clips. Every item has a
+// unique `key` (a heading by its day, a row by its first clip) so a refresh keeps the delegates it can.
+function layoutRows(groups, cols) {
+    const n = Math.max(1, Math.floor(Number(cols) || 1))
+    const out = []
+    for (const g of (Array.isArray(groups) ? groups : [])) {
+        const clips = g.clips || []
+        if (clips.length === 0) continue
+        if (g.label !== "")
+            out.push({ key: "head:" + g.key, kind: "head", label: g.label, count: clips.length,
+                       bytes: clips.reduce((a, c) => a + (Number(c.size) || 0), 0),
+                       secs: clips.reduce((a, c) => a + (Number(c.duration) || 0), 0) })
+        for (let i = 0; i < clips.length; i += n)
+            out.push({ key: "row:" + clips[i].path, kind: "row", clips: clips.slice(i, i + n) })
+    }
+    return out
+}
+
+// ── Tags ──────────────────────────────────────────────────────────────────────
+// Free labels you put on clips ("clutch", "funny", "to edit"), kept in their own document: { paths: { "/abs":
+// ["tag", …] } }. What a person types is cleaned like a name (CallLog's: control and bidi characters out), runs
+// of spaces collapse, 24 characters, six to a clip; "clutch" and "Clutch" are the same tag (the first spelling
+// stays). Every function returns a NEW book.
+const MAX_TAGS = 6, MAX_TAG = 24
+function cleanTag(t) {
+    const s = CallLog.cleanName(typeof t === "string" ? t : "").replace(/\s+/g, " ").trim()
+    return s.length > MAX_TAG ? s.slice(0, MAX_TAG).trim() : s
+}
+function _addTo(list, tag) {
+    const have = list.map(x => x.toLowerCase())
+    return have.indexOf(tag.toLowerCase()) >= 0 || list.length >= MAX_TAGS ? list : list.concat([tag])
+}
+function cleanTagBook(raw) {
+    const src = raw && typeof raw === "object" && raw.paths && typeof raw.paths === "object" ? raw.paths : {}
+    const out = {}
+    for (const k of Object.keys(src).filter(k => k.charAt(0) === "/").slice(-MAX_CONTEXT)) {
+        let list = []
+        for (const t of (Array.isArray(src[k]) ? src[k] : [])) {
+            const c = cleanTag(t)
+            if (c !== "") list = _addTo(list, c)
+        }
+        if (list.length > 0) out[k] = list
+    }
+    return out
+}
+function withTag(book, paths, tag) {
+    const t = cleanTag(tag), out = Object.assign({}, book || {})
+    if (t === "") return out
+    for (const p of (Array.isArray(paths) ? paths : []))
+        if (typeof p === "string" && p.charAt(0) === "/") out[p] = _addTo(out[p] || [], t)
+    return out
+}
+function withoutTag(book, paths, tag) {
+    const out = Object.assign({}, book || {}), low = String(tag).toLowerCase()
+    for (const p of (Array.isArray(paths) ? paths : [])) {
+        if (!out[p]) continue
+        const rest = out[p].filter(x => x.toLowerCase() !== low)
+        if (rest.length > 0) out[p] = rest; else delete out[p]
+    }
+    return out
+}
+// A book without these paths at all (they were trashed).
+function withoutAll(book, paths) {
+    const out = Object.assign({}, book || {})
+    for (const p of (Array.isArray(paths) ? paths : [])) delete out[p]
+    return out
+}
+// The tags on `paths` (all of the book when none are given), most used first: [{ tag, count }].
+function tagCounts(book, paths) {
+    const b = book || {}, keys = Array.isArray(paths) ? paths : Object.keys(b), n = {}
+    for (const k of keys) for (const t of (b[k] || [])) n[t] = (n[t] || 0) + 1
+    return Object.keys(n).map(t => ({ tag: t, count: n[t] }))
+        .sort((a, b2) => b2.count - a.count || (a.tag.toLowerCase() < b2.tag.toLowerCase() ? -1 : 1))
+}
+
+// A group of clips' weight in words: "5 clips · 1.2 GB · 3:20".
+function groupLine(count, bytes, secs) {
+    return count + (count === 1 ? " clip" : " clips") + " · " + bytesText(bytes)
+         + (secs > 0 ? " · " + ClockFmt.clock(secs) : "")
 }

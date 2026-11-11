@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
+import Quickshell.Services.Mpris
 import "../config"
 import "../state"
 import "clips.js" as ClipsJs
@@ -34,12 +35,12 @@ import "clips.js" as ClipsJs
 // while it's on, the replay buffer is KEPT running — started with the shell,
 // restarted if it dies (three failures in a row and it stops and says why) — so a
 // clip is always one key away. Never switched on by anything but the user: no
-// auto-start on games — except Config.gamemodeClips (2026-11-07, the user's ask, off by
+// auto-start on games — except Config.gamemodeClips (off by
 // default), which holds the buffer for as long as Game Mode is on without touching the
 // switch. Turning either off stops the buffer. Missing gpu-screen-recorder DISABLES the
 // controls with a reason (`blocker()`).
 //
-// ── Added 2026-10-18 ──────────────────────────────────────────────────────────
+// ── What it also does ─────────────────────────────────────────────────────────
 //   clip-ahead       "Clip it" + N more seconds (Config.clipsAhead; aheadPlan, headtrim in the lib)
 //   game names       clips named after the window (the runner's hook; Config.clipsNameByWindow)
 //   health           free RAM / disk, the recorder's own memory, the capture capability — probed
@@ -47,7 +48,12 @@ import "clips.js" as ClipsJs
 //                    wrong, in words (clips.js diagnose)
 //   record limits    "stop after 10 min / 2 GB" (Config.clipsRecordLimit)
 //   presets          one click sets the recording profile (clips.js PRESETS)
-//   quick actions    edit a clip in the gallery's editor, send it to Discord
+//   quick actions    edit a clip in the gallery's editor, send it to Discord (shrunk under the upload
+//                    cap first when it is over: Config.clipsDiscordMB, clips.js discordPlan)
+//   context          a saved clip is stamped with the song playing (MPRIS, Spotify included) and, if
+//                    asked, who is in the Discord call (Config.clipsStampMusic / clipsStampCall)
+//   clean-up         `prunePreview` / `prune()`: what Config.clipsPruneDays / clipsPruneGB would
+//                    trash — a button, never automatic
 //
 // ── Diagnose it with ─────────────────────────────────────────────────────────
 //     qs ipc -c ~/.config/quicktest call clips status
@@ -223,6 +229,7 @@ Singleton {
         for (const w of wins.slice(0, root.pickWindows)) {
             const t = (w.title || "").length > 28 ? w.title.slice(0, 27) + "…" : (w.title || "")
             out.push({ key: "win:" + w.address, glyph: "\u{F08C6}", kind: "window", enabled: true,  // 󰣆 application
+                       icon: Icons.pathForAppId(w.appClass),
                        label: (w.appClass || "Window") + (t ? " — " + t : "") })
         }
         out.push({ key: "region", glyph: "\u{F019E}", kind: "other", enabled: root.hasSlurp,    // 󰆞 crop
@@ -627,6 +634,7 @@ Singleton {
     function _announce(e) {
         if (e.type === "screenshot") return
         if (e.type === "replay" && root._trim && e.t >= root._trim.since) root._trimSaved(e.path)
+        root._stamp(e.path)
         root.lastSaved = e
         root.savedId++
         root.saved(e.path, e.type)
@@ -647,6 +655,9 @@ Singleton {
     readonly property var latest: root.clips.length > 0 ? root.clips[0] : null
     property bool indexing: false
     property bool _again: false
+    // The last index, as text. An index that comes back identical changes nothing: assigning a new
+    // array anyway rebuilds every panel's delegates (and their thumbnails) for no reason.
+    property string _indexText: ""
 
     function refresh() {
         if (!Config.clips) return
@@ -660,9 +671,10 @@ Singleton {
         id: indexProc
         stdout: StdioCollector {
             onStreamFinished: {
+                if (text === root._indexText) return
                 try {
                     const list = JSON.parse(text)
-                    if (Array.isArray(list)) root.clips = list
+                    if (Array.isArray(list)) { root._indexText = text; root.clips = list }
                 } catch (e) {
                     console.warn("Clips: unreadable index")
                 }
@@ -736,7 +748,7 @@ Singleton {
             root.acting = false
             const ok = code === 0
             const p = actOut.text.trim()
-            if (ok && actProc.verb === "Renamed") root._moveFavourite(actProc.from, p)
+            if (ok && actProc.verb === "Renamed") { root._moveFavourite(actProc.from, p); root._moveContext(actProc.from, p) }
             root._result(ok, p, ok ? actProc.verb + " — " + p.substring(p.lastIndexOf("/") + 1)
                                    : (actErr.text.trim() || "Failed"), actProc.select)
             root.refresh()
@@ -809,10 +821,102 @@ Singleton {
                             : exportProc.cancelled ? "Export cancelled"
                             : (exportErr.text.trim() || "Export failed"),
                          ok && !p.endsWith(".gif"))
+            if (root.sharing !== "") {
+                root.sharing = ""
+                if (ok) root._deliver(p, "")
+                else if (!exportProc.cancelled)
+                    Quickshell.execDetached(["notify-send", "--app-name=Clips", "--icon=media-record",
+                                             "Couldn't shrink it", exportErr.text.trim() || "The export failed."])
+            }
             exportProc.cancelled = false
             root.refresh()
             if (root.exportTotal > 0) { root.exportDone++; Qt.callLater(root._exportNext) }
         }
+    }
+
+    // ══ What was going on ═════════════════════════════════════════════════════
+    // At save time a clip is stamped with the song the MPRIS player is playing (Spotify included)
+    // and, when asked, who is in your Discord call — `Config.clipsStampMusic` / `clipsStampCall`.
+    // Kept in their own document beside the favourites (a path → { artist, title, with }), names
+    // and titles only, cleaned on the way in and out (clips.js cleanBook). The call one is off by
+    // default: it writes other people's names down.
+    JsonStore {
+        id: ctxStore
+        path: Quickshell.statePath("clip-context.json")
+        defaults: ({ paths: {} })
+    }
+    readonly property var contexts: ClipsJs.cleanBook(ctxStore.value)
+    function contextOf(path) { return root.contexts[path] ?? null }
+    function _nowPlaying() {
+        const p = Mpris.players.values.find(x => x.isPlaying)
+        return p ? { artist: p.trackArtist ?? "", title: p.trackTitle ?? "" } : null
+    }
+    function _stamp(path) {
+        if (!path || path.charAt(0) !== "/") return
+        const c = ClipsJs.contextOf(root._nowPlaying(), Discord.inCall ? Discord.users : [],
+                                    Config.clipsStampMusic, Config.clipsStampCall)
+        if (!c) return
+        const next = Object.assign({}, root.contexts)
+        next[path] = c
+        ctxStore.value = { paths: next }
+    }
+    // A rename moves what a clip carries (its stamp, its tags) to the new name; a trash drops it.
+    function _moveContext(from, to) {
+        if (!to) return
+        const c = root.contexts[from]
+        if (c) {
+            const next = Object.assign({}, root.contexts)
+            delete next[from]
+            next[to] = c
+            ctxStore.value = { paths: next }
+        }
+        const t = root.tags[from]
+        if (t) {
+            const next = Object.assign({}, root.tags)
+            delete next[from]
+            next[to] = t
+            tagStore.value = { paths: next }
+        }
+    }
+    function _forget(paths) {
+        if (paths.some(p => root.contexts[p])) {
+            const next = Object.assign({}, root.contexts)
+            for (const p of paths) delete next[p]
+            ctxStore.value = { paths: next }
+        }
+        if (paths.some(p => root.tags[p]))
+            tagStore.value = { paths: ClipsJs.withoutAll(root.tags, paths) }
+    }
+    // ── Tags: your own labels on clips ────────────────────────────────────────
+    // path → ["clutch", …] in `clip-tags.json` (clips.js has the rules: cleaned, 24 characters, six a clip).
+    JsonStore {
+        id: tagStore
+        path: Quickshell.statePath("clip-tags.json")
+        defaults: ({ paths: {} })
+    }
+    readonly property var tags: ClipsJs.cleanTagBook(tagStore.value)
+    function tagsOf(path) { return root.tags[path] ?? [] }
+    function addTag(paths, tag) { tagStore.value = { paths: ClipsJs.withTag(root.tags, paths, tag) } }
+    function removeTag(paths, tag) { tagStore.value = { paths: ClipsJs.withoutTag(root.tags, paths, tag) } }
+
+    // Forget every stamp (Settings › Clips).
+    function forgetContexts() { ctxStore.value = { paths: {} } }
+
+    // ══ The library's weight, and clearing it out ═════════════════════════════
+    // `libraryBytes` is what the index adds up to. `prunePreview` is what a clean-up WOULD trash
+    // (clips.js prunePlan: older than Config.clipsPruneDays, then the oldest until it fits
+    // Config.clipsPruneGB; never a favourite or a file written in the last 15 minutes). Nothing is
+    // ever deleted by itself: `prune()` is a button, and it goes to the trash.
+    readonly property real libraryBytes: root.clips.reduce((n, c) => n + (c.size || 0), 0)
+    readonly property var prunePreview: ClipsJs.prunePlan(root.clips, root.favourites,
+        { days: Config.clipsPruneDays, gb: Config.clipsPruneGB }, Date.now())
+    function prune() {
+        const plan = root.prunePreview
+        if (plan.count === 0) return
+        root.trashClips(plan.paths)
+        Quickshell.execDetached(["notify-send", "--app-name=Clips", "--icon=media-record", "Clips cleaned up",
+                                 plan.count + (plan.count === 1 ? " clip" : " clips") + " moved to the trash ("
+                                 + ClipsJs.bytesText(plan.bytes) + ")."])
     }
 
     // ══ Favourites ════════════════════════════════════════════════════════════
@@ -844,6 +948,8 @@ Singleton {
         if (!path || !path.startsWith("/")) return
         Quickshell.execDetached(["gio", "trash", "--", path])
         root.clips = root.clips.filter(c => c.path !== path)
+        root._indexText = ""
+        root._forget([path])
         if (root.isFavourite(path)) favStore.value = { paths: root.favourites.filter(p => p !== path) }
         refreshSoon.restart()
     }
@@ -853,6 +959,8 @@ Singleton {
         if (list.length === 0) return
         Quickshell.execDetached(["gio", "trash", "--"].concat(list))
         root.clips = root.clips.filter(c => list.indexOf(c.path) < 0)
+        root._indexText = ""
+        root._forget(list)
         favStore.value = { paths: root.favourites.filter(p => list.indexOf(p) < 0) }
         refreshSoon.restart()
     }
@@ -1028,14 +1136,34 @@ Singleton {
         root.refresh()
     }
     // To Discord: the file goes on the clipboard the way a file manager copies it, and Discord's
-    // window comes forward if it is open — a paste into a chat attaches the clip.
+    // window comes forward if it is open — a paste into a chat attaches the clip. A clip over
+    // `Config.clipsDiscordMB` is shrunk under it first (the editor's export, clips.js discordPlan):
+    // Discord refuses a bigger upload and says nothing here. `sharing` is the path being shrunk.
+    property string sharing: ""
     function sendToDiscord(path) {
         if (!path) return
+        const e = root.clips.find(c => c.path === path)
+        const plan = ClipsJs.discordPlan(e ? e.size : 0, Config.clipsDiscordMB, e ? e.duration : 0)
+        if (!plan.shrink || !e || !(e.duration > 0) || root.exporting || root.exportTotal > 0) {
+            root._deliver(path, plan.shrink ? "Bigger than " + plan.cap + " MB — Discord may refuse it." : "")
+            return
+        }
+        if (!plan.fits) {
+            root._deliver(path, "Too long to fit " + plan.cap + " MB — trim it first, or Discord will refuse it.")
+            return
+        }
+        root.sharing = path
+        root.exportClip(path, 0, e.duration, { precise: true, sizeMB: plan.sizeMB, audio: "mix", format: "mp4" })
+        Quickshell.execDetached(["notify-send", "--app-name=Clips", "--icon=media-record",
+                                 "Shrinking for Discord", "Fitting it under " + plan.cap + " MB…"])
+    }
+    function _deliver(path, warning) {
         root.copyClip(path)
         const open = Discord.windowAddress !== ""
         if (open) Discord.focusWindow()
-        Quickshell.execDetached(["notify-send", "--app-name=Clips", "--icon=media-record",
-                                 "Clip copied", open ? "Paste it into a Discord chat." : "Discord isn't open — paste it wherever you like."])
+        Quickshell.execDetached(["notify-send", "--app-name=Clips", "--icon=media-record", "Clip copied",
+                                 warning !== "" ? warning
+                                 : open ? "Paste it into a Discord chat." : "Discord isn't open — paste it wherever you like."])
     }
     // A text/uri-list for these files (what a file manager copies and what a drag carries); "" for none.
     function uriList(paths) {
@@ -1092,6 +1220,7 @@ Singleton {
         function record(): void { root.toggleRecord() }
         function region(): void { root.recordRegion() }
         function gallery(): void { root.openGallery() }
+        function galleryClose(): void { UiState.clipsGalleryOpen = false }
         // States and counts only — never a file name.
         function status(): string {
             return JSON.stringify({

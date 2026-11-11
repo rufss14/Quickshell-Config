@@ -189,8 +189,9 @@ Tests: `bun scripts/test-hud.js` (layout rules, migration, snapping, anchors + t
 
 The user: make the keyboard-and-mouse overlay customisable — a full keyboard, numbers, and so on.
 
-- **Layouts** (`services/inputkeys.js`): one master table of keys (`DEF`: id, label, evdev codes) and five presets that only PLACE
-  them — **WASD** (the old 12-key board, still the default), **Games** (Esc, numbers 1–5 and the keys round WASD), **60%** (the main
+- **Layouts** (`services/inputkeys.js`): one master table of keys (`DEF`: id, label, evdev codes) and six presets that only PLACE
+  them — **WASD** (the old 12-key board, still the default), **Games** (Esc, numbers 1–5 and the keys round WASD), **4K** (D F J K in one
+  row, for osu!mania; names only those four, so exposure "few"), **60%** (the main
   block), **TKL** (+ function row, navigation, arrows) and **Full** (+ the number pad, 104 caps). A layout is rows of
   `"id"` / `["id", w]` / `["id", w, h]` / gaps, built by `_build`; `layoutOf(id)` caches it; an unknown id is the default.
   Both copies of a modifier (two Shifts, two Ctrls) are the same id and light together. The old `KEYS / COLS / ROWS` are the WASD board.

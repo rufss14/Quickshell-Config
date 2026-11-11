@@ -6,7 +6,7 @@
 
 ![The bar with two panels open, welded into one shape: the wallpaper gallery and Now Playing with synced lyrics](assets/previews/MorphPreview.png)
 
-`v0.4` &nbsp;|&nbsp; Arch Linux &nbsp;|&nbsp; Hyprland &nbsp;|&nbsp; QML / JS
+`v0.4.1` &nbsp;|&nbsp; Arch Linux &nbsp;|&nbsp; Hyprland &nbsp;|&nbsp; QML / JS
 
 </div>
 
@@ -39,7 +39,7 @@ v0.3 rebuilt the codebase. v0.4 is what got built on top of it.
   hug their content instead of sitting in fixed boxes.
 - **A sidebar.** A second edge for the dock and a set of small modules: stats, clips,
   timer, colour picker, clipboard, notifications, screen time, Lens, a Discord call
-  panel and a power menu. Drag them around like the bar's modules.
+  panel and a power menu. Every module can live on the bar or the sidebar, and you drag it between them.
 - **A real dock.** Pinned and running apps, live window previews, a jump list on
   right-click, and SUPER+ALT+number to launch the nth app.
 - **Clips.** A ShadowPlay-style replay buffer on `gpu-screen-recorder`. Save the last
@@ -250,9 +250,9 @@ A full settings app, searchable, in ten groups:
 |-------|-------|
 | Appearance | Theme, type and shape, night light, cursor |
 | Wallpaper | Images and Wallpaper Engine scenes |
-| Bar | Modules, style, panels |
+| Bar & sidebar | Modules, style, behaviour, panels |
 | Launcher | AI provider, terminal, web search, history |
-| Sidebar | Layout, dock, stats, screen time, clips |
+| Sidebar | Layout, screen time, clips |
 | Desktop | Widgets, widget style, lock screen |
 | Devices | Sound, sound effects, displays, Wi‑Fi, traffic, Bluetooth, keyboard and mouse, language, battery |
 | Window manager | Keybinds and compositor tuning, written straight to your Hyprland config, with backups |
@@ -379,7 +379,7 @@ qs ipc -c ~/.config/quicktest show              # every target the shell exposes
 | Package | For |
 |---------|-----|
 | `quickshell`, `hyprland`, `qt6-*` | The shell, the compositor, the Qt runtime |
-| `pipewire`, `wireplumber`, `rtkit`, `networkmanager`, `bluez` | Audio (realtime, so it doesn't crackle under load), network, Bluetooth |
+| `pipewire`, `wireplumber`, `networkmanager`, `bluez` | Audio, network, Bluetooth |
 | `python-pywal16`, `python-pillow`, `imagemagick` | Palettes from wallpapers and album art, the cursor theme |
 | `cava` | The audio visualizer |
 | `pacman-contrib` | Update checks (Flatpak apps are updated too, if you have Flatpak) |
@@ -405,8 +405,6 @@ reason when it's missing, instead of failing on click.
   that needs a missing tool says which one.
 - **The shell misbehaves.** ALT+Q restarts it. Its log:
   `qs log -p ~/.config/quicktest` (add `-f` to follow it).
-- **Audio crackles under load.** Make sure `rtkit` is installed (setup installs it), then
-  log out and back in so PipeWire can run in realtime.
 - **A setting won't stick, or the bar looks wrong after an update.** Your settings are in
   the file under [Configuration](#configuration). Move it aside and restart to get the
   defaults back.

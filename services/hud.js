@@ -44,7 +44,7 @@ function clampScale(v, fallback) {
 }
 
 // The input overlay's keyboard presets (services/inputkeys.js LAYOUT_IDS — scripts/test-hud.js keeps the two equal).
-var INPUT_LAYOUTS = ["wasd", "gaming", "compact", "tkl", "full"]
+var INPUT_LAYOUTS = ["wasd", "gaming", "osu4k", "compact", "tkl", "full"]
 
 // Marks text for translation where it is written (scripts/translations.py finds it); the
 // view translates it where it is drawn with Translation.tr(modelData.label).

@@ -243,6 +243,10 @@ Singleton {
 
     function _reconcile(found) {
         if (!root.ruleOk) return           // never start one before the rule that parks it
+        // Not enabled, or the scene list not loaded yet: `wanted` is empty for a moment that
+        // says nothing about the renderers. Killing "stale" ones on that was the silent SIGTERM.
+        // A real switch-off is handled by offTimer below, not by a scan.
+        if (!root.enabled || WallpaperEngine.items.length === 0) return
         const next = {}
         const stale = []
         const bgOf = {}
@@ -329,12 +333,21 @@ Singleton {
     }
     onEnabledChanged: {
         root.version++
-        if (root.enabled) return
-        // Off (preload switched off, Game Mode): the renderers go.
-        for (const id in root.pids) root._run(["kill", "--", String(root.pids[id])])
-        root.pids = ({})
-        root.windows = ({})
-        root._attempts = ({})
+        // Debounced: `enabled` flaps during a rescan or a Game Mode toggle, and a renderer
+        // killed on a flap is the crash the user saw. Only a switch-off that holds goes through.
+        if (root.enabled) offTimer.stop(); else offTimer.restart()
+    }
+    Timer {
+        id: offTimer
+        interval: 2000
+        onTriggered: {
+            if (root.enabled) return
+            // Off (preload switched off, Game Mode): the renderers go.
+            for (const id in root.pids) root._run(["kill", "--", String(root.pids[id])])
+            root.pids = ({})
+            root.windows = ({})
+            root._attempts = ({})
+        }
     }
     Component.onCompleted: if (root.ruleOk) scanSoon.restart()
 

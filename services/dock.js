@@ -583,23 +583,47 @@ function sideRail(o) {
         return { rel: rel, len: n > 0 ? p + pad : 0 }
     }
 
+    // `o.joined[region][i]`: group i is the next piece of the same LAYOUT group as i - 1
+    // (sideGroups splits a group round the dock; sideJoins says which pieces were one).
+    // Joined pieces butt together with no gap — every length carries its own pad — so
+    // the dock and the modules grouped with it read as one group (one island,
+    // SideRegionPills), as on the bar. A piece whose neighbour is absent (no length)
+    // takes the gap as usual.
+    const joinedAt = (r, i) => !!(o.joined && o.joined[r] && o.joined[r][i])
     const groups = {}
     for (const r of REGIONS)
         groups[r] = ((o.layout && o.layout[r]) || []).map((ids, index) =>
             Object.assign({ region: r, index: index, ids: ids }, lay(ids)))
     const present = list => list.filter(g => g.len > 0)
+    const between = (a, b) => b.region === a.region && b.index === a.index + 1 && joinedAt(b.region, b.index) ? 0 : gap
     const block = list => {
         const p = present(list)
-        return p.length > 0 ? p.reduce((s, g) => s + g.len, 0) + gap * (p.length - 1) : 0
+        let s = 0
+        for (let i = 0; i < p.length; i++) s += p[i].len + (i > 0 ? between(p[i - 1], p[i]) : 0)
+        return s
     }
 
     // start: from the near corner, in order
     let p = Math.round(o.near)
-    for (const g of present(groups.start)) { g.pos = p; p += g.len + gap }
+    {
+        const list = present(groups.start)
+        for (let i = 0; i < list.length; i++) {
+            if (i > 0) p += between(list[i - 1], list[i])
+            list[i].pos = p
+            p += list[i].len
+        }
+    }
 
     // end: back from the far corner, in order
     p = o.corner
-    for (const g of present(groups.end).reverse()) { p -= g.len; g.pos = Math.round(p); p -= gap }
+    {
+        const list = present(groups.end)
+        for (let i = list.length - 1; i >= 0; i--) {
+            p -= list[i].len
+            list[i].pos = Math.round(p)
+            if (i > 0) p -= between(list[i - 1], list[i])
+        }
+    }
 
     // centre: one block between the two
     const starts = present(groups.start), ends = present(groups.end)
@@ -612,15 +636,27 @@ function sideRail(o) {
     let c = Math.round(o.start + (o.end - o.start - centreLen) / 2)
     if (o.avoid > 0) c = Math.max(c, Math.round(o.avoid))
     c = Math.max(floor, Math.min(c, limit))
-    for (const g of present(groups.centre)) { g.pos = c; c += g.len + gap }
+    {
+        const list = present(groups.centre)
+        for (let i = 0; i < list.length; i++) {
+            if (i > 0) c += between(list[i - 1], list[i])
+            list[i].pos = c
+            c += list[i].len
+        }
+    }
 
     const at = {}
     const out = []
-    for (const r of REGIONS)
-        for (const g of present(groups[r])) {
+    for (const r of REGIONS) {
+        const list = present(groups[r])
+        list.forEach((g, i) => {
             for (const id in g.rel) at[id] = g.pos + g.rel[id]
-            out.push({ region: r, index: g.index, ids: g.ids, pos: g.pos, len: g.len })
-        }
+            const e = { region: r, index: g.index, ids: g.ids, pos: g.pos, len: g.len }
+            // Present only when it is: a piece continuing the group before it.
+            if (i > 0 && gap > 0 && between(list[i - 1], g) === 0) e.joined = true
+            out.push(e)
+        })
+    }
 
     // ── Room at rest ──────────────────────────────────────────────────────────
     // A module's room is what its group may take, less the rest of its own group.
@@ -671,6 +707,30 @@ function sideGroups(layout, isBig) {
                 } else run.push(id)
             }
             if (run.length > 0) out[r].push(run)
+        }
+    }
+    return out
+}
+
+// ── sideJoins ─────────────────────────────────────────────────────────────────
+// Which of sideGroups' pieces continue the layout group before them, aligned with its
+// output: { start: [false, true, …], … }. A group of [clips, dock, stats] splits into
+// three pieces that were ONE group — the rail lays them gapless (sideRail `joined`) and
+// SideRegionPills draws one island round them, so the dock groups like any module.
+function sideJoins(layout, isBig) {
+    const out = {}
+    for (const r of ["start", "centre", "end"]) {
+        out[r] = []
+        for (const g of (layout && layout[r]) || []) {
+            let first = true, run = false
+            for (const id of g) {
+                if (isBig(id)) {
+                    if (run) { out[r].push(!first); first = false; run = false }
+                    out[r].push(!first)
+                    first = false
+                } else run = true
+            }
+            if (run) out[r].push(!first)
         }
     }
     return out

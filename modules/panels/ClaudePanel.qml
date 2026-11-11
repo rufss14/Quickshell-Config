@@ -44,20 +44,40 @@ import "../../services/claudeusage.js" as Usage
 // Motion: rows arrive and leave like the voice panel's people; a row's state crossfades;
 // a working session's mark turns (the panel is only up while you look at it).
 //
-// The panel recipe: PanelHeader + ActionGroup, tokens throughout, shared widgets.
+// The shell's Material 3 Expressive panel shape: an optional header (Settings › Modules › Claude Code), a
+// hero that says what the sessions are doing (it turns while one works, warns while one needs you) with New
+// on it, then tonal cards and rows.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
 
     property real maxHeight: Infinity
 
-    readonly property int pad: Tokens.spacingLg
+    readonly property int pad: Tokens.spacingXl
+    readonly property color accent: Colors.of(QsWindow.window).primary
     implicitWidth: Tokens.sideCardUnit * 9
     implicitHeight: Math.min(root.maxHeight, col.implicitHeight + root.pad * 2)
 
     readonly property real listRoom: Math.max(Tokens.sideCardUnit * 2, Math.min(Tokens.sideCardUnit * 6,
-        root.maxHeight - root.pad * 2 - head.implicitHeight - offer.implicitHeight
-        - usage.implicitHeight - col.spacing * 3))
+        root.maxHeight - root.pad * 2 - (head.visible ? head.implicitHeight + col.spacing : 0)
+        - hero.implicitHeight - offer.implicitHeight - usage.implicitHeight - col.spacing * 3))
+
+    // What the sessions are doing, in one line (the header's subtitle and the hero's).
+    readonly property string summary: {
+        if (ClaudeSessions.lastError !== "") return ClaudeSessions.lastError
+        const n = ClaudeSessions.sessions.length
+        const r = ClaudeSessions.recent.length
+        if (n === 0) {
+            if (!ClaudeSessions.ready) return Translation.tr("Looking…")
+            return r > 0 ? Translation.tr("%1 to resume").arg(r) : Translation.tr("Start one in a terminal")
+        }
+        const bits = []
+        if (ClaudeSessions.needsYou.length > 0) bits.push(ClaudeSessions.needsYou.length === 1 ? Translation.tr("1 needs you") : Translation.tr("%1 need you").arg(ClaudeSessions.needsYou.length))
+        if (ClaudeSessions.busyCount > 0) bits.push(Translation.tr("%1 working").arg(ClaudeSessions.busyCount))
+        const idle = n - ClaudeSessions.busyCount - ClaudeSessions.needsYou.length
+        if (idle > 0) bits.push(Translation.tr("%1 waiting").arg(idle))
+        return bits.join(" · ")
+    }
 
     // The directory "New" starts in: this shell's own ("quicktest"), by its last segment.
     readonly property string homeProject: Quickshell.shellDir.replace(/\/+$/, "").split("/").pop()
@@ -160,48 +180,53 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.margins: root.pad
-        spacing: Tokens.spacingMd
+        spacing: Tokens.spacingSm
 
         PanelHeader {
             id: head
             Layout.fillHeight: false
+            visible: Config.panelHeader("claude")
             glyph:     "\u{F06C4}"                                           // 󰛄 asterisk
             // While any session works the chip plays the burst.
             mark:      ClaudeSessions.busyCount > 0 ? burstMark : null
             title:     Translation.tr("Claude")
-            titleTail: "sessions"
-            accent:    Colors.of(QsWindow.window).primary
-            subtitle: {
-                if (ClaudeSessions.lastError !== "") return ClaudeSessions.lastError
-                const n = ClaudeSessions.sessions.length
-                const r = ClaudeSessions.recent.length
-                if (n === 0) {
-                    if (!ClaudeSessions.ready) return "Looking…"
-                    return r > 0 ? "Nothing running · " + r + " to resume" : "Nothing running"
-                }
-                const bits = []
-                if (ClaudeSessions.needsYou.length > 0) bits.push(ClaudeSessions.needsYou.length + " need" + (ClaudeSessions.needsYou.length === 1 ? "s" : "") + " you")
-                if (ClaudeSessions.busyCount > 0) bits.push(ClaudeSessions.busyCount + " working")
-                const idle = n - ClaudeSessions.busyCount - ClaudeSessions.needsYou.length
-                if (idle > 0) bits.push(idle + " waiting")
-                return bits.join(" · ")
-            }
+            titleTail: Translation.tr("sessions")
+            accent:    root.accent
+            subtitle:  root.summary
+        }
 
-            ActionGroup {
-                PanelButton {
-                    variant: "ghost"
-                    symbol: "add"
-                    label: "New in " + root.homeProject
-                    onActivated: ClaudeSessions.newSession()
-                }
-                PanelButton {
-                    visible: ClaudeSessions.hooksInstalled
-                    variant: removeLatch.armed ? "primary" : "ghost"
-                    accent: Colors.of(QsWindow.window).danger
-                    symbol: "link_off"
-                    label: removeLatch.armed ? "Disconnect?" : ""
-                    onActivated: removeLatch.trigger()
-                }
+        PanelHero {
+            id: hero
+            compact: true
+            symbol: ClaudeSessions.needsYou.length > 0 ? "notifications_active" : "terminal"
+            shape: "burst"
+            active: ClaudeSessions.sessions.length > 0 && ClaudeSessions.needsYou.length === 0
+            warn: ClaudeSessions.needsYou.length > 0
+            turning: ClaudeSessions.busyCount > 0
+            accent: root.accent
+            title: ClaudeSessions.needsYou.length > 0 ? Translation.tr("Claude needs you")
+                 : ClaudeSessions.busyCount > 0       ? Translation.tr("Claude is working")
+                 : ClaudeSessions.sessions.length > 0 ? Translation.tr("Waiting for you")
+                 :                                      Translation.tr("Nothing running")
+            line: root.summary
+
+            PanelButton {
+                visible: ClaudeSessions.hooksInstalled
+                capsule: true
+                variant: removeLatch.armed ? "primary" : "ghost"
+                accent: Colors.of(QsWindow.window).danger
+                glyphTint: removeLatch.armed ? Colors.of(QsWindow.window).fgOnPrimary : hero.ink
+                symbol: "link_off"
+                label: removeLatch.armed ? Translation.tr("Disconnect?") : ""
+                onActivated: removeLatch.trigger()
+            }
+            PanelButton {
+                capsule: true
+                variant: ClaudeSessions.sessions.length === 0 ? "primary" : "normal"
+                accent: root.accent
+                symbol: "add"
+                label: Translation.tr("New in %1").arg(root.homeProject)
+                onActivated: ClaudeSessions.newSession()
             }
         }
 
@@ -210,15 +235,13 @@ Item {
             id: offer
             Layout.fillWidth: true
             visible: ClaudeSessions.ready && !ClaudeSessions.hooksInstalled
-            implicitHeight: visible ? offerCol.implicitHeight + Tokens.spacingMd * 2 : 0
-            radius: Tokens.radiusSm
-            color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.08)
-            border.width: Tokens.borderWidth
-            border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.3)
+            implicitHeight: visible ? offerCol.implicitHeight + Tokens.spacingLg * 2 : 0
+            radius: Tokens.radiusCard
+            color: Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).section, root.accent, 0.16)
             ColumnLayout {
                 id: offerCol
                 anchors.fill: parent
-                anchors.margins: Tokens.spacingMd
+                anchors.margins: Tokens.spacingLg
                 spacing: Tokens.spacingSm
                 StyledText {
                     Layout.fillWidth: true
@@ -236,6 +259,7 @@ Item {
                         + "limits — never your prompts or the commands it runs."
                 }
                 PanelButton {
+                    capsule: true
                     variant: "primary"
                     symbol: "link"
                     label: ClaudeSessions.hooksBusy ? "Connecting…" : "Connect"
@@ -250,13 +274,13 @@ Item {
             id: usage
             Layout.fillWidth: true
             visible: ClaudeSessions.hooksInstalled || ClaudeSessions.rate.at > 0
-            implicitHeight: visible ? usageCol.implicitHeight + Tokens.spacingMd * 2 : 0
-            radius: Tokens.radiusSm
-            color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.03)
+            implicitHeight: visible ? usageCol.implicitHeight + Tokens.spacingLg * 2 : 0
+            radius: Tokens.radiusCard
+            color: Colors.of(QsWindow.window).section
             ColumnLayout {
                 id: usageCol
                 anchors.fill: parent
-                anchors.margins: Tokens.spacingMd
+                anchors.margins: Tokens.spacingLg
                 spacing: Tokens.spacingMd
                 RowLayout {
                     Layout.fillWidth: true
@@ -278,8 +302,8 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: false
                     spacing: Tokens.spacingLg
-                    UsageRow { Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "5-hour"; info: root.five }
-                    UsageRow { Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "Weekly";  info: root.week }
+                    UsageRow { Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: Translation.tr("5-hour"); info: root.five }
+                    UsageRow { Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: Translation.tr("Weekly");  info: root.week }
                 }
                 StyledText {
                     Layout.fillWidth: true
@@ -293,27 +317,13 @@ Item {
         }
 
         // ── Nothing at all ────────────────────────────────────────────────────
-        ColumnLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            Layout.topMargin: Tokens.spacingSm
-            Layout.bottomMargin: Tokens.spacingSm
-            visible: root.rows.length === 0
-            spacing: Tokens.spacingSm
-            ClaudeGlyph {
-                Layout.alignment: Qt.AlignHCenter
-                implicitWidth: Tokens.fontNumeralMd
-                implicitHeight: Tokens.fontNumeralMd
-                tint: Colors.of(QsWindow.window).fgDim
-            }
-            StyledText {
-                Layout.fillWidth: true
-                horizontalAlignment: Text.AlignHCenter
-                variant: "caption"
-                emphasis: "dim"
-                text: Translation.tr("No Claude Code sessions yet. Start one in a terminal and it shows up here.")
-                wrapMode: Text.WordWrap
-            }
+        PanelEmpty {
+            visible: root.rows.length === 0 && ClaudeSessions.ready
+            quiet: true
+            symbol: "terminal"
+            shape: "burst"
+            title: Translation.tr("No sessions yet")
+            text: Translation.tr("No Claude Code sessions yet. Start one in a terminal and it shows up here.")
         }
 
         // ── Running, then recent ──────────────────────────────────────────────
@@ -381,7 +391,7 @@ Item {
                 readonly property real headH: row.s.first ? secLabel.implicitHeight + Tokens.spacingSm : 0
 
                 width: list.width
-                height: row.headH + rowLayout.implicitHeight + Tokens.spacingSm * 2
+                height: row.headH + rowLayout.implicitHeight + Tokens.spacingMd * 2
 
                 StyledText {
                     id: secLabel
@@ -395,20 +405,24 @@ Item {
                 Rectangle {
                     anchors.fill: parent
                     anchors.topMargin: row.headH
-                    radius: Tokens.radiusSm
-                    color: rowMouse.containsMouse ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.07)
-                         : row.permission ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).warning, 0.10)
-                         : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.03)
-                    border.width: row.permission ? Tokens.borderWidth : 0
-                    border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).warning, 0.5)
+                    radius: Tokens.radiusCard
+                    color: row.permission ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).section, Colors.of(QsWindow.window).warning, 0.22)
+                                          : Colors.of(QsWindow.window).section
                     Behavior on color { ColorAnimation { duration: Motion.standard } }
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: parent.radius
+                        color: Colors.of(QsWindow.window).fg
+                        opacity: rowMouse.containsMouse ? Tokens.stateHover : 0
+                        Behavior on opacity { NumberAnimation { duration: Motion.respond } }
+                    }
                 }
 
                 RowLayout {
                     id: rowLayout
-                    x: Tokens.spacingSm
-                    y: row.headH + Tokens.spacingSm
-                    width: row.width - Tokens.spacingSm * 2
+                    x: Tokens.spacingMd
+                    y: row.headH + Tokens.spacingMd
+                    width: row.width - Tokens.spacingMd * 2
                     spacing: Tokens.spacingMd
 
                     // State: the mark (turning while it works), in the state's tone.

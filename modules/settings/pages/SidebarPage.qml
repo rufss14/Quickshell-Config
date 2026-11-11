@@ -9,24 +9,17 @@ import "../../../services"
 import "../../../state"
 import ".."
 
-// ── SidebarPage — Sidebar & dock › Sidebar ────────────────────────────────────
-// The edge the bar doesn't own, as a whole: which modules stand on it, which edge it
-// is, how big, and when it hides. The dock, stats, screen time and clips each have a
-// tab of their own beside this one. Only what is shared lives here.
-//
-// (For a while this was a GROUP stacked with the others on one composed scroll; the
-// rest of Settings kept its tab strips, so this did too.)
-//
-// ── What changed from the page it was ─────────────────────────────────────────
-// Thirteen full-size tiles, one per module, became one row of chips: a module is a
-// member of a SET, and a card each said one word and one sentence thirteen times. Dock,
-// Stats and Clips are not in the row — each has its own tab, with its switch in the
-// heading, so there is one place to turn each one on. The drag-to-arrange catalogue
-// (SideModuleTray) is the last card.
+// ── SidebarPage — Bar & sidebar › Behaviour ───────────────────────────────────
+// Where the surfaces sit and when they show: the sidebar's edge and size, how it hides,
+// and where the bar centres. WHAT stands on them is Modules (2026-11-08: one page of
+// modules, one inspector, one library for both); how they LOOK is Style (one set of
+// knobs, each "Sidebar: same as bar" until unlinked). The file keeps its name: every
+// sidebar module's right-click still opens "SidebarPage.qml", and lands here.
 //
 // ── It wears the top bar's style ──────────────────────────────────────────────
 // It's one bar, like the top bar, and on the frame or floating as the top bar is; its
-// corners, fills, borders and inner pills are Bar › Style's. Its SIZE is the dock's:
+// corners, fills, borders and inner pills are Style's (the bar's, unless unlinked there).
+// Its SIZE is the dock's:
 // everything on it stands in a cell the dock button's size (Config.sidebarCell), so
 // the icon size here is the dock's, the same setting.
 //
@@ -34,35 +27,12 @@ import ".."
 // Auto-hide, dodging windows and reserving space are the whole sidebar's (SideBarHost
 // runs one reveal for everything on the edge).
 //
-// ── Arranging is the button's ──────────────────────────────────────────────────
-// It used to arm itself whenever this page opened. Now the heading's Arrange button is
-// the only way in (UiState.sidebarArrange, SideArrange); leaving the page still
-// disarms it, so it can't be left on.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
 
-    Component.onDestruction: UiState.sidebarArrange = false
-
     readonly property bool anyOn: Config.sidebarAnyPlaced
     readonly property bool welded: Morph.available && Config.screenFrame && Config.barAnchored
-
-    // The modules that are a chip rather than a view of their own.
-    readonly property var chipModules: Config.sidebarModuleList.filter(function (m) {
-        return m.id !== "dock" && m.id !== "stats" && m.id !== "clips"
-    })
-    readonly property int chipsOn: root.chipModules.filter(function (m) { return Config.sidebarPlaced(m.id) }).length
-
-    // A module whose tool is missing can't be placed — said once, under the row.
-    function blocker(id) {
-        return id === "colour" ? ColorPicker.blocker()
-             : id === "lens"   ? Lens.blocker()
-             :                   ""
-    }
-    readonly property string blockedNote: root.chipModules
-        .filter(function (m) { return !Config.sidebarPlaced(m.id) && root.blocker(m.id) !== "" })
-        .map(function (m) { return m.label + ": " + root.blocker(m.id) })
-        .join("   ·   ")
 
     readonly property string positionGlyph:
           Config.dockPosition === "left"  ? "\u{F10AA}"        // dock-left
@@ -74,61 +44,12 @@ Item {
 
         bento:     true
         glyph:     "\u{F06FD}"
-        title:     Translation.tr("Sidebar")
+        title:     Translation.tr("Behaviour")
         accent:    Colors.of(QsWindow.window).primary
-        subtitle:  !root.anyOn ? "Nothing on it yet"
-                 : [Config.dockPosition,
+        subtitle:  !root.anyOn ? "The sidebar has nothing on it yet"
+                 : ["Sidebar on the " + Config.dockPosition,
                     root.welded ? "welded into the frame" : Config.barAnchored ? "on the frame" : "floating",
                     Config.sidebarDepth + "px"].join("  ·  ")
-
-        actions: ChipTray {
-            ChipButton {
-                label:  UiState.sidebarArrange ? "Done" : "Arrange"
-                symbol: UiState.sidebarArrange ? "check" : "drag_pan"
-                on:     UiState.sidebarArrange
-                tint:   Colors.of(QsWindow.window).primary
-                onActivated: UiState.sidebarArrange = !UiState.sidebarArrange
-            }
-        }
-
-        // ══ What stands on it ═════════════════════════════════════════════════
-        Section {
-            span:    3
-            glyph:   "\u{F0B90}"                                   // view-grid-plus
-            title:   Translation.tr("On the sidebar")
-            subtitle: root.chipsOn + " of " + root.chipModules.length
-            help:    Translation.tr("Tap one to put it on the sidebar or take it off. The dock, stats and clips have tabs of their own, with their switch in the heading.")
-            accent:  Colors.of(QsWindow.window).primary
-
-            Flow {
-                Layout.fillWidth: true
-                spacing: Tokens.spacingSm
-
-                Repeater {
-                    model: root.chipModules
-
-                    delegate: ToggleChip {
-                        required property var modelData
-                        glyph:  modelData.glyph
-                        label:  modelData.label
-                        hint:   modelData.description
-                        active: Config.sidebarPlaced(modelData.id)
-                        available: Config.sidebarPlaced(modelData.id) || root.blocker(modelData.id) === ""
-                        onToggled: Config.sidebarToggle(modelData.id)
-                    }
-                }
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 0
-                visible: root.blockedNote !== ""
-                wrapMode: Text.WordWrap
-                variant: "caption"
-                emphasis: "dim"
-                text: root.blockedNote
-            }
-        }
 
         // ══ Edge and size ═════════════════════════════════════════════════════
         // The dock's edge and the dock's icon size — one setting each, said once. The
@@ -235,103 +156,21 @@ Item {
             onToggled: Config.dockTakesSpace = !Config.dockTakesSpace
         }
 
-        // ══ Look ══════════════════════════════════════════════════════════════
-        // The top bar's own devices, on the edge (2026-10-31): islands, a hero, the music.
-        Section {
-            span:    1
-            symbol:  "auto_awesome"
-            title:   Translation.tr("Look")
-            subtitle: Config.sidebarIslands ? "Islands, like the top bar" : "One pill per region"
-            help:    Translation.tr("Islands give each group its own pill. The hero sits on a tinted chip, as the top bar's clock does. The music makes the pills breathe and glow while something plays.")
-            accent:  Colors.of(QsWindow.window).primary
-
-            SettingRow {
-                label:  Translation.tr("Islands")
-                detail: Config.sidebarIslands ? "A pill per group" : "One pill per region, with dividers"
-                Toggle { checked: Config.sidebarIslands; onToggled: Config.sidebarIslands = !Config.sidebarIslands }
-            }
-            SettingRow {
-                label:  Translation.tr("With the music")
-                detail: Config.barMusicReact ? "Both bars' pills glow while music plays" : "Still"
-                Toggle { checked: Config.barMusicReact; onToggled: Config.barMusicReact = !Config.barMusicReact }
-            }
-
-            StyledText {
-                text: Translation.tr("Hero")
-                variant: "caption"
-                emphasis: "dim"
-            }
-            // The modules that can wear the hero's chip, of those on the sidebar.
-            ChipTray {
-                id: heroTray
-                // ChipTray lays its children in a row of its own: `parent` below would be that row.
-                readonly property var heroable: ["claude", "nowplaying", "timer", "tasks", "clipboard",
-                                                 "colour", "inactivity", "power", "voice"]
-                ChipButton {
-                    label: Translation.tr("None")
-                    tint: Colors.of(QsWindow.window).primary
-                    on: Config.sidebarHero === ""
-                    onActivated: Config.sidebarHero = ""
-                }
-                Repeater {
-                    model: heroTray.heroable.filter(id => Config.sidebarPlaced(id))
-                    ChipButton {
-                        required property string modelData
-                        label: Config.sidebarModuleList.find(m => m.id === modelData)?.label ?? modelData
-                        tint: Colors.of(QsWindow.window).primary
-                        on: Config.sidebarHero === modelData
-                        onActivated: Config.sidebarHero = modelData
-                    }
-                }
-            }
-        }
-
-        // ══ Peeks ═════════════════════════════════════════════════════════════
-        // A card beside a module for a moment when something happens to it (EventPeek).
-        Section {
-            span:    1
-            symbol:  "notifications_active"
-            title:   Translation.tr("Peeks")
-            subtitle: [Config.peekTimer, Config.peekClaude, Config.peekColour, Config.peekClipboard]
-                          .filter(b => b).length + " of 4 on"
-            help:    Translation.tr("When something happens to a module, a card opens beside it for a moment — on the monitor you're on, and never over a panel you opened.")
-            accent:  Colors.of(QsWindow.window).primary
-
-            SettingRow {
-                label:  Translation.tr("Timer")
-                detail: Config.peekTimer ? "Finished or ringing, to dismiss or snooze" : "Off"
-                Toggle { checked: Config.peekTimer; onToggled: Config.peekTimer = !Config.peekTimer }
-            }
-            SettingRow {
-                label:  Translation.tr("Claude")
-                detail: Config.peekClaude ? "Needs you, or finished a turn" : "Off"
-                Toggle { checked: Config.peekClaude; onToggled: Config.peekClaude = !Config.peekClaude }
-            }
-            SettingRow {
-                label:  Translation.tr("Colour picker")
-                detail: Config.peekColour ? "The colour picked, and its hex" : "Off"
-                Toggle { checked: Config.peekColour; onToggled: Config.peekColour = !Config.peekColour }
-            }
-            SettingRow {
-                label:  Translation.tr("Clipboard")
-                detail: Config.peekClipboard ? "Every copy's preview" : "Off"
-                help:   Translation.tr("Copies a password manager marks as secret never reach the history, so they never peek.")
-                Toggle { checked: Config.peekClipboard; onToggled: Config.peekClipboard = !Config.peekClipboard }
-            }
-        }
-
-        // ══ Arranging ═════════════════════════════════════════════════════════
-        Section {
-            span:    3
-            glyph:   "󰘇"
-            title:   Translation.tr("Arrange")
-            subtitle: UiState.sidebarArrange ? "Drag modules onto the sidebar" : "Press Arrange to drag"
-            help:    Translation.tr("Drag one onto the sidebar, along it to move it, onto another to group them, or off it onto this card to take it off.")
-            accent:  Colors.of(QsWindow.window).primary
-
-            SideModuleTray {
-                Layout.fillWidth: true
-            }
+        // ══ The bar ═════════════════════════════════════════════════════════
+        QuickToggleTile {
+            roomy:  true
+            symbol: "center_focus_strong"
+            label:  Translation.tr("Anchor on workspaces")
+            accent: Colors.of(QsWindow.window).primary
+            active: Config.barCentreAnchor
+            available: Config.isPlaced("workspaces")
+            subLabel: !Config.isPlaced("workspaces")
+                ? "Needs the workspaces module on the bar"
+                : Config.barCentreAnchor
+                ? "The dots hold true screen centre"
+                : "Centred on its own region instead"
+            help: Translation.tr("Keeps the workspace dots at the exact centre of the screen, however wide the modules either side of them grow.")
+            onToggled: Config.barCentreAnchor = !Config.barCentreAnchor
         }
     }
 }

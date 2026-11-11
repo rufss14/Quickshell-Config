@@ -56,6 +56,8 @@ Item {
 
             SideCell {
                 id: tool
+
+                moduleId: "tools"
                 required property var modelData
 
                 glyph:  tool.modelData.glyph

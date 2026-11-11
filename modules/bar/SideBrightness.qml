@@ -30,8 +30,10 @@ Item {
     }
 
     SideCell {
+
+        moduleId: "brightness"
         anchors.fill: parent
-        glyph: "\u{F00DF}"                                               // 󰃟 brightness
+        symbol: "brightness_6"                                           // the bar pill's
         active: UiState.sidePanel === "brightness" && root.ownsPanel
         wheel: true
         onScrolled: function (d) {

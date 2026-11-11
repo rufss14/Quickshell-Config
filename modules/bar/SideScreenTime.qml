@@ -33,6 +33,8 @@ Item {
 
     SideCell {
         id: cell
+
+        moduleId: "screentime"
         anchors.fill: parent
         glyph: "\u{F051F}"
         active: root.open

@@ -543,20 +543,20 @@ Item {
 
                     IconLine { glyph: "\u{F0207}"; text: "Export the cut" }          // 󰈇 export
 
-                    ExportLabel { text: "Format" }
+                    ExportLabel { text: Translation.tr("Format") }
                     ExportChips {
                         model: [{ value: "mp4", label: "Video" }, { value: "gif", label: "GIF" }]
                         current: ed.format
                         onPicked: function (v) { ed.format = v }
                     }
-                    ExportLabel { text: "Cut"; visible: ed.format === "mp4" }
+                    ExportLabel { text: Translation.tr("Cut"); visible: ed.format === "mp4" }
                     ExportChips {
                         visible: ed.format === "mp4"
                         model: [{ value: false, label: "Fast" }, { value: true, label: "Precise" }]
                         current: ed.precise
                         onPicked: function (v) { ed.precise = v }
                     }
-                    ExportLabel { text: "Size"; visible: ed.format === "mp4" }
+                    ExportLabel { text: Translation.tr("Size"); visible: ed.format === "mp4" }
                     ExportChips {
                         visible: ed.format === "mp4"
                         model: [{ value: 0, label: "Any" }, { value: 10, label: "10 MB" },
@@ -564,14 +564,14 @@ Item {
                         current: ed.sizeMB
                         onPicked: function (v) { ed.sizeMB = v }
                     }
-                    ExportLabel { text: "Resolution" }
+                    ExportLabel { text: Translation.tr("Resolution") }
                     ExportChips {
                         model: [{ value: 0, label: "As recorded" }, { value: 1080, label: "1080p" },
                                 { value: 720, label: "720p" }, { value: 480, label: "480p" }]
                         current: ed.outHeight
                         onPicked: function (v) { ed.outHeight = v }
                     }
-                    ExportLabel { text: "Audio"; visible: ed.format === "mp4" }
+                    ExportLabel { text: Translation.tr("Audio"); visible: ed.format === "mp4" }
                     ExportChips {
                         visible: ed.format === "mp4"
                         model: [{ value: "mix", label: "Mixed" }, { value: "all", label: "Separate" },

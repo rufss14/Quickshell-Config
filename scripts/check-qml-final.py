@@ -12,6 +12,11 @@ is picked up. A declaration on a non-Item (`QtObject`, a `Singleton`) is legal a
 skipped: the innermost enclosing object is tracked by a brace stack (JS blocks count as
 anonymous levels).
 
+Two more names that are illegal where they stand, for the same "reads like an ordinary word"
+reason: an `id` that is a JavaScript global (`gc`, `print`, `escape`…: "ID illegally masks global
+JavaScript property", bit BluetoothPanel's GlyphChip) and `signal set(…)` / `signal get(…)`
+(contextual keywords: qmlformat prints nothing and outputs 0 bytes). Counted as `illegal-names`.
+
 Usage: python3 scripts/check-qml-final.py [files…]   (no args: the whole repo)
 """
 import os, re, sys
@@ -52,32 +57,61 @@ def files(args):
     return sorted(out)
 
 
+# JavaScript's globals: an `id` with one of these names is "ID illegally masks global JavaScript
+# property", a hard load failure that cascades, inside an inline `component` too.
+JS_GLOBALS = ("gc print escape unescape isNaN isFinite parseInt parseFloat eval console Math JSON Date "
+              "Object Array String Number Boolean Function Symbol RegExp Error Promise Map Set WeakMap "
+              "WeakSet Proxy Reflect Infinity NaN undefined globalThis qsTr qsTranslate qsTrId Qt").split()
+
+
 def main():
     names = final_names()
-    decl = re.compile(r"^\s*(?:(?:readonly|required|default)\s+)*property\s+[\w<>.]+\s+("
+    decl = re.compile(r"\s*(?:(?:readonly|required|default)\s+)*property\s+[\w<>.]+\s+("
                       + "|".join(map(re.escape, names)) + r")\b")
-    hits = 0
+    bad_id = re.compile(r"\s*id\s*:\s*(" + "|".join(map(re.escape, JS_GLOBALS)) + r")\s*(?:[;}]|$)")
+    # `set` and `get` are contextual keywords: `signal set(…)` makes the file unparseable.
+    bad_signal = re.compile(r"\s*signal\s+(set|get)\b")
+    hits = illegal = 0
     for f in files(sys.argv[1:]):
         try:
             lines = open(f, encoding="utf-8").read().split("\n")
         except OSError:
             continue
+        rel = os.path.relpath(f, ROOT)
         stack = []          # innermost-last: an object's type name, or None for a JS block
         for n, line in enumerate(lines, 1):
             code = line.split("//", 1)[0]
-            m = decl.match(code)
-            owner = next((t for t in reversed(stack) if t is not None), None)
+            # Every statement on the line: `Rectangle { property int layer: 1 }` is one line. A
+            # statement starts at the line's start and after each `{`, `}` or `;`.
+            at_start = True
             for ch_i, ch in enumerate(code):
+                if at_start and not ch.isspace():
+                    at_start = False
+                    owner = next((t for t in reversed(stack) if t is not None), None)
+                    m = decl.match(code, ch_i)
+                    if m and owner not in NON_ITEMS:
+                        hits += 1
+                        print("%s:%d: property named %r — Item's FINAL property" % (rel, n, m.group(1)))
+                    m = bad_id.match(code, ch_i)
+                    if m:
+                        illegal += 1
+                        print("%s:%d: id %r masks a JavaScript global" % (rel, n, m.group(1)))
+                    m = bad_signal.match(code, ch_i)
+                    if m:
+                        illegal += 1
+                        print("%s:%d: signal named %r — a contextual keyword, the file will not parse" % (rel, n, m.group(1)))
                 if ch == "{":
                     head = re.search(r"(?:^|[\s:])([A-Z][\w.]*)\s*$", code[:ch_i])
                     stack.append(head.group(1).split(".")[-1] if head else None)
-                elif ch == "}" and stack:
-                    stack.pop()
-            if m and owner not in NON_ITEMS:
-                hits += 1
-                print("%s:%d: property named %r — Item's FINAL property" % (os.path.relpath(f, ROOT), n, m.group(1)))
+                    at_start = True
+                elif ch == "}":
+                    if stack: stack.pop()
+                    at_start = True
+                elif ch == ";":
+                    at_start = True
     print("final-overrides=%d" % hits)
-    return 1 if hits else 0
+    print("illegal-names=%d" % illegal)
+    return 1 if hits or illegal else 0
 
 
 if __name__ == "__main__":

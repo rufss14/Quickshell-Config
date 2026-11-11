@@ -29,6 +29,17 @@ with. Both `~/.config/hypr/autostart.lua` (boot) and `scripts/reload-quickshell.
   the core: `coredumpctl debug <pid>` with `-iex 'set debuginfod enabled on'`.
   Re-test without it on a Qt upgrade (cold start with Spotify playing).
 
+**`scripts/shell-run.sh` is what starts the shell**, at boot (autostart.lua) and on ALT+Q
+(reload-quickshell.sh). It sources `shell-env.sh`, runs `qs -p <repo>`, and starts it again
+after a crash at LAUNCH. Quickshell's own crash handler already re-execs the same pid after a
+later crash, but gives up (exit 255) on one within 10 s of launching, which is where the
+startup segfaults below live. Two such crashes within 120 s → the next start sets `QS_SAFE=1`
+(`services/SafeMode`: `Morph` never probes the blob plugin, `PowerSaver.quiet` rests the
+ambient effects); two more → it stops and says where `~/.cache/quickshell/crashes` is. A
+TERM/KILL/clean exit (a reload, a logout) stops it. `bash scripts/test-shell-run.sh` drives
+it with a fake `qs`. An autostart line from before 2026-11-09 still starts a bare `qs`; the
+first ALT+Q swaps it for the wrapper.
+
 `reload-quickshell.sh` also refuses to run while a privileged update holds the
 flock (`flock -n -s` failing = a run is live), and its `pkill` matches BOTH `qs`
 and `quickshell` with `-x` — the binary is installed twice, Hyprland autostarts
@@ -57,9 +68,10 @@ killed nothing on a boot-started shell.
     `Connections` (built, not yet cold-start verified — after a fresh launch,
     `qs ipc show` should list `albumscheme` and `osd`; the other two have no IPC target).
     `_setup` is really used (`coreProbed`), so it is fine as is.
-  - **Still the property form, deliberately:** `WallpaperEngine` (its autostart timer).
-    Switching it starts a service that may have been dormant — it would start Wallpaper
-    Engine's autostart if `Config.wpeAutoStart` is on — so ask first.
+  - **Gated on their switch** (`target: Config.x ? Services.X : null`): Cursor, CursorEffects,
+    Sfx, ScreenTime, CallLog, AuthAgent. Off, they don't exist and `qs ipc show` won't list them.
+  - `WallpaperEngine` uses `Connections` too (its autostart timer). It was the property
+    form and only worked because `WallpaperView` references it on every screen.
 - The launcher lives INSIDE `Bar.qml`'s own window
   (`BarPanelDock`'s centre slot), not its own `PanelWindow`. The blob's
   metaball fusion only blends pixels within one Qt Quick scene graph.

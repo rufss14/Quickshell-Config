@@ -50,6 +50,7 @@ singleton AlbumScheme 1.0 AlbumScheme.qml
 singleton Notifications 1.0 Notifications.qml
 singleton SysInfo 1.0 SysInfo.qml
 singleton PowerSaver 1.0 PowerSaver.qml
+singleton SafeMode 1.0 SafeMode.qml
 singleton Displays 1.0 Displays.qml
 singleton SystemLocale 1.0 SystemLocale.qml
 singleton SysStats 1.0 SysStats.qml
@@ -66,6 +67,7 @@ singleton WallWave 1.0 WallWave.qml
 singleton WallpaperDepth 1.0 WallpaperDepth.qml
 singleton Contagion 1.0 Contagion.qml
 singleton ColorScheme 1.0 ColorScheme.qml
+singleton Look 1.0 Look.qml
 singleton WallpaperEngine 1.0 WallpaperEngine.qml
 singleton Timers   1.0 Timers.qml
 singleton Clipboard 1.0 Clipboard.qml
@@ -75,6 +77,7 @@ singleton AirQuality 1.0 AirQuality.qml
 singleton DesktopWidgets 1.0 DesktopWidgets.qml
 singleton Fullscreen 1.0 Fullscreen.qml
 singleton HyprConfig 1.0 HyprConfig.qml
+singleton CallLog  1.0 CallLog.qml
 singleton Discord  1.0 Discord.qml
 singleton Clock    1.0 Clock.qml
 singleton Calendar 1.0 Calendar.qml
@@ -89,6 +92,7 @@ singleton Sfx      1.0 Sfx.qml
 singleton SfxKeys  1.0 SfxKeys.qml
 singleton Setup    1.0 Setup.qml
 singleton SudoLock 1.0 SudoLock.qml
+SudoProcess 1.0 SudoProcess.qml
 singleton SettingsIndex 1.0 SettingsIndex.qml
 singleton BarModules 1.0 BarModules.qml
 singleton Ai 1.0 Ai.qml
@@ -122,3 +126,5 @@ singleton Changelog 1.0 Changelog.qml
 singleton LocalAi 1.0 LocalAi.qml
 singleton VoiceAssistant 1.0 VoiceAssistant.qml
 singleton DiscordTheme 1.0 DiscordTheme.qml
+singleton WallFrame 1.0 WallFrame.qml
+singleton ModuleGlance 1.0 ModuleGlance.qml

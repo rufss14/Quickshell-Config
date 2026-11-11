@@ -212,3 +212,74 @@ easier and more pleasant to use." What was clunky, and what replaced it (this su
 - Not changed: the player / editor, the target picker, the panel and the peek (restyled earlier today).
 - Unverified live: never loaded — the hover states, the bar's rise, the day groups against a real library, and the tile size at your width.
 - The library's click-away backdrop closed on ANY tap inside the card once its buttons were TapHandler-based (ChipButton/CookieButton/SegmentSwitch; PanelButton's MouseArea used to block it). Fixed 2026-10-18: ClipsGallery closes only for a tap outside the card. Other click-away backdrops checked: none host those controls.
+
+### Panels reworked, plus sharing and housekeeping (2026-11-09)
+
+User: "add and alter everything about it for the better … could also use the bridge scripts we already have for Discord and
+Spotify". Supersedes the Latest / Capture bullets of "The panel, revamped".
+- **Stage 1 — fixes.** `Clips.clips` was replaced with a NEW array on every index refresh, so `Clips.clips.slice(0, 3)` rebuilt the
+  latest row (delegates, thumbnails, pop-ins) whenever anything refreshed. Now: an index whose text is identical to the last is
+  dropped (`_indexText`; a local trash clears it), and the panel replaces its row only when `clips.js listSig` of what it shows
+  differs. The target picker did the same on every `Hypr.windowsChanged`; it now compares the list (JSON) before replacing it.
+  The preset pills (Rectangle + MouseArea, no accessibility, no state layer) are `ChipButton`s; literals → tokens; strings →
+  `Translation.tr`; the panels' own history comments gone.
+- **Layout.** Left: Clipping, Recording. Right: Capture, **Library**. Full width under both: **Latest**, one row of up to six
+  (three on a short edge) with a duration badge, the pretty name, the song/people line (or "time · age"), a dot for clips saved
+  since the panel was last open (`Config.clipsSeenAt`, set when the panel closes), hover play disc + edit/copy.
+- **Keys while a panel is open** (`SidePanelDock` → `handleKey`): panel — C clip it, 1–6 a length, R record, P pause, L library;
+  target picker — Up/Down/Enter, Tab flips Clip from / Record. Window rows in the picker carry the app's icon (`Icons.pathForAppId`,
+  read synchronously).
+- **Capture card**: mic and desktop-sound switches beside the video summary. They are settings, so a running buffer shows
+  "Apply settings" as for any other.
+- **Library card**: library size and free disk as one `Meter`; a clean-up chip appears only when `Clips.prunePreview` (clips.js
+  `prunePlan`) is non-empty and takes two taps (`ArmLatch`). Limits: `Config.clipsPruneDays` / `clipsPruneGB`, 0 = none, set in
+  Settings › Clips › Share & keep. Never a favourite, never a file written in the last 15 minutes; to the trash. Nothing automatic.
+- **Send to Discord shrinks first.** Over `Config.clipsDiscordMB` (10/25/50/500) the clip goes through the editor's export with
+  `sizeMB` (the lib's own 8% container headroom), then the SHRUNK file is copied and Discord comes forward. Too long to fit at the
+  export's floor bitrate (150 + 128 kbps, `discordPlan.fits`) → copied as is, with the reason in the notification. Everything that
+  sends (peek, editor, library bar) calls `Clips.sendToDiscord`. Paste is still the user's: no key injection, nothing is sent.
+- **Context stamp** (the Spotify/Discord bridge use). `Clips._stamp` at save time: the song of the playing MPRIS player (Spotify
+  through its bridge or not — `trackArtist` / `trackTitle`) and, only with `clipsStampCall`, the non-self non-bot names in
+  `Discord.users`. Kept in `statePath("clip-context.json")` (a JsonStore like the favourites): `{ paths: { "/abs": { artist, title,
+  with } } }`, cleaned on read AND write through CallLog's `cleanName` / `people` (control + bidi characters out, 64 chars, ≤8
+  people, ≤5000 entries, absolute paths only). Shown in the peek, the panel's row and the library tile; the library search matches
+  it. A rename moves the entry, a trash drops it. Music defaults ON, the call OFF (it writes other people's names down); Settings ›
+  Clips › Share & keep has both switches and an armed "Forget". Personal — not in the repo, not a secret.
+- **Peek**: a rail runs down with the time left (restarted when the pointer leaves, as the dock's timer is), a star replaces the
+  play chip (the frame already plays), the stamp is a line under the name.
+- Tests: `bun scripts/test-clips.js` (269: `discordPlan`, `prunePlan`, `contextOf` / `cleanBook`, `listSig`, search by stamp).
+  `clips.js` now imports `calllog.js`; the test inlines both, the second in its own scope.
+- **Not done**: the Alt+F10 / Alt+F9 hints are still typed into the labels (no service maps a bind to its label; the shipped
+  `hypr/binds.lua` has them); undo after a library delete (`gio trash` has no restore CLI here); keyboard navigation inside the
+  main panel beyond the keys above.
+- **Unverified live — none of it has been loaded**: every height against the slot's `maxHeight` (the full-width Latest row adds
+  one tile row to the panel), six thumbnails at 95 px, the rail, the keys reaching the panel through the dock, the window icons in
+  the picker, a real Discord shrink and paste, a real MPRIS stamp, a clean-up of a real library, hot reload of the edited inline
+  `Tile` (no new inline component was added, so it should).
+
+### The library, third pass (2026-11-09)
+
+User: "change the clip gallery … everything" (speed, look and layout, features — in that order).
+- **Speed.** The list was a ListView of DAY groups, each a `Grid` + `Repeater` of every tile, and every tile carried its hover
+  chrome (tick, three ChipButtons with their springs, drag handle, play disc) all the time: a day of a hundred clips built a few
+  hundred buttons. Now the model is `clips.js layoutRows(groups, cols)` — headings and rows, keyed — so only the rows near the
+  screen exist, and the hover chrome is a `Loader` active while the pointer is on the tile, anything is selected, or for
+  `Motion.standard + Motion.respond` after it leaves (so it still fades). A tile at rest is a picture and a caption. Row heights vary
+  (a stamp or tag line adds one), which a ListView allows.
+- **Look.** A heading per day carries `groupLine` (clips · size · footage). **Hover scrub**: rest 450 ms on a ready clip and the
+  pointer's x walks through ten frames of `Clips.loadStrip` (the editor's filmstrip, cached on disk by `key_of`; the first time is one
+  `clips-lib.py strip` run at `nice 10`); a rail shows where. It shares the single `Clips.strip` slot with the editor, which reloads its
+  own on open. The header's subtitle adds the free disk (`Clips.refreshHealth()` once on open — nothing holds the probe).
+- **Features.** Facet row: games, **With music** / **In a call** (clips whose stamp has a song / people; shown only when some clip has
+  one), and a row of **your tags**. **Tags**: `Clips.tags` in `statePath("clip-tags.json")` (`{ paths: { "/abs": ["tag"] } }`), cleaned
+  like a name (CallLog's `cleanName`, runs of spaces collapse, 24 chars, six a clip, "Clutch" = "clutch", the first spelling kept; all in
+  `clips.js`, tested). The selection bar adds a tag to everything selected (a field) and shows the first two tags the selection carries
+  as chips — a tap takes that tag off all of them. A rename moves a clip's tags and stamp, a trash drops them. Search matches tags. The
+  header gets the clean-up chip when `Clips.prunePreview` is non-empty (two taps, to the trash).
+- **Not done**: compare two clips side by side (a second player; the editor's `ClipPlayer` is the only QtMultimedia file and a second
+  instance doubles the decoders — ask if it is wanted); sort/filter are not remembered between opens; bulk "send to Discord" (several
+  files can't be pasted into one chat reliably — the shrink chips stay).
+- **Unverified live — never loaded**: that a `Loader`'s `sourceComponent` finds the tile's ids under `ComponentBehavior: Bound`
+  (the same file's other delegates do), the scrub's first-run delay, row heights with the tag/stamp lines, scrolling across many rows,
+  the selection bar's width with the tag chips on a narrow library, and the facet rows' height against the toolbar (the user once
+  called the old chrome "three rows before any clip": this adds up to two more rows, each only when it has something to offer).

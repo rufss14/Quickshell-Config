@@ -167,7 +167,7 @@ Item {
                     onToggled: Config.lockShowPower = !Config.lockShowPower
                 }
                 ToggleChip {
-                    symbol: "brightness_6"; label: "Brightness"
+                    symbol: "brightness_6"; label: Translation.tr("Brightness")
                     hint: Translation.tr("Bottom right.")
                     active: Config.lockShowBrightness
                     onToggled: Config.lockShowBrightness = !Config.lockShowBrightness

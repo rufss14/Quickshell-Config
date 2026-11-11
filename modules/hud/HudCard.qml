@@ -85,7 +85,7 @@ Surface {
     // what animates (live-tracking timing while over it, a spring home on leaving), so the
     // two rotations can't disagree. Sign as WidgetFrame's: the edge nearer the pointer sinks.
     HoverHandler { id: cardHover }
-    readonly property real tiltMax: Config.motionEnabled ? 2.2 : 0
+    readonly property real tiltMax: Motion.ambientOn ? 2.2 : 0
     property real px: cardHover.hovered && root.width > 0
         ? Math.max(-1, Math.min(1, (cardHover.point.position.x / root.width - 0.5) * 2)) : 0
     property real py: cardHover.hovered && root.height > 0

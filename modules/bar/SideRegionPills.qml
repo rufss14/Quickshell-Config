@@ -5,6 +5,7 @@ import Quickshell
 import "../../config"
 import "../../components"
 import "../../services"
+import "../../services/sidemodules.js" as Side
 
 // ── SideRegionPills ───────────────────────────────────────────────────────────
 // The sidebar's inner pills: ONE per region (start, centre, end), from its first group to
@@ -53,8 +54,24 @@ Item {
     readonly property int depth: root.rail.depth
     readonly property real edgePos: root.rail.edgePos(root.width, root.height)
 
+    // The islands: one per LAYOUT group. The rail splits a group round the dock (its own
+    // host) and marks the pieces after the first `joined`; those share the first's island,
+    // keyed by every piece's ids. `pieces` are the rail groups' own keys, which the hosts ask
+    // their hover track by.
+    readonly property var _islands: {
+        const out = []
+        for (const g of root.rail.placed.groups) {
+            const pk = g.region + ":" + g.ids.join(",")
+            const last = out.length > 0 ? out[out.length - 1] : null
+            if (g.joined && last && last.region === g.region) {
+                last.key += "+" + g.ids.join(",")
+                last.pieces.push(pk)
+            } else out.push({ region: g.region, key: pk, pieces: [pk] })
+        }
+        return out
+    }
     readonly property string _keys: Config.sidebarIslands
-        ? root.rail.placed.groups.map(g => g.region + ":" + g.ids.join(",")).join("|")
+        ? root._islands.map(i => i.key).join("|")
         : "start|centre|end"
 
     Repeater {
@@ -69,8 +86,10 @@ Item {
             readonly property bool island: region.modelData.indexOf(":") >= 0
             readonly property string regionName: region.modelData.split(":")[0]
             // In order along the edge (dock.js sideRail lays each region in order).
+            readonly property var pieces: region.island
+                ? (root._islands.find(i => i.key === region.modelData)?.pieces ?? []) : []
             readonly property var groups: root.rail.placed.groups.filter(g => region.island
-                ? g.region + ":" + g.ids.join(",") === region.modelData : g.region === region.modelData)
+                ? region.pieces.indexOf(g.region + ":" + g.ids.join(",")) !== -1 : g.region === region.modelData)
             readonly property real lo: region.groups.length > 0 ? region.groups[0].pos : 0
             readonly property real hi: region.groups.length > 0
                 ? region.groups[region.groups.length - 1].pos + region.groups[region.groups.length - 1].len : 0
@@ -102,20 +121,43 @@ Item {
 
                     transform: Matrix4x4 { matrix: root.deformMatrix }
 
-                    SidePill {
-                        id: pill
-                        anchors.centerIn: parent
-                        visible: Config.barInnerPill
-                        role: "inner"
-                        width:  root.vertical ? Config.sidebarPillCross : region.len
-                        height: root.vertical ? region.len : Config.sidebarPillCross
+                    // The inner pill, in pieces round any module that opted out of its own
+                    // (Config.moduleInnerPill — the sidebar's switch AND the module's; the bar's
+                    // BarGroup splits its runs the same way). All in: one piece, as it was.
+                    readonly property var runs: {
+                        void Config.moduleSettings
+                        const mods = []
+                        for (const g of region.groups)
+                            for (const id of g.ids) {
+                                const len = root.rail.allLengths[id] ?? 0
+                                if (len > 0 && root.rail.at[id] !== undefined)
+                                    mods.push({ at: root.rail.at[id] - region.lo, len: len, on: Config.moduleInnerPill(id) })
+                            }
+                        return Side.innerRuns(mods, region.len)
                     }
+                    Repeater {
+                        model: band.runs
+                        Item {
+                            id: run
+                            required property var modelData
+                            readonly property real span: Math.max(0, run.modelData.to - run.modelData.from)
+                            width:  root.vertical ? Config.sidebarPillCross : run.span
+                            height: root.vertical ? run.span : Config.sidebarPillCross
+                            x: root.vertical ? Math.round((band.width - width) / 2) : run.modelData.from
+                            y: root.vertical ? run.modelData.from : Math.round((band.height - height) / 2)
 
-                    // The music's rim (Config.barMusicReact), on the pill's edge.
-                    MusicRim {
-                        anchors.fill: pill
-                        visible: pill.visible
-                        radius: Tokens.corner(Config.barShape, Math.min(Config.barRoundness, Math.min(width, height) / 2))
+                            SidePill {
+                                id: pill
+                                anchors.fill: parent
+                                role: "inner"
+                            }
+                            // The music's rim (Config.sideMusicReact), on the pill's edge.
+                            MusicRim {
+                                anchors.fill: pill
+                                react: Config.sideMusicReact
+                                radius: Tokens.corner(Config.barShape, Math.min(Config.sideRoundness, Math.min(width, height) / 2))
+                            }
+                        }
                     }
 
                     // The hero's chip, under its cells, concentric with the pill (a hover plate's
@@ -132,7 +174,7 @@ Item {
                         x: root.vertical ? Math.round((band.width - width) / 2) : at
                         y: root.vertical ? at : Math.round((band.height - height) / 2)
                         radius: Tokens.corner(Config.barShape,
-                                              Math.min(Math.min(width, height) / 2, Math.max(0, Config.barRoundness - Tokens.spacingXs)))
+                                              Math.min(Math.min(width, height) / 2, Math.max(0, Config.sideRoundness - Tokens.spacingXs)))
                         color: Colors.of(QsWindow.window).primaryContainer
                         Behavior on color { ColorAnimation { duration: Motion.respond } }
                     }
@@ -146,6 +188,8 @@ Item {
                             required property int index
                             readonly property var before: region.groups[index]
                             readonly property var after:  region.groups[index + 1]
+                            // No line inside one group (the pieces round the dock).
+                            visible: !(after && after.joined)
                             readonly property real at: before && after
                                 ? (before.pos + before.len + after.pos) / 2 - region.lo : 0
                             readonly property real span: Config.sidebarPillCross - Tokens.spacingMd * 2
@@ -169,8 +213,11 @@ Item {
             function _register(on) {
                 if (!root.rail) return
                 const m = Object.assign({}, root.rail.regionTracks)
-                if (on) m[region.modelData] = track
-                else if (m[region.modelData] === track) delete m[region.modelData]
+                // An island answers for each of its pieces (the hosts ask by their own key).
+                for (const k of [region.modelData].concat(region.pieces)) {
+                    if (on) m[k] = track
+                    else if (m[k] === track) delete m[k]
+                }
                 root.rail.regionTracks = m
             }
             Component.onCompleted: region._register(true)

@@ -9,14 +9,15 @@ import "../../services"
 import "../../state"
 
 // ── EventPeek ─────────────────────────────────────────────────────────────────
-// The clips peek for every other module (2026-10-31, the user's pick: "event peeks"):
+// The clips peek for every other module:
 // something happens to a module, and a card opens beside it for a moment — on the
 // focused monitor, into a free slot (components/SidePeek decides), closing itself
 // (SidePanelDock's `autoCloseMs`; later while the pointer rests on it). One card, a kind
 // per event (UiState.sidePanelArg), each behind its own Config switch:
 //
 //   timer       a countdown finished, an alarm rings: dismiss / snooze (Config.peekTimer)
-//   claude      a session needs you, or finished a turn: go to it (Config.peekClaude)
+//   claude      a session needs you, or finished a turn: what it said or asked, which project and model,
+//               go to it / copy the reply / dismiss (Config.peekClaude)
 //   colour      a colour was picked: its swatch and hex, already copied (Config.peekColour)
 //   clipboard   a copy landed: its text or its picture (Config.peekClipboard)
 //
@@ -45,6 +46,13 @@ Item {
     property string kind: ""
     property var held: null
 
+    // 82400 → "82k".
+    function _tokens(n) { return n >= 1000 ? Math.round(n / 1000) + "k" : String(n) }
+    // The line under the quote: where it ran, on what, how full its context is.
+    readonly property string meta: root.kind !== "claude" || !root.held ? ""
+        : [root.held.project, root.held.model, root.held.context > 0 ? root._tokens(root.held.context) + " " + Translation.tr("context") : ""]
+            .filter(x => x !== "").join("  ·  ")
+
     function _pad2(n) { return (n < 10 ? "0" : "") + n }
     function _take(kind) {
         switch (kind) {
@@ -60,10 +68,16 @@ Item {
             const sid = ClaudeSessions.fresh.length > 0 ? ClaudeSessions.fresh[ClaudeSessions.fresh.length - 1] : ""
             const done = s ? null : (ClaudeSessions.sessions.find(x => x.sid === sid) ?? null)
             const t = s ?? done
+            // Others waiting behind it: the card shows one session, the line says there are more.
+            const more = s ? ClaudeSessions.needsYou.length - 1 : Math.max(0, ClaudeSessions.fresh.length - 1)
+            // What the card quotes: the question it asked, or the reply it finished with.
+            const said = t ? (s ? (s.message || "") : (t.last || "")) : ""
             return { needs: !!s, pid: t ? t.pid : 0,
-                     title: s ? "Claude needs you" : "Claude finished",
+                     title: s ? Translation.tr("Claude needs you") : Translation.tr("Claude finished"),
                      detail: t ? (t.title || t.project || "") : "",
-                     message: s ? (s.message || "") : "" }
+                     said: said.trim(), reply: !s && said !== "",
+                     project: t ? (t.project || "") : "", model: t ? (t.model || "") : "",
+                     context: t ? (t.context || 0) : 0, more: more }
         }
         case "colour":
             return { hex: ColorPicker.lastPicked }
@@ -90,9 +104,11 @@ Item {
         ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).warning, 0.22)
         // The picked colour itself: data, the way SideColour's swatches are.
         : root.kind === "colour" && root.held && root.held.hex !== "" ? root.held.hex
+        : root.kind === "claude" ? Colors.of(QsWindow.window).primary
         : Colors.of(QsWindow.window).primaryContainer
     readonly property color leadInk: root.kind === "timer" ? Colors.of(QsWindow.window).danger
         : root.kind === "claude" && root.held && root.held.needs ? Colors.of(QsWindow.window).warning
+        : root.kind === "claude" ? Colors.of(QsWindow.window).fgOnPrimary
         : Colors.of(QsWindow.window).fgOnPrimaryContainer
     readonly property string leadSymbol: root.kind === "timer" ? (root.held && root.held.alarm ? "alarm" : "timer")
         : root.kind === "claude" ? (root.held && root.held.needs ? "notifications_active" : "check")
@@ -160,16 +176,37 @@ Item {
             }
         }
 
-        // Claude's question, when it asked one.
+        // What Claude asked, or what it finished with: a tonal quote under the title.
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            Layout.maximumWidth: root.maxW - root.pad * 2
+            visible: root.kind === "claude" && !!root.held && root.held.said !== ""
+            implicitHeight: quote.implicitHeight + Tokens.spacingSm * 2
+            radius: Tokens.radiusCard
+            color: Colors.of(QsWindow.window).section
+
+            StyledText {
+                id: quote
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.margins: Tokens.spacingMd
+                wrapMode: Text.Wrap
+                maximumLineCount: 4
+                elide: Text.ElideRight
+                variant: "caption"
+                text: root.held && root.held.said ? root.held.said : ""
+            }
+        }
         StyledText {
             Layout.fillWidth: true
             Layout.maximumWidth: root.maxW - root.pad * 2
-            visible: root.kind === "claude" && !!root.held && root.held.message !== ""
-            wrapMode: Text.Wrap
-            maximumLineCount: 3
+            visible: root.meta !== ""
             elide: Text.ElideRight
-            variant: "caption"
-            text: root.held && root.held.message ? root.held.message : ""
+            variant: "micro"
+            emphasis: "dim"
+            text: root.meta + (root.held && root.held.more > 0 ? "  ·  " + Translation.tr("+%1 more").arg(root.held.more) : "")
         }
 
         // The copy itself: its picture, or its first lines.
@@ -202,15 +239,15 @@ Item {
             ChipButton {
                 visible: root.kind === "timer" && !!root.held && root.held.alarm
                 symbol: "snooze"
-                label: "5 min"
-                tint: Colors.of(QsWindow.window).focus
+                label: Translation.tr("5 min")
+                tint: Colors.of(QsWindow.window).primary
                 onActivated: { Timers.snoozeAlarm(5); UiState.closeSidePanel() }
             }
             ChipButton {
                 visible: root.kind === "timer"
                 symbol: "close"
                 label: Translation.tr("Dismiss")
-                tint: Colors.of(QsWindow.window).focus
+                tint: Colors.of(QsWindow.window).primary
                 onActivated: {
                     if (Timers.ringing) Timers.dismissAlarm()
                     else if (Timers.timerDone) Timers.stopTimer()
@@ -221,8 +258,22 @@ Item {
                 visible: root.kind === "claude"
                 symbol: "open_in_new"
                 label: Translation.tr("Go to it")
-                tint: Colors.of(QsWindow.window).focus
+                on: true
+                tint: Colors.of(QsWindow.window).primary
                 onActivated: { ClaudeSessions.focus(root.held.pid); UiState.closeSidePanel() }
+            }
+            ChipButton {
+                visible: root.kind === "claude" && !!root.held && root.held.reply
+                symbol: "content_copy"
+                label: Translation.tr("Copy")
+                tint: Colors.of(QsWindow.window).primary
+                onActivated: { Clipboard.copyText(root.held.said); UiState.closeSidePanel() }
+            }
+            ChipButton {
+                visible: root.kind === "claude"
+                symbol: "close"
+                tint: Colors.of(QsWindow.window).primary
+                onActivated: UiState.closeSidePanel()
             }
         }
     }

@@ -32,7 +32,7 @@ ask()  {
     [[ "$r" =~ ^[Yy] ]]
 }
 
-LAUNCH="bash -c 'source \"$SCRIPTS/shell-env.sh\" && exec qs -p \"$REPO_DIR\"'"
+LAUNCH="\"$SCRIPTS/shell-run.sh\""
 
 printf '%sQuickshell setup%s  %s%s%s\n' "$B" "$R" "$DIM" "$REPO_DIR" "$R"
 

@@ -155,9 +155,9 @@ Singleton {
     function _command() {
         if (root._backend === "hyprsunset")
             // hyprsunset runs in the foreground holding the adjustment, which is the
-            // shape this needs. NOTE: not verified against a running binary — it is not
-            // installed on the development machine — so if this is wrong it will show as
-            // the process dying immediately, which blocker() reports.
+            // shape this needs. `-t`/`--temperature` is checked against hyprsunset 0.4.0's
+            // --help; the effect on screen isn't. A wrong flag would show as the process
+            // dying immediately, which blocker() reports.
             return ["hyprsunset", "-t", "" + root.temperature]
         if (root._backend === "gammastep")
             // -P resets existing ramps first so re-applying is clean rather than

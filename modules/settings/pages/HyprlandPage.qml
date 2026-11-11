@@ -142,6 +142,11 @@ Item {
         spacing: Tokens.spacingLg
 
         PanelHeader {
+            // The same header every Settings page wears (SettingsPage): a morphing badge, a headline.
+            morph:     "squircle"
+            chipSize:  Tokens.iconXl + Tokens.spacingLg
+            titleVariant: "headline"
+            subtitleVariant: "label"
             Layout.fillHeight: false
             glyph:     "󰌋"
             title:     Translation.tr("Key")

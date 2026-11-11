@@ -190,17 +190,38 @@ Singleton {
     // page is destroyed so it can't stay on. (It used to arm itself whenever the page
     // opened, and cover the bar in drop targets whether or not you wanted to move
     // anything.)
-    property bool barArrange: false
+    //
+    // ── One switch for both surfaces (2026-11-08) ─────────────────────────────
+    // `arrange` arms the bar AND the sidebar together, because a module can be dragged
+    // from one onto the other (state/ModuleDrag) and a drag needs both ends live. The
+    // two names below were two switches, one per settings page; they stay as readonly
+    // mirrors so their ~20 readers needn't change. Write `arrange`.
+    property bool arrange: false
+    readonly property bool barArrange: root.arrange
 
-    // ── Sidebar arrange mode ──────────────────────────────────────────────────
-    // barArrange's twin for the edge the bar doesn't own: the REAL sidebar becomes
-    // the editor (modules/bar/SideArrange, state/SideDrag). Turned on by the Arrange
-    // button in the Sidebar group of Sidebar & dock, and cleared when that page is
-    // destroyed, like barArrange.
-    // While it's on the sidebar stays out — shown even with nothing on it, so there's
-    // somewhere to drop the first module — and SUPER+SHIFT+D can't sink it.
-    property bool sidebarArrange: false
-    onSidebarArrangeChanged: if (root.sidebarArrange) { root.sidebarHidden = false; root.sidePanel = "" }
+    // The sidebar's half: the REAL sidebar becomes the editor (modules/bar/SideArrange,
+    // state/SideDrag). While it's on the sidebar stays out — shown even with nothing on
+    // it, so there's somewhere to drop the first module — and SUPER+SHIFT+D can't sink it.
+    readonly property bool sidebarArrange: root.arrange
+    onArrangeChanged: if (root.arrange) { root.sidebarHidden = false; root.closeAllPanels() }
+
+    // Every panel the bar and the sidebar hang out. Arranging closes them and keeps them shut: the
+    // arrange cards melt out of the same edges, and a panel in the way hides what is being arranged.
+    function closeAllPanels() {
+        root.leftKey = ""
+        root.rightKey = ""
+        root.centerKey = ""
+        root.sidePanel = ""
+        root.updateOpen = false
+    }
+    Connections {
+        target: root
+        function onLeftKeyChanged()   { if (root.arrange && root.leftKey   !== "") root.leftKey   = "" }
+        function onRightKeyChanged()  { if (root.arrange && root.rightKey  !== "") root.rightKey  = "" }
+        function onCenterKeyChanged() { if (root.arrange && root.centerKey !== "") root.centerKey = "" }
+        function onSidePanelChanged() { if (root.arrange && root.sidePanel !== "") root.sidePanel = "" }
+        function onUpdateOpenChanged() { if (root.arrange && root.updateOpen) root.updateOpen = false }
+    }
 
 
     // ── Overview ──────────────────────────────────────────────────────────────
@@ -456,7 +477,13 @@ Singleton {
         if (root.tipSource === source) root.tipSource = null
     }
 
+    // Pages that became a module in Bar › Modules (2026-11-08): opening one opens that
+    // page with the module picked, so the dock's "Settings" and the stats button's
+    // right-click still land on the dock's and the stats' settings.
+    readonly property var _moduleOfPage: ({ "DockPage.qml": "dock", "SidebarStatsPage.qml": "stats" })
     function openSettingsTo(file) {
+        const m = root._moduleOfPage[file]
+        if (m !== undefined) { root.inspectBarModule(m); file = "BarPage.qml" }
         root.settingsPageRequest = file
         root.settingsPageNav++
         // Raises the WINDOW, not the overview. The bar's hardware pills (Battery,

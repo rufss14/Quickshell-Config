@@ -16,6 +16,14 @@ import "../../components"
 Item {
     id: cell
 
+    // Screen readers (AT-SPI): the module's catalogue name, pressed like a click.
+    Accessible.role: Accessible.Button
+    Accessible.name: cell.label !== "" ? cell.label
+                   : (Config.sidebarModuleList.find(m => m.id === cell.moduleId)?.label ?? cell.symbol)
+    Accessible.checkable: true
+    Accessible.checked: cell.active
+    Accessible.onPressAction: cell.clicked()
+
     property string glyph: ""
     // A Material Symbols name instead of a codepoint (wins over `glyph`) — for the bar's
     // modules drawn as cells (SideBarModule), which name theirs. Either way the glyph
@@ -24,7 +32,12 @@ Item {
     property string armedGlyph: ""
     property bool   active: false
     property bool   armed: false
-    property color  accent: Colors.of(QsWindow.window).primary
+    // The module this cell is (Config.layout's id): its accent and hero are the module's own
+    // settings (Bar & sidebar › Modules), on whichever surface it stands. Defaults to
+    // `hoverKind`, which is that id for every cell with a hover chip; the rest set it.
+    property string moduleId: cell.hoverKind
+    property color  accent: cell.moduleId !== "" ? Config.moduleAccent(cell.moduleId, Colors.of(QsWindow.window).primary)
+                                                 : Colors.of(QsWindow.window).primary
     // What the glyph wears at rest: the top bar's idle foreground.
     property color  tint: Colors.of(QsWindow.window).stateIdleFg
     property color  warn: Colors.of(QsWindow.window).danger
@@ -44,12 +57,19 @@ Item {
     // opens a chip of its name and state beside it (components/SideHover decides when).
     // "" = none. Not while its own panel is open (`active`) or while armed.
     property string hoverKind: ""
-    // The sidebar's hero (Config.sidebarHero; SideRegionPills draws its chip). `hoverKind` is
-    // the module's id, so the cell knows it is the one; its glyph wears the container's ink.
-    readonly property bool hero: cell.hoverKind !== "" && Config.sidebarHero === cell.hoverKind
+    // Its surface's hero (Config.moduleHero; SideRegionPills draws the sidebar's chip, BarGroup
+    // the bar's when the cell is drawn there by SideModulePill): its glyph wears the
+    // container's ink.
+    readonly property bool hero: cell.moduleId !== "" && Config.moduleHero(cell.moduleId)
     // A value under the glyph — the top bar's "100%" / "18°C", in a cell: a count, a
     // reading. "" for none.
     property string caption: ""
+    // A word in place of the glyph — the bar's face for a module whose pill IS text (the
+    // keyboard's "US"), turned onto the sidebar (2026-11-08: "same face on both").
+    property string label: ""
+    // The bar's count badge (CountBadge) on the glyph's corner; 0 hides it.
+    property int    badge: 0
+    property color  badgeTint: Colors.of(QsWindow.window).primary
     readonly property bool _captioned: cell.caption !== ""
     // The glyph itself, for something that rides its corner (the bell's count badge,
     // where the top bar puts one).
@@ -117,13 +137,32 @@ Item {
     // pixel sizes, not the fonts' line boxes (a Nerd glyph's line box is far taller than
     // its ink), so the pair centres on what you see.
     Column {
+        id: stack
         anchors.centerIn: parent
         spacing: cell._captioned ? Tokens.spacingXs : 0
         transform: Translate { x: magnet.offsetX; y: magnet.offsetY }
 
+        StyledText {
+            id: labelText
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: cell.label !== ""
+            width: Math.min(implicitWidth, cell.width - Tokens.spacingXs * 2)
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
+            height: font.pixelSize
+            verticalAlignment: Text.AlignVCenter
+            text: cell.label
+            variant: "label"
+            sizeScale: Config.sideFontScale
+            font.weight: Font.DemiBold
+            font.features: ({ tnum: 1 })
+            color: glyphText.color
+        }
+
         MaterialIcon {
             id: glyphText
             anchors.horizontalCenter: parent.horizontalCenter
+            visible: cell.label === ""
             height: font.pixelSize
             verticalAlignment: Text.AlignVCenter
             name: cell.armed ? "" : cell.symbol
@@ -132,7 +171,7 @@ Item {
             fill: cell.active ? 1 : 0
             weight: Config.sidebarGlyphWeight
             glyph: cell.armed && cell.armedGlyph !== "" ? cell.armedGlyph : cell.glyph
-            font.pixelSize: cell._captioned ? Math.round(Tokens.iconMd * Config.barIconScale)
+            font.pixelSize: cell._captioned ? Math.round(Tokens.iconMd * Config.sideIconScale)
                                             : Config.sidebarGlyphPx
             rotation: cell.glyphAngle
             scale: cell.glyphScale * cell._lift * live.glyphScale
@@ -147,14 +186,28 @@ Item {
         StyledText {
             anchors.horizontalCenter: parent.horizontalCenter
             visible: cell._captioned
+            // A network's or a device's name is longer than a cell is wide: elided, centred.
+            width: Math.min(implicitWidth, cell.width - Tokens.spacingXs * 2)
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
             height: font.pixelSize
             verticalAlignment: Text.AlignVCenter
             text: cell.caption
             variant: "caption"
-            sizeScale: Config.barFontScale
+            sizeScale: Config.sideFontScale
             font.bold: true
             color: glyphText.color
         }
+    }
+
+    // The bar's badge, on the glyph's corner (UpdatePill's placement).
+    CountBadge {
+        visible: cell.badge > 0
+        count: cell.badge
+        tint: cell.badgeTint
+        sizeScale: Config.sideIconScale
+        x: stack.x + glyphText.x + glyphText.width - width * 2 / 3
+        y: stack.y + glyphText.y - height / 3
     }
 
     SideHover {

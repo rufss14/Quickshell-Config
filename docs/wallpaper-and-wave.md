@@ -51,8 +51,8 @@ Two libraries behind one gallery. Images: `scripts/apply-wallpaper.sh` →
 - **Removing a scene cannot unsubscribe** (2026-10-30): the subscription list is on Steam's
   servers (`appworkshop_431960.acf` lists installed items only), and the only local route,
   Steamworks `UnsubscribeItem`, needs a `libsteam_api.so` the repo may not ship. The Steam CEF
-  debug port could POST it, but it is unauthenticated and opt-in (`steam-live.py enable`), so it
-  is not the default route. `WallpaperEngine.removeAndUnsubscribe(id)` is the one entry: it opens
+  debug port could POST it, but it is unauthenticated (the shell no longer opens it for anything),
+  so it is not the route. `WallpaperEngine.removeAndUnsubscribe(id)` is the one entry: it opens
   the item's page (`openWorkshop`: inside Steam via `steam://openurl` when `pgrep -x steam`, else
   the browser), deletes the files, and remembers the id in `Config.wpeUnsubPending`.
   `stillSubscribed(id)` = pending AND installed again after a rescan, which the UI words as
@@ -126,7 +126,7 @@ Two libraries behind one gallery. Images: `scripts/apply-wallpaper.sh` →
     rounds every corner with a real circular arc (corners sharing a short edge give way in proportion).
     The composition names SLOTS (`stack`, `centre`, `side`, `corner`), not shapes; the Shapes page picks a
     form per slot and `""` means the slot's own, so a default is never baked into the config.
-  - **Colours are roles, never hexes.** Colour and Second colour pick from `Config.accentRoles`; shapes
+  - **Colours are roles, never hexes.** Main colour and Accent shapes (was Second colour) pick from `Config.accentRoles`; shapes
     marked `alt` (the second stack, the edge shapes) wear the second one. Contrast, softness, size and a
     seeded Shuffle shape the rest. Ground tint (0–0.3) washes the ground behind the shapes with the first
     colour; Mirror flips the whole picture left to right (inside the snapshot's item, so the fallback
@@ -360,7 +360,7 @@ that repo has no licence, so the code here is written from the description, not 
   script to the screen's shape (`cover_box`, the crop PreserveAspectCrop makes), so it maps onto the clock's box edge to edge and
   the shader has no framing maths.
   **Round 4 — "it doesn't render the clock":** round 3 used `MultiEffect`'s mask with the mask in an INVISIBLE LAYERED item, and the
-  clock drew nothing at all. `shaders/liquidglass.frag` already says why: an invisible layered source yields a 0x0 texture and the
+  clock drew nothing at all. `shaders/liquidglass.src.frag` already says why: an invisible layered source yields a 0x0 texture and the
   effect draws nothing (measured there, then repeated here; MediaPanel's `artMask` and GreetScreen's `avatarMask` use the same
   invisible-layer pattern and are worth a look). A bare hidden `Image` as the source is the ordinary idiom and has a texture.
   **A mask that has gone missing means no occlusion at all** (the clock shows whole, in front): the script used to delete the
@@ -742,6 +742,15 @@ whole thing with nothing changing.
   surfaces (WidgetLayer, DesktopClock: `exclusiveZone: 0`) add
   `Hypr.reservedOf(...)`; floating toplevels (Settings, Lyrics) are assumed centred.
   A NEW shell window: add an `Infection` last, or it snaps colour ahead of the front.
+- **The widgets' glass sees the wallpaper as drawn** (2026-11-08): `shaders/liquidglass.src.frag` samples
+  `components/WallBackdrop`, which rebuilds this screen's picture from `services/WallFrame` — each
+  WallpaperView registers itself there under its screen name, and the backdrop reads its `zoom`,
+  `glideTx/Ty` (the planes' own pan, snapped and gliding once) and `drawn` (the picture on the settled
+  plane, so a change's water holds it; the workspace's own wallpaper follows). Before this the glass
+  sampled the raw file, unzoomed, so with parallax on it refracted the wrong part of the wallpaper and slid
+  against it. The Material Wallpaper is still sampled from its own held drawing (not panned). The same
+  shader strokes the tile's border (the Surface's `border.color`/`Tokens.borderChrome`, lit upper-left)
+  and reads the backdrop's brightness per pixel for the dim and the rim.
 - **The water is WallpaperView's own** (it owns the parallax framing, so no jump):
   two slots = WallWave's two channels. `keep` says what happens at settle — the shell
   draws the picture next → `cur` adopts it (pixmap-cache hit, instant); awww or a scene
@@ -1013,6 +1022,18 @@ chose **bento gallery**, **image-card tiles**, **floating toolbar**: see "The re
     position), `wtype` sends to whatever window is focused (the browser, not the panel — the panel has no keyboard
     focus when opened over IPC), and a uinput click lands wherever the cursor is. A click meant for the panel
     opened a video in the user's browser. Do not drive the UI blind; ask the user to open a state and screenshot it.
+- **Music effects in the panel (2026-11-08; built, never loaded).** A `music_note` chip in the header tray (gallery
+  view only — the effects never draw over the Material wallpaper; lit while `Config.wallFx` is on) opens
+  `view === "effects"` (`wallpaper/WallpaperEffects.qml`, a sub-view like the renderer options: `WallpaperSubBar` with
+  Back + what the beat clock hears). Switches, Intensity, Sync and the sound map, with the tuning dead (and a reason
+  said) while the effects are off or the shell isn't drawing the wallpaper. The sound row is ONE component,
+  `components/WallFxSoundRow`, used here and by Settings' Effects tab. Settings keeps its tab. New files: ALT+Q.
+- **Material tab clarity pass (2026-11-08; built, never loaded).** The preview's Shuffle is **Rearrange** (the hero's
+  Shuffle is the wallpaper timer); a caption under the preview says whether it is a preview (and what Apply replaces)
+  or live; the header's lock chip is gone (the Looks page's card is the one lock) and Looks reads presets, Save, Lock;
+  Mirror moved to Shapes; "Bursts" is **Background**, and `MaterialWallpaper.highlightSlot` dims every shape but the
+  slot the Shapes page is choosing for (`layout()` boxes now carry `slot`); the fallback row reads "Keep it if the
+  shell closes".
 - **Open:** `WallpaperPage` (Settings) still has its own copy of the tile / row / filter / selection logic; moving
   it onto `WallpaperEntry` and `wallpaperlib.js` is the next step, not done.
 - **Checked:** the static checkers, the syntax idiom on every file, `bun` tests. **Not run:** a load of the shell
@@ -1089,77 +1110,38 @@ each one failed silently the first time, looking exactly like "live reload doesn
   - It is loaded into every GLib process that sees the variable, so it returns without pinning
     itself in anything that isn't GTK4, and polls for a display with a cap (the first version's
     idle source pinned a core in a GTK4 process that never opened one).
-- **Steam / Millennium (simply-dark) — recoloured always; live only if you opt in.** The stock
-  theme reads its own greys (`--color-dark`, `--grey`, `--white`…), NOT the pywal `--color0..15`
-  this step used to bake, so it recoloured nothing. `steam-colors.py` maps those variables onto a
-  ramp from the palette's background to its foreground by stock lightness
-  (`test-steam-colors.py`), reading the stock values from the theme's `colors.css` — never from
-  `config.json`, which after the first run holds our own output and would drift a little more
-  every change. Millennium injects that block when a window loads, so on its own a running Steam
-  needs a restart.
-  - **Live and in the wave: `steam-live.py`, opt-in.** Millennium 3.5's own channel is a private
-    debug PIPE (`--remote-debugging-pipe`), which nothing else can join, so the only way in is
-    Steam's CEF debug port (127.0.0.1:8080) — which is UNAUTHENTICATED: while Steam runs, any
-    program running as you can drive its UI. So it is off until `scripts/steam-live.py enable`
-    (a marker under `$XDG_STATE_HOME/quicktest`); without it nothing creates the flag file, `probe`
-    says no, and Steam stays restart-only. Steam opens the port only if
-    `~/.local/share/Steam/.cef-enable-remote-debugging` exists AT START and deletes it as it
-    reads it, so `flag` puts it back from `shell-env.sh`, every theme run and ThemeRunner's
-    Restart button (`_beforeLaunch`). A Steam started twice in a row with no theme run or shell
-    start between has no port the second time.
-  - **It is a scripted app like Discord and Zen** (`contagion.js`: `kind` / `SCRIPTED` / `AFTER`,
-    `Contagion.qml`: `steamProc`, `reload-theme.sh --app steam`, `can_recolor steam`). The push
-    sets the theme's variables as inline properties on each window's root and waits two animation
-    frames (capped at 150ms: a hidden window never gets one), so the script's EXIT is the repaint
-    and `AFTER.steam` is one frame of margin; the wave holds the spread until then.
-  - **Background: anchored to the palette.** The stock theme lifts its "Main Background"
-    (`--color-darker`, #191919) off black, and the first ramp reproduced that lift, so Steam's main
-    surface sat ~16 levels lighter than every other app's (measured: 79% of what Steam painted was
-    that one colour, `#1e1212` against the palette's `#0e0000`). `steam-colors.ramp` now takes a
-    `base` — the raw ramp at that grey — so it lands exactly on the palette background, lighter
-    layers keep their steps above it, darker ones clamp to it.
-  - **Steam's OWN colours: `steam-accent.py` + `steam-scan.js`.** The theme only exposes its
-    greys; the blue tab underline, the green buttons, the navy "What's New" panel and the slate
-    text are literals in Steam's compiled stylesheets (~150 elements in its blues, a 514x895 navy
-    panel), so no pushed variable can reach them. `steam-live.py scan` reads them out of the live
-    stylesheets (10.3k declarations / 8.4k selectors / **1251 distinct colours**) into a cache.
-    Cool hues only (70°–270°): saturated and not dark → the palette accent's hue (lightness kept,
-    so Steam's tonal steps survive); any other tint → a neutral on the same bg→fg ramp as the
-    theme's greys; greys and warm colours untouched.
-    - **Two outputs, split on purpose.** The first version embedded the recoloured literal in every
-      rule: a 1.2 MB sheet that changed with every wallpaper, 2.8 s to push (past Contagion's 2.5 s
-      cap, so the fan-out ran a duplicate). Now `rules_css` is STATIC — every declaration reads
-      `var(--qs-<rgba>)`, identical blocks grouped, 870 KB, written to Millennium's Quick CSS (which
-      injects it into every window as it loads) and injected live only by `scan`; `variables` is the
-      palette's half, ~35 KB, pushed on every theme run and baked into `themeColors` for a restart.
-      A wallpaper change re-sends only variables: ~240 ms for 14 windows.
-    - **The theme's OWN sheets are another origin.** simply-dark's `Steam.css` is
-      `<link href="https://millennium.host/…">`, and the browser refuses `cssRules` on it — so its
-      literals (the green friends button's `#5c7e10`, the filter input's tint) were invisible to a plain
-      walk. The scanner fetches any refused sheet and re-parses it with `new CSSStyleSheet().replaceSync`
-      (same-origin, so readable) and walks it like the rest; it is async and `_eval` awaits it.
-    - **JS prefilter and Python `family` must share one cut.** They disagreed (RGB spread ≥ 8 in JS,
-      HSL saturation ≥ 0.04 in Python), and near-greys with a 3–7 level tint — the Library Filter panel's
-      `#212124` and `#dfe3e6` text — fell between them. Both now use a spread of ≥ 3 (+800 declarations).
-    - **Auditing what is still un-themed:** paints still in Steam's cool hues AND off the palette's own
-      bg→fg line. Off the line matters: a palette's foreground can itself be cool (`#c3c8cc`), and its
-      correct output then reads as "cool" to a naive hue test. `CSS.getMatchedStylesForNode` on one
-      element says which rule really wins when a colour is in doubt.
-    - **The scanner must never read what is not Steam's.** It skipped our own sheets but not
-      `RootColors` (Millennium's injection of the THEME's variables, at their values when the window
-      loaded): it read a stale `--color-darker`, emitted an `!important` override, and that beat every
-      later push — Steam kept a lifted background pinned to an old palette. Millennium's sheets are
-      skipped in the scanner and any variable the theme owns is dropped from the cache.
-    - Rescanned when Steam's stylesheets change (`scan --if-needed`: one cheap rule-count compare per
-      theme run, in the background after the wave) — a Steam update rotates the hashed class names.
-  - **Pushes skip hidden windows.** ~10 of Steam's 14 windows are menus and supernavs that are
-    never shown: they get no frames and Chromium throttles their timers to 1s, so waiting for a paint
-    cost a second each (2s for a push that is 3ms in a visible window).
-  - **Unverified against a real Steam:** that Millennium injects Quick CSS into every client window
-    (so a RESTARTED Steam has the Steam-own recolour — the live push is verified, the restart path is
-    not), what an 870 KB sheet costs a window as it loads, and how the layering looks on a colourful
-    palette (measured on a monochrome one). `steam-live.py status` shows flag/port; `reload-theme.sh
-    --probe` shows whether the wave will hold for Steam.
+- **Steam / Millennium (Material) — live, no restart.** Rewritten 2026-11-09. The theme is
+  kuska1's Material (MIT), fetched by `theme-setup.sh steam` at a pinned commit and used
+  UNMODIFIED; setup activates it and sets its "Color" condition to `Matugen`, leaving the user's
+  other Material settings alone. Matugen mode reads `css/main/colors/matugen.css` and
+  `js/main/colors/matugen.js` re-reads it every 1.5 s in every window, so `scripts/steam-colors.py`
+  only has to write that file (atomically, and not at all when nothing changed): an open Steam
+  repainted 0.86 s after a palette change in a live test. The file is a full Material 3 role
+  set (`--md-sys-color-*`, ~60 roles) built from the pywal palette with PaletteRoles' own blends:
+  primary/secondary/tertiary are color1/4/5 pulled to 4.5:1 (pwspice's `_legible`), surfaces are
+  `surface`/`surfaceContainer`/`surfaceHigh` blends, `error` is Material's fixed red (the shell's
+  `danger` is color1, usually the accent). It also writes the theme's light/dark switches
+  (`--scheme-*`, `color-scheme`) from the background's lightness, so a light wallpaper turns the
+  theme light without touching its Appearance setting, and `--hue-rotate` (tints Steam's bitmap
+  art) interpolated through the hues of the theme's own presets. `test-steam-colors.py` guards it,
+  and checks every role the installed Material reads is defined.
+  - **What it replaced, and why** (measured 2026-11-09, Millennium 3.6.3-beta.1): a pipeline that
+    baked 1641 variables into `config.json` (rewritten + five `.bak` copies per wallpaper change,
+    lost if Steam was open on exit) and a 956 KB `quick.css` of 1559 hashed `--qs-*` variables
+    and 8424 selectors scanned from a running Steam. Quick CSS is injected into EVERY window
+    whichever theme is active: 954 KB × ~10 windows = 5.7 MB of inline CSS. Cold start to a
+    rendered main window was ~80 s (81, 79, 80) with it and 7–10 s without. Material with
+    Matugen: 9.0 s (3 runs), 24 KB of inline CSS across all windows. Live recolouring used to
+    need the unauthenticated CEF debug port on 8080 plus a flag file recreated before every
+    launch: gone. The Matugen poll costs nothing measurable (rewriting the style tag with the
+    same text is ~0 ms), so the theme's own `matugen.js` is not patched.
+  - **Not ours to maintain:** Material's own selectors. An upstream update can change them; the
+    pin only moves when someone bumps it. A user who already had Material keeps their copy.
+  - **Verification trick:** `steam -cef-enable-debugging` opens the debug port for one session
+    (never needed in normal use), and CDP `Emulation.setDeviceMetricsOverride` renders a tiled
+    (441 px) window at full size without touching Hyprland. Don't judge "ready" by window width.
+  - **Only the main window was seen rendered** (nav, tabs, buttons, bottom bar). Dialogs, the
+    Library and the friends list were not opened.
 
 ## Light mode's palette (2026-10-07)
 

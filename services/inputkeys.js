@@ -124,6 +124,9 @@ var LAYOUTS = {
         [["caps", 1.75], "a", "s", "d", "f", "g"],
         [["shift", 2.25], "z", "x", "c", "v"],
         [["ctrl", 1.25], ["alt", 1.25], ["space", 4.25]] ] },
+    // osu!mania 4K: the four lane keys, nothing else drawn or named.
+    osu4k: { name: "4K", blurb: "D F J K, for osu!mania", exposes: "few", rows: [
+        ["d", "f", "j", "k"] ] },
     compact: { name: "60%", blurb: "The main block of a keyboard", exposes: "all", rows: [_R1, _R2, _R3, _R4, _R5] },
     tkl: { name: "TKL", blurb: "Main block, function keys, arrows and navigation", exposes: "all", rows: [
         _FN.concat([0.25, "prtsc", "scrlk", "pause"]), 0.5,
@@ -140,7 +143,7 @@ var LAYOUTS = {
         _R4.concat([0.25, 1, "up", 1, 0.25, "kp1", "kp2", "kp3", ["kpenter", 1, 2]]),
         _R5.concat([0.25, "left", "down", "right", 0.25, ["kp0", 2], "kpdot"]) ] }
 }
-var LAYOUT_IDS = ["wasd", "gaming", "compact", "tkl", "full"]
+var LAYOUT_IDS = ["wasd", "gaming", "osu4k", "compact", "tkl", "full"]
 var DEFAULT_LAYOUT = "wasd"
 function isLayout(id) { return LAYOUT_IDS.indexOf(id) >= 0 }
 var _built = {}

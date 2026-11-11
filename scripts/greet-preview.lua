@@ -1,6 +1,6 @@
 -- greet-preview.lua — look at the greeter without going near your login.
 --
---     start-hyprland -- --config ~/.config/quicktest/scripts/greet-preview.lua
+--     start-hyprland -- --config <this repo>/scripts/greet-preview.lua
 --
 -- Hyprland runs as an ordinary Wayland client when WAYLAND_DISPLAY is already set, so
 -- this opens a NESTED compositor in a window on your desktop and starts greet.qml
@@ -77,9 +77,16 @@ hl.bind("SUPER + Q", hl.dsp.exit())
 -- this file for syntax errors. Inside the callback it is just a closure until
 -- Hyprland actually comes up.
 --
--- Through $HOME rather than a literal path, since this config is published — and
--- resolved in Lua rather than left for a shell to expand, because exec_cmd is not
--- guaranteed to go through one.
+-- The repo is found from this file's own path (the config is published and installs
+-- wherever it was cloned), resolved in Lua rather than left for a shell to expand,
+-- because exec_cmd is not guaranteed to go through one. If the Lua build hides
+-- `debug`, it falls back to the default install path.
+local function repo_dir()
+    local ok, src = pcall(function() return debug.getinfo(1, "S").source end)
+    local dir = ok and src and src:match("^@(.*)/scripts/[^/]*$")
+    return dir or (os.getenv("HOME") .. "/.config/quicktest")
+end
+local REPO = repo_dir()
 hl.on("hyprland.start", function()
-    hl.exec_cmd("qs -p " .. os.getenv("HOME") .. "/.config/quicktest/greet.qml")
+    hl.exec_cmd("qs -p '" .. REPO:gsub("'", "'\\''") .. "/greet.qml'")
 end)

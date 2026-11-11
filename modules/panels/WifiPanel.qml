@@ -7,87 +7,81 @@ import "../../services"
 import "../net"
 
 // ── WifiPanel ─────────────────────────────────────────────────────────────────
-// The bar's Wi-Fi popup: a header, and a NetworkBrowser under it.
+// The Wi-Fi module's panel, in the shell's Material 3 Expressive panel shape:
 //
-// ── What this used to be ──────────────────────────────────────────────────────
-// Seven `nmcli` subprocesses and a 15-second rescan Timer that ran whether or not
-// the panel was open. The scan pipeline was:
+//   Header  (Settings › Modules › Wi-Fi hides it) title, what it found, the scan's dot
+//   Hero    what the machine is online through right now, the reveal-my-IP eye, the radio's switch
+//   Rows    Ethernet (when a cable exists and isn't the subject), a switch per VPN profile
+//   List    NetworkBrowser: the networks, the password prompt, the hidden-network form
 //
-//   radio=$(nmcli radio wifi); echo "RADIO:$radio";
-//   nmcli dev wifi rescan & sleep 0.8;
-//   nmcli -t -f ACTIVE,SSID,SIGNAL,SECURITY dev wifi list |
-//     awk -F: '{ … dedupe by strongest … }' | sort -t: -k3 -rn
-//
-// …with the SSID recovered by `parts.slice(1, length-2).join(":")` because an
-// SSID may itself contain a colon, and errors detected by running a regex —
-// `/error|fail/i` — over nmcli's *human-readable stderr*, in whatever language
-// the user's locale happens to be.
-//
-// It is now a view over the Net service (NetworkManager, over D-Bus, typed).
-// No subprocesses, no parsing, no locale dependency, and no polling: NM pushes.
-//
-// ── Why the list isn't in this file any more ──────────────────────────────────
-// The settings page shows the same networks, with the same password prompt and the
-// same connect/forget behaviour, and two copies of that would drift apart one fix at
-// a time. All of it moved to NetworkBrowser, including the scan refcount — the
-// refcount was only ever keyed to this panel's lifetime because the list could only
-// appear here. It's keyed to the browser's lifetime now, which is the same rule
-// stated where it can't be forgotten.
-//
-// What's left is what a POPUP specifically wants: the radio toggle, the scan
-// indicator, and the reveal-my-IP eye — the ambient facts you glance at on the way
-// to joining something.
+// A view over the Net service (NetworkManager over D-Bus, typed): no subprocess, no parsing, no polling.
+// The list is NetworkBrowser because Settings › Network shows the same networks with the same prompt, and
+// two copies drift; the scan refcount is keyed to the browser's lifetime.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
 
-    implicitWidth: 535
+    implicitWidth: Tokens.sideCardUnit * 11
 
-    // ── Height ────────────────────────────────────────────────────────────────
-    // The layout reports its own height. This used to be a hand-summed pile of
-    // magic numbers (_headerH + _divH + _statusH + _passH + _hiddenH + _listH +
-    // _footerH) that had to be kept in sync with the real layout by hand — and
-    // silently drifted whenever anything inside changed size.
-    readonly property int margin: Tokens.spacingLg + 2
+    // The layout reports its own height; the dock's card follows it.
+    readonly property int margin: Tokens.spacingXl
+    readonly property color accent: Colors.of(QsWindow.window).primary
     implicitHeight: content.implicitHeight + margin * 2
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // Anchored top/left/right — NOT fill. The Card above this animates its height,
-    // and anchoring to fill would re-lay-out this whole column on every frame of
-    // that animation, reflowing every child as it went. Top-anchored content keeps
-    // its natural size; the Card grows around it and clips.
+    // What the machine is online through, for the hero.
+    readonly property bool online: Net.wiredConnected || Net.connected
+    readonly property string heroTitle: Net.wiredConnected ? Translation.tr("Ethernet")
+                                      : Net.connected      ? Net.ssid
+                                      : !Net.hasWifi       ? Translation.tr("No Wi-Fi adapter")
+                                      : Net.wifiBlocked    ? Translation.tr("Wi-Fi is blocked")
+                                      : !Net.wifiEnabled   ? Translation.tr("Wi-Fi is off")
+                                      :                      Translation.tr("Not connected")
+    readonly property string heroLine: {
+        if (Net.wiredConnected) {
+            const parts = [Net.wiredStateLabel()]
+            if (Net.wiredSpeedLabel() !== "") parts.push(Net.wiredSpeedLabel())
+            if (Net.wiredAddress !== "") parts.push(browser.ipBlurred ? "••••••" : Net.wiredAddress)
+            return parts.join(" · ")
+        }
+        if (Net.connected) {
+            const parts = [Translation.tr("Signal %1%").arg(Net.strength)]
+            if (Net.address !== "") parts.push(browser.ipBlurred ? "••••••" : Net.address)
+            if (Net.vpnActive) parts.push(Translation.tr("VPN on"))
+            return parts.join(" · ")
+        }
+        if (!Net.hasWifi)     return Net.hasWired ? Net.wiredStateLabel() : Translation.tr("Nothing to connect with")
+        if (Net.wifiBlocked)  return Translation.tr("A hardware switch or rfkill holds the radio off")
+        if (!Net.wifiEnabled) return Translation.tr("Turn it on to see networks")
+        if (Net.scanning && Net.networks.length === 0) return Translation.tr("Scanning…")
+        return Net.networks.length === 1 ? Translation.tr("1 network in range")
+                                         : Translation.tr("%1 networks in range").arg(Net.networks.length)
+    }
+
+    // Anchored top/left/right, not fill: the Card above this animates its height, and anchoring to fill would
+    // re-lay-out this whole column on every frame of that animation.
     ColumnLayout {
         id: content
         anchors.top:   parent.top
         anchors.left:  parent.left
         anchors.right: parent.right
         anchors.margins: root.margin
-        spacing: Tokens.spacingMd + 2
+        spacing: Tokens.spacingSm
 
-        // ── Header ────────────────────────────────────────────────────────────
+        // ── Header (Settings › Modules › Wi-Fi hides it) ──────────────────────
         PanelHeader {
-            glyph:     Net.glyph()          // real signal strength, same glyph as the bar pill
+            Layout.fillHeight: false
+            visible: Config.panelHeader("wifi")
+            symbol:    "wifi"
             title:     Translation.tr("Wi-Fi")
-            titleTail: "& Network"
-            accent:    Colors.of(QsWindow.window).primary
+            titleTail: Translation.tr("& Network")
+            accent:    root.accent
 
-            subtitle: Net.wiredConnected ? "Connected via Ethernet"
-                    : !Net.wifiEnabled   ? "Radio disabled"
-                    : Net.connected      ? "Connected to " + Net.ssid
-                    : Net.scanning       ? "Scanning…"
-                    : Net.networks.length + " network"
-                      + (Net.networks.length !== 1 ? "s" : "") + " found"
-
-            // Reveal the local IP. The browser renders it (on the connected row), so
-            // the flag lives there — this is only the switch. Covers whichever
-            // address is currently showing, wifi's or the wired one below.
-            PanelButton {
-                visible:   Net.address !== "" || Net.wiredAddress !== ""
-                variant:   "ghost"
-                glyph:     browser.ipBlurred ? "󰈉" : "󰈈"   // eye-off / eye
-                glyphTint: browser.ipBlurred ? Colors.of(QsWindow.window).fgDim : Colors.of(QsWindow.window).info
-                onActivated: browser.ipBlurred = !browser.ipBlurred
-            }
+            subtitle: Net.wiredConnected ? Translation.tr("Connected via Ethernet")
+                    : !Net.wifiEnabled   ? Translation.tr("Radio disabled")
+                    : Net.connected      ? Translation.tr("Connected to %1").arg(Net.ssid)
+                    : Net.scanning       ? Translation.tr("Scanning…")
+                    : Net.networks.length === 1 ? Translation.tr("1 network found")
+                    : Translation.tr("%1 networks found").arg(Net.networks.length)
 
             // Scanning runs continuously while this panel is open, so this is a
             // breathing dot, not a spinner that would never stop.
@@ -95,67 +89,60 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
                 running: Net.wifiEnabled && Net.scanning
             }
+        }
+
+        // ── Hero: what the machine is online through, and the radio's switch ──
+        PanelHero {
+            id: hero
+            symbol: Net.wiredConnected ? "lan" : "wifi"
+            offSymbol: Net.wifiEnabled ? "wifi" : "wifi_off"
+            shape: Net.wiredConnected ? "squircle" : "cookie9"
+            active: root.online
+            turning: false
+            accent: root.accent
+            title: root.heroTitle
+            line: root.heroLine
+
+            // Reveal the local IP. The browser renders it (on the connected row), so the flag lives there.
+            PanelButton {
+                visible:   Net.address !== "" || Net.wiredAddress !== ""
+                variant:   "ghost"
+                capsule:   true
+                symbol:    browser.ipBlurred ? "visibility_off" : "visibility"
+                glyphTint: hero.ink
+                onActivated: browser.ipBlurred = !browser.ipBlurred
+            }
 
             Toggle {
                 Layout.alignment: Qt.AlignVCenter
+                visible: Net.hasWifi
+                accessibleName: Translation.tr("Wi-Fi")
                 checked: Net.wifiEnabled
-                // Just ask NetworkManager. The old code optimistically flipped its own
-                // local flag alongside the nmcli call, so a failed or rfkill-blocked
-                // toggle left the UI lying about the radio.
+                // Just ask NetworkManager: a failed or rfkill-blocked toggle must not leave the switch lying.
                 onToggled: Net.toggleWifi()
             }
         }
 
         // ── Ethernet ──────────────────────────────────────────────────────────
-        // Just a status strip — a cable has no list to browse and nothing to join,
-        // NetworkManager connects it on its own. Only present at all when a wired
-        // device exists, so a laptop with no ethernet port never sees it.
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 40
-            radius: Tokens.radiusSm + 2
-            visible: Net.hasWired
-
-            color:        Net.wiredConnected ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).success, 0.10)
-                        : Net.hasLink        ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).warning, 0.10)
-                                             : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.05)
-            border.color: Net.wiredConnected ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).success, 0.28)
-                        : Net.hasLink        ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).warning, 0.28)
-                                             : Colors.of(QsWindow.window).outline
-            border.width: Tokens.borderWidth
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin:  Tokens.spacingLg
-                anchors.rightMargin: Tokens.spacingMd + 2
-                spacing: Tokens.spacingMd
-
-                MaterialIcon {
-                    glyph:  Net.hasLink ? "󰈀" : "󰈂"
-                    color: Net.wiredConnected ? Colors.of(QsWindow.window).success
-                         : Net.hasLink        ? Colors.of(QsWindow.window).warning
-                                              : Colors.of(QsWindow.window).fgMuted
-                    variant: "body"
-                }
-                StyledText {
-                    Layout.fillWidth: true
-                    text: "Ethernet — " + Net.wiredStateLabel()
-                        + (Net.wiredConnected && Net.wiredSpeedLabel() !== ""
-                           ? "  ·  " + Net.wiredSpeedLabel() : "")
-                        + (Net.wiredConnected && Net.wiredAddress !== ""
-                           ? "  ·  " + (browser.ipBlurred ? "••••••" : Net.wiredAddress) : "")
-                    variant: "caption"
-                    opacity: 0.85
-                    elide: Text.ElideRight
-                }
-            }
+        // A status row: a cable has no list to browse and nothing to join. Only present when a wired device
+        // exists and it isn't already the hero's subject.
+        PanelRow {
+            visible: Net.hasWired && !Net.wiredConnected
+            symbol: "lan"
+            title: Translation.tr("Ethernet")
+            subtitle: Net.wiredStateLabel()
         }
 
-        Divider { Layout.topMargin: Tokens.spacingXs; Layout.bottomMargin: Tokens.spacingSm }
+        // ── VPN ───────────────────────────────────────────────────────────────
+        // NetworkManager's VPN profiles, a switch each; absent when there are none.
+        VpnList { Layout.fillWidth: true; Layout.fillHeight: false }
 
         NetworkBrowser {
             id: browser
             Layout.fillWidth: true
+            // No adapter: the hero has said so, and an empty list under it says it twice.
+            visible: Net.hasWifi
+            Layout.topMargin: Tokens.spacingXs
         }
     }
 }

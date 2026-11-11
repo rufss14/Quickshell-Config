@@ -728,7 +728,7 @@ Item {
         // the card's own already-erased top border.
         y:      -(Config.frameBorderWidth * 2 + 1)
         height: Config.frameBorderWidth * 3 + 3
-        color:  Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceFor(Tokens.elevationBar), Config.barOpacity)
+        color:  Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceFor(Tokens.elevationBar), Tokens.barOpacity)
     }
 
 }

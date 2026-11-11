@@ -44,3 +44,11 @@ SideWindow 1.0 SideWindow.qml
 SideLayout 1.0 SideLayout.qml
 SideLocks 1.0 SideLocks.qml
 SideBarModule 1.0 SideBarModule.qml
+BarDockPopups 1.0 BarDockPopups.qml
+SideClock 1.0 SideClock.qml
+SideTray 1.0 SideTray.qml
+SideWorkspaces 1.0 SideWorkspaces.qml
+SideVisualizer 1.0 SideVisualizer.qml
+WorkspaceGlance 1.0 WorkspaceGlance.qml
+PillTip 1.0 PillTip.qml
+ArrangeBackdrop 1.0 ArrangeBackdrop.qml

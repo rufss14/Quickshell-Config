@@ -373,8 +373,8 @@ Singleton {
     function needsPassword(id) { return id !== "flatpak" }
 
     // ── Where a reclaimer's space actually lives ──────────────────────────────
-    // The page used to list "largest folders" beside the reclaimers, which was the SAME
-    // DATA TWICE: "Package cache 24.6 GB" is the thing the paccache row cleans, and
+    // No "largest folders" list beside the reclaimers: it would be the SAME DATA
+    // TWICE: "Package cache 24.6 GB" is the thing the paccache row cleans, and
     // "System logs 1.2 GB" is what the journal row trims. Showing both invited the reader
     // to add them together.
     //
@@ -408,19 +408,23 @@ Singleton {
     // pane, one password field, regardless of which button on the page started
     // it. `set -e` so a rejected password stops here instead of being buried
     // under whatever the real command prints next.
+    // The password goes through SudoProcess, which refuses a password sudo just rejected
+    // and anything while sudo is locked (`passwordNote` says which), so a cleanup can't
+    // walk the user into the ten-minute lockout.
     function _run(id, label, cmd, password) {
         if (runProcess.running || cmd === "") return
         root.clearRun()
-        root._runLabel    = label
-        root._runId       = id
-        root._pendingPass = password ?? ""
-        runProcess.command = ["bash", "-c", "set -e\n" + cmd]
-        // Re-armed every run: onStarted turns stdin off, and a process started with
-        // it off gets stdin closed before it runs — the second sudo job in a session
-        // would read EOF (Setup.qml's _run has the whole story).
-        runProcess.stdinEnabled = true
-        runProcess.running = true
+        root._freeBefore = root._rootFree()
+        if (!runProcess.launch(["bash", "-c", "set -e\n" + cmd], password ?? "")) {
+            root._log(runProcess.passwordNote || "This couldn't start.", true)
+            root._runExit = 1
+            root._runDone = true
+            return
+        }
+        root._runLabel = label
+        root._runId    = id
     }
+    readonly property string passwordNote: runProcess.passwordNote
 
     function reclaim(id, password) {
         const cmd = root._commandFor(id)
@@ -494,7 +498,6 @@ Singleton {
     property bool   _runDone: false
     property string _runLabel: ""
     property string _runId:    ""
-    property string _pendingPass: ""
 
     // Free space on / at the moment the run started, so the finish message can report what
     // was ACTUALLY reclaimed rather than repeating the estimate. An estimate that turns out
@@ -517,21 +520,8 @@ Singleton {
         return r ? r.avail : 0
     }
 
-    Process {
+    SudoProcess {
         id: runProcess
-        running: false
-        stdinEnabled: true
-
-        onStarted: {
-            root._freeBefore = root._rootFree()
-            if (root._pendingPass !== "") {
-                runProcess.write(root._pendingPass + "\n")
-                root._pendingPass = ""
-            }
-            // Closed once the password is in, or anything downstream reading stdin waits
-            // forever for input that isn't coming.
-            runProcess.stdinEnabled = false
-        }
 
         stdout: SplitParser { onRead: function(line) { root._log(line, false) } }
         stderr: SplitParser { onRead: function(line) { root._log(line, true) } }
@@ -539,7 +529,7 @@ Singleton {
         onExited: function(code) {
             root._runExit = code
             root._runDone = true
-            root._pendingPass = ""
+            runProcess.judge(code, root._runLog)
             root._log(code === 0 ? "✓ Finished." : "✗ Exited with code " + code, code !== 0)
             // Re-probe so the page reflects reality; the freed figure is computed once the
             // new df lands, in onFilesystemsChanged below.

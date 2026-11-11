@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import "../../config"
 import "../../components"
+import "../../services"
 import "../../state"
 
 // ── SideArrange ───────────────────────────────────────────────────────────────
@@ -31,6 +32,14 @@ Item {
 
     required property SideRail rail
 
+    // The matrix the blob hands back for the hint card's lobe (Bar.qml).
+    property matrix4x4 deformMatrix
+    // The card's box in this item's (the window's) coordinates, for the blob's lobe.
+    readonly property real blobX: hint.blobW > 0 ? off.x + hint.blobX : 0
+    readonly property real blobY: hint.blobW > 0 ? off.y + hint.blobY : 0
+    readonly property real blobW: hint.blobW
+    readonly property real blobH: hint.blobH
+
     anchors.fill: parent
 
     // For Bar.qml's input mask: the sidebar's band and the room beside it, so a
@@ -43,7 +52,7 @@ Item {
     readonly property real bandLo: root.rail.surfaceLo
     readonly property real bandHi: root.rail.surfaceHi
     // The room beside the sidebar that takes a module off it.
-    readonly property real offDepth: Tokens.sideCardUnit * 3
+    readonly property real offDepth: Tokens.sideCardUnit * 5
     // How much of a gap between groups is there to aim at.
     readonly property real seamW: Math.max(root.rail.groupGap * 2, Tokens.spacingXl)
 
@@ -135,6 +144,19 @@ Item {
                 y: root.vertical ? (mark.after ? parent.height - height : 0) : Tokens.spacingSm
             }
 
+            // The outline every module wears while arranging, as the desktop widgets' tiles do: a
+            // primary edge, brighter in the hand.
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: Tokens.spacingXs
+                radius: Config.sidebarRadius
+                color: "transparent"
+                border.width: Tokens.borderWidth
+                border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary,
+                    SideDrag.dragging && SideDrag.dragId === handle.modelData ? 0.9 : 0.45)
+                Behavior on border.color { ColorAnimation { duration: Motion.respond } }
+            }
+
             // Hover: this is a thing you can pick up.
             Rectangle {
                 anchors.fill: parent
@@ -184,13 +206,15 @@ Item {
                 drag.smoothed: false
                 drag.onActiveChanged: {
                     if (!grab.drag.active) return
-                    SideDrag.dragging = true
-                    SideDrag.dragId = handle.modelData
+                    ModuleDrag.begin(handle.modelData, "side")
                     proxy.armed = true
                 }
                 // The picture it carries: the real module, grabbed on press so it's
                 // ready by the time the drag starts (grabToImage is asynchronous).
                 onPressed: {
+                    // Pressing picks it too: Bar › Modules' inspector edits whatever this
+                    // names — the bar's slots do the same (BarGroupRow).
+                    UiState.inspectBarModule(handle.modelData)
                     const item = root.rail.items[handle.modelData] ?? handle
                     item.grabToImage(function (result) { proxy.Drag.imageSource = result.url },
                                      Qt.size(Math.max(1, item.width), Math.max(1, item.height)))
@@ -356,8 +380,10 @@ Item {
             onEntered: SideDrag.drop = { kind: "off" }
             onExited: if (SideDrag.drop?.kind === "off") SideDrag.drop = null
             onDropped: function (d) {
-                const id = SideDrag.idFromDrop(d)
-                if (id === "" || !Config.sidebarPlaced(id)) return
+                // A bar module dropped here comes off too (even one with no sidebar
+                // form): "off" means off both.
+                const id = ModuleDrag.idFromDrop(d)
+                if (id === "" || Config.surfaceOf(id) === "") return
                 SideDrag.dropExternal(id, { kind: "off" })
                 d.acceptProposedAction()
             }
@@ -377,44 +403,36 @@ Item {
             y: root.vertical ? Tokens.spacingXl : off.height - height - Tokens.spacingXs
         }
 
-        // ── The one line that says what's about to happen ─────────────────────
-        // In a chip of the bar's material, so it reads over whatever is behind.
-        Rectangle {
-            id: caption
-            readonly property int pad: Tokens.spacingSm
-            // Measured unwrapped (TextMetrics), not off the Text's own implicitWidth:
-            // a wrapping Text sized from itself can loop.
-            readonly property real textMax: off.width - Tokens.spacingMd * 2 - caption.pad * 2
-            width: Math.min(caption.textMax, captionMetrics.advanceWidth + Tokens.spacingXs) + caption.pad * 2
-            height: captionText.implicitHeight + caption.pad * 2
-
-            TextMetrics {
-                id: captionMetrics
-                font: captionText.font
-                text: captionText.text
-            }
-            x: root.edge === "right" ? off.width - width - Tokens.spacingMd : Tokens.spacingMd
-            y: root.vertical ? Tokens.spacingXl : Math.round((off.height - height) / 2)
-            radius: Tokens.radiusSm
-            color: Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceFor(Tokens.elevationPopup), Config.barOpacity)
-            border.width: Tokens.borderWidth
-            border.color: SideDrag.drop?.kind === "off" ? Colors.of(QsWindow.window).danger : Colors.of(QsWindow.window).outline
-
-            StyledText {
-                id: captionText
-                x: caption.pad
-                y: caption.pad
-                width: caption.width - caption.pad * 2
-                wrapMode: Text.WordWrap
-                variant: "caption"
-                text: SideDrag.dragging
-                    ? SideDrag.description
-                    : "Drag a module along the sidebar to move it, onto another to group them, "
-                      + "or out here to take it off"
-                color: SideDrag.drop?.kind === "off" ? Colors.of(QsWindow.window).danger
-                     : SideDrag.dragging             ? Colors.of(QsWindow.window).focus
-                     :                                 Colors.of(QsWindow.window).fgDim
-            }
+        // ── What is about to happen ───────────────────────────────────────────
+        // The mode's card (components/ArrangeHint): at rest the gestures, mid-drag the
+        // one line SideDrag.description gives. Centred across the room, at the start of
+        // the sidebar's run beside a vertical one and mid-room under a horizontal one.
+        ArrangeHint {
+            id: hint
+            vertical: root.vertical
+            maxWidth: root.vertical ? off.width - Tokens.spacingMd : 10000
+            // Welded, it stands on the sidebar's face and the blob joins the two; floating, it is
+            // centred across the room.
+            fused: root.rail.welded
+            edge: root.edge
+            deformMatrix: root.deformMatrix
+            restX: root.rail.welded && root.vertical ? (root.edge === "right" ? off.width - hint.implicitWidth : 0)
+                              : Math.round((off.width - hint.implicitWidth) / 2)
+            restY: root.vertical ? Tokens.spacingXl
+                 : root.rail.welded ? off.height - hint.implicitHeight
+                 : Math.round((off.height - hint.implicitHeight) / 2)
+            title: Translation.tr("Arranging the sidebar")
+            subtitle: Translation.tr("Pick a module up, then drop it")
+            steps: [
+                { mode: "move",  symbol: "swap_vert",  title: Translation.tr("Move"),     detail: Translation.tr("Drag along the sidebar") },
+                { mode: "group", symbol: "layers",    title: Translation.tr("Group"),    detail: Translation.tr("Drop onto another") },
+                { mode: "off",   symbol: "delete",     title: Translation.tr("Take off"), detail: Translation.tr("Drop out here") }
+            ]
+            dragging: SideDrag.dragging
+            mode: SideDrag.drop?.kind === "chip" ? "group"
+                : SideDrag.drop?.kind === "off" ? "off"
+                : SideDrag.drop ? "move" : ""
+            description: SideDrag.description
         }
     }
 

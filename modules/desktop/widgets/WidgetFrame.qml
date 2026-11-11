@@ -55,7 +55,8 @@ Surface {
     // to clear an override back to inherit) the same way, before AND after a reload —
     // JSON.stringify drops an undefined-valued key, so a cleared override doesn't
     // come back as a stale `undefined` literal either.
-    readonly property real effOpacity:   frame.model.opts.opacity   ?? Config.widgetOpacity
+    // Solid under high contrast, whatever the tile or the global slider says (both keep their value).
+    readonly property real effOpacity:   Config.highContrast ? 1 : (frame.model.opts.opacity ?? Config.widgetOpacity)
     readonly property int  effRoundness: frame.model.opts.roundness ?? Config.widgetRoundness
 
     // Glass is TRI-state, not a bool — "on"/"off"/"inherit" ("" or absent). A bool
@@ -252,7 +253,9 @@ Surface {
     // rules do not apply beneath the windows. A frosted look here would mean sampling
     // the wallpaper ourselves, which is a lot of machinery for a static image.
     fillOpacity: frame.bare ? 0 : frame.effOpacity
-    borderWidth: frame.bare ? 0 : Tokens.borderChrome
+    // Not while the glass draws it: the shader strokes the same border itself, with light on
+    // it (see "LIQUID GLASS"), and a second one underneath would show through a translucent body.
+    borderWidth: (frame.bare || frame.refracting) ? 0 : Tokens.borderChrome
     // ── One border, everywhere ────────────────────────────────────────────────
     // The tiles used to carry an elevation-derived outline at rest and swap to the
     // accent on hover. Measured against the rest of the shell, the resting one was
@@ -333,7 +336,7 @@ Surface {
     // Switched and scaled from Settings › Desktop › Style (`Config.widgetParallax`,
     // `widgetParallaxStrength`). One factor drives BOTH the tilt and the content shift,
     // so the two cannot be tuned out of agreement.
-    readonly property real parallax: (Config.motionEnabled && Config.widgetParallax)
+    readonly property real parallax: (Motion.ambientOn && Config.widgetParallax)
                                      ? Config.widgetParallaxStrength : 0
     readonly property real tiltMax: 5 * frame.parallax
     readonly property real _px: (frame.hovered && frame.width > 0)
@@ -400,7 +403,7 @@ Surface {
     // Optional, behind `Config.widgetGlass`, and it comes in two implementations.
     //
     // ── The real one: a refracting lens ───────────────────────────────────────
-    // `shaders/liquidglass.frag` samples the WALLPAPER at the tile's own screen position
+    // `shaders/liquidglass.src.frag` samples the WALLPAPER at the tile's own screen position
     // and bends it, hardest at the rim. Refraction is the thing that separates Apple's
     // material from ordinary frosted glass, and no stack of opaque Rectangles can do it —
     // a pane with depth does not merely tint what is behind it, it compresses it into the
@@ -445,11 +448,10 @@ Surface {
             // that is invisible still holds its pipeline, but it stops shading.
             fragmentShader: Qt.resolvedUrl("../../../shaders/liquidglass.frag.qsb")
 
-            // `frame.effOpacity` lands here rather than in the shader body: below 1 the
-            // Surface's own fill shows through beneath the glass, which is a sensible blend
-            // and keeps one slider (or one per-widget override) meaning one thing.
-            opacity: frame.effOpacity
-
+            // The body's own translucency goes in as `bodyAlpha`, not as this item's opacity:
+            // below 1 the Surface's fill shows through beneath the glass, which keeps one
+            // slider (or one per-widget override) meaning one thing, and the shader keeps
+            // the border out of it (an item opacity would fade the stroke too).
             property variant src: frame.backdrop
             property vector2d size: Qt.vector2d(width, height)
             // The tile's RENDERED top-left, so the sampled region follows the hover grow
@@ -461,9 +463,25 @@ Surface {
             property real strength:   14
             property real bulge:      0.04
             property real blurRadius: 7
-            property real specular:   0
+            property real dispersion: 0.18
             property real tintAmount: 0.10
             property real dim:        0.10
+            property real bodyAlpha:  frame.effOpacity
+            // The border, drawn by the shader. Its width and colour are the Surface's own
+            // (Tokens.borderChrome, and the live `border.color`, so a drag or hover still
+            // turns it to the focus outline and the change still fades). Light and shade are
+            // the palette's: the foreground on a dark scheme, the base on a light one (the
+            // lit edge must be lighter than the tile either way), and the palette's constant
+            // black for the far side.
+            property real rimWidth:    Tokens.borderChrome
+            property real rimStrength: frame.focused ? 0.8 : 1.0
+            // A vector, not a colour: a `color` property reaches the shader premultiplied, and
+            // the stroke's alpha is wanted straight.
+            property vector4d rimBase: Qt.vector4d(frame.border.color.r, frame.border.color.g,
+                                                   frame.border.color.b, frame.border.color.a)
+            property color rimLight:   Config.themeMode === "light" ? Colors.of(QsWindow.window).base
+                                                                    : Colors.of(QsWindow.window).fg
+            property color rimShade:   Colors.of(QsWindow.window).shadow
             // The tile's own container tone (see "a tonal container"), so glass and plain
             // tiles are the same colour and only the refraction tells them apart.
             property vector4d tint: Qt.vector4d(Colors.of(QsWindow.window).surfaceContainer.r,
@@ -475,14 +493,15 @@ Surface {
         }
     }
 
-    // ── No lit-glass overlay, no cast shadow, no rim light ────────────────────
+    // ── No lit-glass overlay, no cast shadow ──────────────────────────────────
     // The tiles used to wear GlassOverlay (a graded body, a top sheen and a rim) when
     // there was no wallpaper to refract, a specular rim in the refracting shader, and the
-    // Surface's own elevation shadow. All three were lighting effects, and all three were
-    // taken off on request (2026-10-07): a tile is now a flat translucent fill with the
-    // shell's outline, the same material as the bar and the panels. With glass on, the
-    // wallpaper behind it is still bent (the shader's `specular` is the one term that
-    // makes light, and is 0); with no wallpaper to sample, it is simply the fill.
+    // Surface's own elevation shadow. All three were taken off on request (2026-10-07): a
+    // tile is a flat translucent fill with the shell's outline, the same material as the bar
+    // and the panels. The overlay and the shadow stay off. With glass on, the BORDER is lit
+    // again (asked for 2026-11-08): the shell's own stroke, drawn by the shader with light on
+    // the upper-left and shade on the far side (see liquidglass.src.frag), not a separate rim on
+    // top of it. With no wallpaper to sample, it is simply the fill and the plain border.
     castsShadow: false
 
     // ── Touch response ────────────────────────────────────────────────────────

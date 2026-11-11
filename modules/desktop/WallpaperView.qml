@@ -195,7 +195,7 @@ PanelWindow {
     readonly property bool sceneKind:
         root.liveId !== "" && ScenePreload.usable(root.liveId)
     readonly property bool parallaxOn:
-        Config.wallShellRender && (root.sceneKind ? Config.wpeParallax : Config.wallParallax)
+        Motion.ambientOn && Config.wallShellRender && (root.sceneKind ? Config.wpeParallax : Config.wallParallax)
         && Config.wallParallaxZoom > 1.0
     // Where the framing is heading, and where it is now. Turning parallax on/off glides the
     // picture between the two (it used to jump); the decode size follows the TARGET, not the
@@ -235,6 +235,21 @@ PanelWindow {
     readonly property real tx: (0.5 - root.panX) * 2 * root.overflowX
     readonly property real ty: (0.5 - root.panY) * 2 * root.overflowY
 
+    // ── What the widgets' glass sees ──────────────────────────────────────────
+    // The glass on a desktop tile bends the wallpaper behind it, so it must look at the
+    // wallpaper AS DRAWN here: this zoom, this pan, this picture. WidgetLayer is another
+    // surface and can't read these off the planes, so the framing is published under the
+    // screen's name (WallFrame) and `components/WallBackdrop` rebuilds the picture from it.
+    // `glideTx/Ty` are the planes' own Translate, once: snapped, and gliding with the same
+    // curve, so the glass and the picture arrive together. `drawn` is the picture on the
+    // settled plane (a change's water holds it until the water lands), "" while a scene or
+    // the game card is up.
+    property real glideTx: root._snap(root.tx)
+    property real glideTy: root._snap(root.ty)
+    Behavior on glideTx { NumberAnimation { duration: Motion.spatial; easing.type: Motion.travel } }
+    Behavior on glideTy { NumberAnimation { duration: Motion.spatial; easing.type: Motion.travel } }
+    readonly property string drawn: cur.source.toString()
+
     // ── Keeping it sharp ─────────────────────────────────────────────────────
     // Two things blur a panned wallpaper, and both are fixable:
     //   · the surface renders at width×dpr PHYSICAL pixels, so a sourceSize in
@@ -258,7 +273,7 @@ PanelWindow {
         root._held = root.wantPointer
     }
     onWantPointerChanged: root._syncPointer()
-    Component.onDestruction: if (root._held) Pointer.release()
+    Component.onDestruction: { WallFrame.unregister(root.screenName, root); if (root._held) Pointer.release() }
 
     // ── The picture, with a crossfade on change ───────────────────────────────
     // `prev` holds the outgoing image only long enough to fade out from under
@@ -327,7 +342,7 @@ PanelWindow {
     onLiveTopChanged:    { Qt.callLater(root._load); root._liveGone() }
     onLiveWaitChanged:   Qt.callLater(root._load)
     onShellDrawsChanged: root._shellDrawsChanged()
-    Component.onCompleted: { root._syncPointer(); root._load(); if (root.stillWanted) stillTimer.restart() }
+    Component.onCompleted: { WallFrame.register(root.screenName, root); root._syncPointer(); root._load(); if (root.stillWanted) stillTimer.restart() }
 
     // ── The water ─────────────────────────────────────────────────────────────
     // One slot per WallWave channel (token % 2), the newest on top: a second change

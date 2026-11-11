@@ -25,6 +25,7 @@ PanelHeader 1.0 PanelHeader.qml
 PanelCard   1.0 PanelCard.qml
 PanelButton 1.0 PanelButton.qml
 CookieButton 1.0 CookieButton.qml
+ArrangeHint 1.0 ArrangeHint.qml
 ActionGroup 1.0 ActionGroup.qml
 ContextMenu 1.0 ContextMenu.qml
 Badge       1.0 Badge.qml
@@ -123,6 +124,7 @@ FocusTrace   1.0 FocusTrace.qml
 MagnetLean 1.0 MagnetLean.qml
 DepthPlacer 1.0 DepthPlacer.qml
 DepthMasked 1.0 DepthMasked.qml
+WallBackdrop 1.0 WallBackdrop.qml
 SpringValue 1.0 SpringValue.qml
 MorphShape  1.0 MorphShape.qml
 HoverTrack  1.0 HoverTrack.qml
@@ -131,3 +133,9 @@ MusicRim    1.0 MusicRim.qml
 LiveShape   1.0 LiveShape.qml
 ImagePicker 1.0 ImagePicker.qml
 PeakCap     1.0 PeakCap.qml
+WallFxSoundRow 1.0 WallFxSoundRow.qml
+SpringReveal 1.0 SpringReveal.qml
+PanelHero   1.0 PanelHero.qml
+PanelRow    1.0 PanelRow.qml
+PanelEmpty  1.0 PanelEmpty.qml
+TipBubble   1.0 TipBubble.qml

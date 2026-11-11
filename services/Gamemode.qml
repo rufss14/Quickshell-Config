@@ -352,6 +352,10 @@ Singleton {
     function _holdIdle(on)  { if (on) Idle.hold("gamemode");                  else Idle.release("gamemode") }
     function _holdQuiet(on) { if (on) Notifications.holdQuiet("gamemode");    else Notifications.releaseQuiet("gamemode") }
 
+    // The daemon offers a performance profile. `PowerSaver.profilesOk` first: see there, the singleton is
+    // not touched on a machine without the daemon.
+    readonly property bool _perfProfile: PowerSaver.profilesOk && PowerProfiles.hasPerformanceProfile
+
     // ── gamemoderun session + power profile ───────────────────────────────────
     // Held only where the tools are actually present. Absent, the mode still
     // does everything else — the idle/quiet holds, the wallpaper.
@@ -366,7 +370,7 @@ Singleton {
             // which is most desktops and any machine without the daemon. Asking for a
             // profile that does not exist is how you get a D-Bus error instead of a
             // no-op, and there is nothing to report to a user who never had the feature.
-            if (PowerProfiles.hasPerformanceProfile
+            if (root._perfProfile
                 && PowerProfiles.profile !== PowerProfile.Performance
                 && root._prevProfile === -1) {
                 root._prevProfile = PowerProfiles.profile
@@ -383,7 +387,7 @@ Singleton {
         // power-saver mid-session, forcing balanced back on exit would be gamemode
         // overruling a choice made after it.
         if (root._prevProfile !== -1) {
-            if (PowerProfiles.profile === PowerProfile.Performance)
+            if (root._perfProfile && PowerProfiles.profile === PowerProfile.Performance)
                 PowerProfiles.profile = root._prevProfile
             root._prevProfile = -1
         }
@@ -1342,7 +1346,7 @@ Singleton {
     // block the button. What it reports is which parts will do nothing here.
     function limits() {
         const out = []
-        if (!root._toolsOk && !PowerProfiles.hasPerformanceProfile)
+        if (!root._toolsOk && !root._perfProfile)
             out.push("no gamemode or performance power profile — CPU/GPU stay as-is")
         else if (!root._toolsOk)
             out.push("gamemode not installed — governor/GPU level unchanged")

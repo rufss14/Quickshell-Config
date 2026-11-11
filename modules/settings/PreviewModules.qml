@@ -75,6 +75,8 @@ QtObject {
             case "power":       return side_powerC
             case "tools":       return side_toolsC
             case "voice":       return side_voiceC
+            case "nowplaying":  return nowplayingC
+            case "dock":        return dockC
             default:            return null
         }
     }
@@ -140,6 +142,8 @@ QtObject {
     property Component _side_powerC: Component { id: side_powerC; SideModulePill { moduleId: "power" } }
     property Component _side_toolsC: Component { id: side_toolsC; SideModulePill { moduleId: "tools" } }
     property Component _side_voiceC: Component { id: side_voiceC; SideModulePill { moduleId: "voice" } }
+    property Component _nowplayingC: Component { id: nowplayingC; NowPlayingPill {} }
+    property Component _dockC: Component { id: dockC; DockPill {} }
     property Component _locksC:      Component { id: locksC;      BarIconPill { moduleId: "locks"; label: "CAPS"; active: true } }
 
     // Mirrors Bar.qml's nightLightC minus the click wiring, same as every other

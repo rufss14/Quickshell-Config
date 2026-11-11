@@ -115,7 +115,7 @@ Item {
                                             from: 0; to: 360
                                             duration: 30000
                                             loops: Animation.Infinite
-                                            running: root.current && Config.motionEnabled
+                                            running: root.current && Motion.ambientOn
                                         }
                                     }
                                     StyledText {

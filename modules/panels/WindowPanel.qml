@@ -10,22 +10,26 @@ import "../../services"
 import "../../state"
 
 // ── WindowPanel ───────────────────────────────────────────────────────────────
-// The window the focused-window module names, and what you can do to it: send it to
-// another workspace, float it, fullscreen it, pin it on every workspace, centre it, or
-// close it (closing asks twice — it can lose unsaved work).
+// The window the focused-window module names, and what you can do to it. In the shell's Material 3
+// Expressive panel shape:
 //
-// Which window: the one services/ActiveWindow says the module's screen is about — the
-// sidebar's panel opens on `UiState.sidePanelScreen`, a bar's on `UiState.activeScreen`
-// (both set by whoever opened it), falling back to the focused monitor. All actions go
-// through ActiveWindow, addressed by window, so they never act on whatever happens to
-// have focus by the time you click.
+//   Header  (Settings › Modules › Focused window hides it) the title
+//   Hero    the window itself: its app's icon on a shape, its app, its title, and under them the ten
+//           workspaces as one strip (the one it is on filled; tap another to send it there)
+//   Tiles   float, fullscreen, pin, centre, focus, close (closing asks twice: it can lose unsaved work)
+//
+// Which window: the one services/ActiveWindow says the module's screen is about. The sidebar's panel opens on
+// `UiState.sidePanelScreen`, a bar's on `UiState.activeScreen` (both set by whoever opened it), falling back
+// to the focused monitor. All actions go through ActiveWindow, addressed by window, so they never act on
+// whatever happens to have focus by the time you click.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
 
     property real maxHeight: Infinity
 
-    readonly property int pad: Tokens.spacingLg
+    readonly property int pad: Tokens.spacingXl
+    readonly property color accent: Colors.of(QsWindow.window).primary
     implicitWidth: Tokens.sideCardUnit * 8
     implicitHeight: Math.min(root.maxHeight, col.implicitHeight + root.pad * 2)
 
@@ -46,62 +50,87 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.margins: root.pad
-        spacing: Tokens.spacingMd
+        spacing: Tokens.spacingSm
 
         PanelHeader {
             Layout.fillHeight: false
-            glyph:     "\u{F01C4}"                                   // 󰇄 window
-            icon:      root.win && root.win.icon ? root.win.icon : ""
-            iconSize:  Qt.size(22, 22)
-            title:     root.win ? (root.win.name || root.win.appId || "Window") : "No window"
-            accent:    Colors.of(QsWindow.window).primary
-            subtitle:  root.win ? root.win.title : "This workspace is empty"
+            visible: Config.panelHeader("window")
+            symbol:    "select_all"
+            title:     Translation.tr("Focused")
+            titleTail: Translation.tr("window")
+            accent:    root.accent
+            subtitle:  root.win ? (root.win.name || root.win.appId || "") : Translation.tr("This workspace is empty")
         }
 
-        // ── Where it lives ────────────────────────────────────────────────────
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
+        PanelHero {
+            id: hero
             visible: root.win !== null
-            spacing: Tokens.spacingSm
+            symbol: "select_all"
+            iconSource: root.win && root.win.icon ? root.win.icon : ""
+            shape: "squircle"
+            active: true
+            turning: false
+            accent: root.accent
+            title: root.win ? (root.win.name || root.win.appId || Translation.tr("Window")) : ""
+            line: root.win ? root.win.title : ""
 
-            StyledText {
-                text: Translation.tr("Workspace")
-                variant: "caption"
-                emphasis: "dim"
-            }
-            Repeater {
-                model: 10
-                delegate: Rectangle {
-                    id: ws
-                    required property int index
-                    readonly property int num: ws.index + 1
-                    readonly property bool here: root.win && root.win.workspace === ws.num
+            // ── Where it lives: ten workspaces as one strip ───────────────────
+            footer: Rectangle {
+                id: strip
+                Layout.fillWidth: true
+                implicitHeight: Tokens.iconXl + Tokens.spacingSm
+                radius: height / 2
+                color: Colors.of(QsWindow.window).alpha(hero.ink, 0.10)
 
-                    Layout.fillWidth: true
-                    implicitHeight: 28
-                    radius: Tokens.radiusSm
-                    color: ws.here ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).focus, 0.85)
-                         : wsHover.hovered ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.08)
-                         : "transparent"
-                    border.width: ws.here ? 0 : Tokens.borderWidth
-                    border.color: Colors.of(QsWindow.window).outline
-                    Behavior on color { ColorAnimation { duration: Motion.respond } }
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: Tokens.spacingXs
+                    spacing: 0
+                    Repeater {
+                        model: 10
+                        delegate: Rectangle {
+                            id: ws
+                            required property int index
+                            readonly property int num: ws.index + 1
+                            readonly property bool here: !!root.win && root.win.workspace === ws.num
 
-                    StyledText {
-                        anchors.centerIn: parent
-                        text: ws.num
-                        variant: "caption"
-                        font.weight: ws.here ? Font.DemiBold : Font.Normal
-                        color: ws.here ? Colors.of(QsWindow.window).fgOnPrimary : Colors.of(QsWindow.window).fg
-                    }
-                    HoverHandler { id: wsHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler {
-                        enabled: !ws.here
-                        onTapped: ActiveWindow.toWorkspace(root.win.address, ws.num)
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: height / 2
+                            color: ws.here ? root.accent
+                                 : Colors.of(QsWindow.window).alpha(hero.ink, wsHover.hovered ? 0.14 : 0)
+                            Behavior on color { ColorAnimation { duration: Motion.respond } }
+
+                            StyledText {
+                                anchors.centerIn: parent
+                                text: ws.num
+                                variant: "caption"
+                                font.weight: ws.here ? Font.DemiBold : Font.Medium
+                                color: ws.here ? Colors.of(QsWindow.window).fgOnPrimary : hero.ink
+                            }
+                            HelpTip { text: ws.here ? "" : Translation.tr("Send to workspace %1").arg(ws.num) }
+                            HoverHandler { id: wsHover; cursorShape: ws.here ? Qt.ArrowCursor : Qt.PointingHandCursor }
+                            TapHandler {
+                                enabled: !ws.here
+                                onTapped: ActiveWindow.toWorkspace(root.win.address, ws.num)
+                            }
+                            Accessible.role: Accessible.RadioButton
+                            Accessible.name: Translation.tr("Workspace %1").arg(ws.num)
+                            Accessible.checked: ws.here
+                            Accessible.onPressAction: if (!ws.here && root.win) ActiveWindow.toWorkspace(root.win.address, ws.num)
+                        }
                     }
                 }
             }
+        }
+
+        PanelEmpty {
+            visible: root.win === null
+            quiet: true
+            symbol: "select_all"
+            shape: "squircle"
+            title: Translation.tr("No window")
+            text: Translation.tr("This workspace is empty. Focus a window and its controls show up here.")
         }
 
         // ── What to do to it ──────────────────────────────────────────────────
@@ -112,10 +141,11 @@ Item {
             columns: 3
             columnSpacing: Tokens.spacingSm
             rowSpacing: Tokens.spacingSm
+            uniformCellWidths: true
 
             Action {
                 symbol: "open_with"
-                label:  root.win && root.win.floating ? "Tile" : "Float"
+                label:  root.win && root.win.floating ? Translation.tr("Tile") : Translation.tr("Float")
                 on:     !!(root.win && root.win.floating)
                 onHit:  ActiveWindow.toggleFloating(root.win.address)
             }
@@ -127,15 +157,17 @@ Item {
             }
             Action {
                 symbol: "push_pin"
-                label:  root.win && root.win.pinned ? "Unpin" : "Pin"
+                label:  root.win && root.win.pinned ? Translation.tr("Unpin") : Translation.tr("Pin")
                 on:     !!(root.win && root.win.pinned)
                 enabled: !!(root.win && root.win.floating)
+                help:   Translation.tr("Pin is for floating windows")
                 onHit:  ActiveWindow.togglePin(root.win.address)
             }
             Action {
                 symbol: "center_focus_strong"
                 label:  Translation.tr("Centre")
                 enabled: !!(root.win && root.win.floating)
+                help:   Translation.tr("Centre is for floating windows")
                 onHit:  ActiveWindow.center(root.win.address)
             }
             Action {
@@ -145,66 +177,79 @@ Item {
             }
             Action {
                 symbol: "close"
-                label:  closeLatch.armed ? "Sure?" : "Close"
+                label:  closeLatch.armed ? Translation.tr("Sure?") : Translation.tr("Close")
                 danger: true
                 on:     closeLatch.armed
                 onHit:  closeLatch.trigger()
             }
         }
-
-        StyledText {
-            Layout.fillWidth: true
-            visible: root.win !== null && !root.win.floating
-            text: Translation.tr("Pin and Centre are for floating windows")
-            variant: "caption"
-            emphasis: "dim"
-        }
     }
 
-    // ── Action — one square button: an icon over a word ───────────────────────
-    component Action: Rectangle {
+    // ── Action: one tonal tile, an icon on a shape over a word ───────────────
+    component Action: Item {
         id: act
         property string symbol: ""
         property string label: ""
+        property string help: ""
         property bool on: false
         property bool danger: false
         signal hit()
 
-        readonly property color tint: act.danger ? Colors.of(QsWindow.window).danger : Colors.of(QsWindow.window).focus
+        readonly property color tint: act.danger ? Colors.of(QsWindow.window).danger : root.accent
 
         Layout.fillWidth: true
-        implicitHeight: 58
-        radius: Tokens.radiusPill
-        opacity: act.enabled ? 1 : 0.4
-        color: act.on ? Colors.of(QsWindow.window).alpha(act.tint, 0.22)
-             : actHover.hovered ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.08)
-             : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.04)
-        border.width: Tokens.borderWidth
-        border.color: act.on ? Colors.of(QsWindow.window).alpha(act.tint, 0.5) : Colors.of(QsWindow.window).outline
-        Behavior on color { ColorAnimation { duration: Motion.respond } }
+        Layout.preferredWidth: 1
+        implicitHeight: actCol.implicitHeight + Tokens.spacingMd * 2
+        opacity: act.enabled ? 1 : 0.45
+        Behavior on opacity { NumberAnimation { duration: Motion.fast } }
 
-        scale: actTap.pressed ? 0.95 : 1
-        Behavior on scale { NumberAnimation { duration: Motion.respond; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spring } }
+        SpringValue { id: actPress; target: actTap.pressed ? 1 : 0; spec: Motion.springSpatialFast }
+        scale: 1 - actPress.value * 0.05
+
+        Accessible.role: Accessible.Button
+        Accessible.name: act.label
+        Accessible.onPressAction: if (act.enabled) act.hit()
+
+        Rectangle {
+            anchors.fill: parent
+            radius: Tokens.radiusCard
+            color: act.on ? Colors.of(QsWindow.window).alpha(act.tint, actHover.hovered ? 0.30 : 0.22)
+                          : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, actHover.hovered ? 0.10 : 0.06)
+            Behavior on color { ColorAnimation { duration: Motion.respond } }
+        }
 
         Column {
+            id: actCol
             anchors.centerIn: parent
             spacing: Tokens.spacingXs
-            MaterialIcon {
+            Item {
                 anchors.horizontalCenter: parent.horizontalCenter
-                name: act.symbol
-                fill: act.on ? 1 : 0
-                color: act.on || actHover.hovered ? act.tint : Colors.of(QsWindow.window).fgMuted
-                font.pixelSize: Tokens.iconLg
+                width: Tokens.iconXl + Tokens.spacingSm
+                height: width
+                MorphShape {
+                    anchors.fill: parent
+                    shape: act.on ? "cookie7" : "circle"
+                    fillColor: act.on ? act.tint : Colors.of(QsWindow.window).surfaceHigh
+                }
+                MaterialIcon {
+                    anchors.centerIn: parent
+                    name: act.symbol
+                    fill: act.on ? 1 : 0
+                    color: act.on ? Colors.of(QsWindow.window).fgOnPrimary
+                         : act.danger && actHover.hovered ? act.tint : Colors.of(QsWindow.window).fgMuted
+                    font.pixelSize: Tokens.iconLg
+                }
             }
             StyledText {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: act.label
                 variant: "caption"
-                color: act.on ? act.tint : Colors.of(QsWindow.window).fg
+                font.weight: Font.Medium
             }
         }
 
-        HoverHandler { id: actHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { id: actTap; onTapped: act.hit() }
+        HelpTip { text: act.enabled ? "" : act.help }
+        HoverHandler { id: actHover; cursorShape: act.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor }
+        TapHandler { id: actTap; enabled: act.enabled; onTapped: act.hit() }
     }
 }

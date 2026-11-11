@@ -195,7 +195,7 @@ Item {
                     text: "+" + root.layout.more
                     variant: "caption"
                     font.bold: true
-                    color: stackMouse.containsMouse ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).fgMuted
+                    color: stackMouse.containsMouse ? Config.moduleAccent("voice", Colors.of(QsWindow.window).primary) : Colors.of(QsWindow.window).fgMuted
                 }
             }
 

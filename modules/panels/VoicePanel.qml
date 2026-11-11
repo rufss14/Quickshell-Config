@@ -8,9 +8,10 @@ import "../../config"
 import "../../components"
 import "../../services"
 import "../../state"
+import "voice"
 
 // ── VoicePanel ────────────────────────────────────────────────────────────────
-// The Discord call, beside the sidebar's Voice module (SidePanelDock). Two faces on a
+// The Discord call, beside the sidebar's Voice module (SidePanelDock). Three faces on a
 // TabStrip:
 //
 //   People      everyone in the call. A row opens (one at a time) on a click — or, when
@@ -19,6 +20,8 @@ import "../../state"
 //               that keeps their level for when you unmute, their volume (0–200%, 100
 //               marked, with quick presets) and their balance (left … right). Your own
 //               row leads to the other tab.
+//   Board       who you have been in calls with the most (services/CallLog, `voice/VoiceBoardView`): the top
+//               person on a hero card, the rest ranked, kept until you forget it.
 //   Your audio  your mic (with a live level, the "am I coming through?" check) and
 //               output, which devices, voice activity or push-to-talk, and Discord's
 //               noise suppression / echo cancellation / automatic gain.
@@ -50,7 +53,7 @@ Item {
     // The room the slot has (SidePanelDock sets it); the bodies scroll past it.
     property real maxHeight: Infinity
 
-    readonly property int pad: Tokens.spacingLg
+    readonly property int pad: Tokens.spacingXl
     implicitWidth: Tokens.sideCardUnit * 7
     implicitHeight: Math.min(root.maxHeight, col.implicitHeight + root.pad * 2)
 
@@ -60,7 +63,7 @@ Item {
 
     // ── Which face ────────────────────────────────────────────────────────────
     property string tab: "people"
-    readonly property int tabIndex: root.tab === "people" ? 0 : 1
+    readonly property int tabIndex: ["people", "audio", "board"].indexOf(root.tab)
     // Held for one surface beat after a switch: the only time the body's height eases.
     property bool switching: false
     Timer { id: switchBeat; interval: Math.max(1, Motion.emphasized); onTriggered: root.switching = false }
@@ -171,29 +174,14 @@ Item {
         }
 
         // ── Not in a call ─────────────────────────────────────────────────────
-        ColumnLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            Layout.topMargin: Tokens.spacingMd
-            Layout.bottomMargin: Tokens.spacingMd
+        PanelEmpty {
             visible: !Discord.inCall
-            spacing: Tokens.spacingSm
-            MaterialIcon {
-                Layout.alignment: Qt.AlignHCenter
-                glyph: "\u{F07CE}"                                            // 󰟎 headphones-off
-                font.pixelSize: Tokens.fontNumeralMd
-                color: Colors.of(QsWindow.window).fgDim
-            }
-            StyledText {
-                Layout.fillWidth: true
-                horizontalAlignment: Text.AlignHCenter
-                text: Discord.needsAttention ? "Discord needs setting up — Settings › Discord."
-                    : !Discord.connected ? "Discord isn't running, or isn't connected yet."
-                    : "Join a voice channel or a call and it shows up here."
-                variant: "caption"
-                emphasis: "dim"
-                wrapMode: Text.WordWrap
-            }
+            quiet: true
+            symbol: "headphones"
+            title: Translation.tr("Not in a call")
+            text: Discord.needsAttention ? Translation.tr("Discord needs setting up — Settings › Discord.")
+                : !Discord.connected ? Translation.tr("Discord isn't running, or isn't connected yet.")
+                : Translation.tr("Join a voice channel or a call and it shows up here.")
         }
 
         // ── How the call is doing ─────────────────────────────────────────────
@@ -206,8 +194,8 @@ Item {
 
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: stripRow.implicitHeight + Tokens.spacingSm * 2
-                radius: Tokens.radiusSm
+                implicitHeight: stripRow.implicitHeight + Tokens.spacingMd * 2
+                radius: Tokens.radiusCard
                 color: Colors.of(QsWindow.window).alpha(root.tip !== "" ? Colors.of(QsWindow.window).warning : root.qualityColor, 0.10)
                 Behavior on color { ColorAnimation { duration: Motion.standard } }
 
@@ -288,15 +276,18 @@ Item {
             }
         }
 
-        TabStrip {
+        SegmentSwitch {
             id: tabs
             Layout.fillWidth: true
+            Layout.fillHeight: false
+            Layout.preferredHeight: implicitHeight
             visible: Discord.inCall
             accent:  Colors.of(QsWindow.window).primary
             current: root.tab
             model: [
                 { value: "people", label: "People · " + Discord.users.length, icon: "headphones" },
-                { value: "audio",  label: "Your audio",                         icon: "equalizer" }
+                { value: "audio",  label: "Your audio",                         icon: "equalizer" },
+                { value: "board",  label: "Board",                              icon: "star" }
             ]
             onPicked: (value) => root.show(value)
         }
@@ -306,7 +297,7 @@ Item {
             id: body
             Layout.fillWidth: true
             visible: Discord.inCall
-            readonly property real target: root.tab === "people" ? people.height : audio.height
+            readonly property real target: root.tab === "people" ? people.height : root.tab === "audio" ? audio.height : board.height
             Layout.preferredHeight: body.target
             Behavior on Layout.preferredHeight {
                 enabled: root.switching
@@ -411,11 +402,10 @@ Item {
 
                     Rectangle {
                         anchors.fill: parent
-                        radius: Tokens.radiusSm
-                        color: row.open ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)
-                             : rowMouse.containsMouse ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.04) : "transparent"
-                        border.width: row.open ? Tokens.borderWidth : 0
-                        border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).focus, 0.35)
+                        // Tonal, like every panel's rows: the open one takes the section ground, no outline.
+                        radius: Tokens.radiusCard
+                        color: row.open ? Colors.of(QsWindow.window).section
+                             : rowMouse.containsMouse ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, Tokens.stateHover) : "transparent"
                         Behavior on color { ColorAnimation { duration: Motion.respond } }
                     }
 
@@ -601,6 +591,23 @@ Item {
                 }
             }
 
+            // ══ Board ════════════════════════════════════════════════════════
+            // Who you have been in calls with the most (services/CallLog).
+            VoiceBoardView {
+                id: board
+                width: body.width
+                room: root.bodyRoom
+                shown: root.tab === "board"
+
+                opacity: root.tab === "board" ? 1 : 0
+                visible: board.opacity > 0.01
+                Behavior on opacity { NumberAnimation { duration: Motion.standard; easing.type: Motion.enter } }
+                transform: Translate {
+                    x: root.tab === "board" ? 0 : Tokens.spacingXl
+                    Behavior on x { NumberAnimation { duration: Motion.emphasized; easing.type: Motion.enter } }
+                }
+            }
+
             // ══ Your audio ═══════════════════════════════════════════════════
             Flickable {
                 id: audio
@@ -634,7 +641,7 @@ Item {
                     spacing: Tokens.spacingMd
 
                     // ── Input ────────────────────────────────────────────────────
-                    Heading { text: "Input" }
+                    Heading { text: Translation.tr("Input") }
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: false
@@ -666,8 +673,10 @@ Item {
                         current: Discord.inputDevice
                         onPicked: function (id) { Discord.setInputDevice(id) }
                     }
-                    TabStrip {
+                    SegmentSwitch {
                         Layout.fillWidth: true
+                        Layout.fillHeight: false
+                        Layout.preferredHeight: implicitHeight
                         accent: Colors.of(QsWindow.window).primary
                         current: Discord.inputMode
                         model: [
@@ -678,7 +687,7 @@ Item {
                     }
 
                     // ── Output ───────────────────────────────────────────────────
-                    Heading { text: "Output" }
+                    Heading { text: Translation.tr("Output") }
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: false
@@ -705,7 +714,7 @@ Item {
                     }
 
                     // ── Processing ───────────────────────────────────────────────
-                    Heading { text: "Processing" }
+                    Heading { text: Translation.tr("Processing") }
                     Repeater {
                         model: [
                             { key: "noise", label: "Noise suppression",      hint: "Filters background noise" },
@@ -841,7 +850,7 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: pickRow.implicitHeight + Tokens.spacingSm * 2
-            radius: Tokens.radiusSm
+            radius: Tokens.radiusPill
             color: pickMouse.containsMouse || picker.open ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.08) : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.04)
             Behavior on color { ColorAnimation { duration: Motion.respond } }
             RowLayout {

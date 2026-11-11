@@ -15,10 +15,17 @@ set -euo pipefail
 OFFICIAL_PKGS=(
     hyprland qt6-base qt6-declarative qt6-wayland qt6-svg qt6-5compat
     pipewire pipewire-pulse wireplumber networkmanager libnotify
-    # rtkit: PipeWire asks it for realtime scheduling. Without it the audio thread runs at
-    # normal priority and crackles whenever something saturates the CPU (a game, shader
-    # compiles, the shell's own effects). Only an optional dependency of pipewire on Arch.
-    rtkit
+    # NOT rtkit. With PipeWire 1.6.10, libpipewire's
+    # module-rt in every client logs "clamping rt.time.soft from 18446744073709551615 to 0
+    # because of RTKit" and sets RLIMIT_RTTIME to 0/0 (rtkit itself reports 200000). rtkit
+    # then makes the client's data thread realtime, and the kernel SIGKILLs the process on
+    # its first tick: no log line, no coredump. The shell loads module-rt too, so every
+    # child inherits the 0 hard limit. Seen killing cava (exit 137 in a loop) and every
+    # Wallpaper Engine scene that plays sound. Don't add it back until a PipeWire client
+    # started with rtkit running shows a non-zero "Max realtime timeout" in /proc/PID/limits.
+    # zenity: the file dialog behind "Add wallpapers" and the look export/import. Without it
+    # those buttons disable themselves with a reason (Look.blocker()).
+    zenity
     brightnessctl cava pacman-contrib
     python python-pillow util-linux procps-ng inotify-tools xdg-utils glib2 dbus
     qt6ct xdg-desktop-portal-hyprland
@@ -50,13 +57,16 @@ OFFICIAL_PKGS=(
     # The shell's own updater (scripts/shell-update.sh): `ssh-keygen -Y verify` checks
     # a release's signature, and the release is a .tar.xz. Neither is in `base`.
     openssh xz
+    # The shell itself, from [extra]. A -git build from the AUR satisfies it too: install_official
+    # skips anything `pacman -T` already finds, so it never offers to replace quickshell-git.
+    quickshell
 )
 AUR_PKGS=(
-    quickshell python-pywal16
+    python-pywal16
 )
 
 # ── Feature packs: official-repo packages one feature needs ──────────────────
-# Out of OFFICIAL_PKGS since 2026-11-08, so a plain install isn't a gaming rig and a
+# Not in OFFICIAL_PKGS, so a plain install isn't a gaming rig and a
 # screen recorder whether you want them or not. Each key is a Setup step
 # (services/setupplan.js: ticked for clips/gamemode/blob, unticked for the rest),
 # installed with `--pack <key>`. Every feature here disables itself with a reason
@@ -130,9 +140,9 @@ DEV_PKGS=(
 # None of these are installed by any flag below. Each is a deliberate per-user
 # opt-in run one at a time from Settings → Setup's wizard (services/Setup.qml),
 # same as Spicetify already was per this file's own header comment. But the
-# PACKAGE NAME still only belongs in one place — the wizard used to hardcode
+# PACKAGE NAME still only belongs in one place — hardcoding
 # "spicetify-cli" / "linux-wallpaperengine" / "python-argostranslate" directly
-# in QML, which is exactly the duplication OFFICIAL_PKGS/AUR_PKGS above exist to
+# in the wizard's QML which is exactly the duplication OFFICIAL_PKGS/AUR_PKGS above exist to
 # avoid. `--optional` prints this table so Setup.qml can resolve a key to a
 # package name instead of carrying its own copy that a rename would miss.
 declare -A OPTIONAL_PKGS=(
@@ -223,11 +233,9 @@ if pacman-conf --repo-list 2>/dev/null | grep -qx multilib; then
 fi
 
 # ── The text font ───────────────────────────────────────────────────────────
-# otf-codenewroman-nerd is the shell's TEXT font. It used to be pinned to 3.4.0 from the Arch archive (and
-# held back with IgnorePkg), because 3.5.0 reinserted glyphs mid-font and shifted the glyph ids of every icon
-# the shell drew from it. That stopped mattering when the icons moved into the shell's own fonts
-# (assets/fonts, config/Tokens.qml): no installed icon font is read any more, so any version will do and
-# there is nothing to hold back. Installed from the repository only when it is missing; one that is already
+# otf-codenewroman-nerd is the shell's TEXT font. It needs no version pin, although 3.5.0 reinserted glyphs
+# mid-font and shifted every glyph id: the icons come from the shell's own fonts (assets/fonts,
+# config/Tokens.qml), no installed icon font is read, so any version will do. Installed from the repository only when it is missing; one that is already
 # there (pinned or not) is left alone, so this never downgrades or upgrades a font under a running shell.
 FONT_PKG="otf-codenewroman-nerd"
 
@@ -252,6 +260,12 @@ install_font() {
 # Installs the packages given as arguments.
 install_official() {
     local out rc=0
+    # Only what isn't satisfied already. `pacman -T` resolves provides (quickshell-git provides
+    # quickshell); `--needed` alone doesn't, and would try to swap the -git build for the repo one.
+    local -a want
+    mapfile -t want < <(pacman -T "$@" 2>/dev/null)
+    [ "${#want[@]}" -eq 0 ] && return 0
+    set -- "${want[@]}"
     out=$("${SUDO[@]}" pacman -S --needed --noconfirm "$@" 2>&1) || rc=$?
     printf '%s\n' "$out"
     [ "$rc" -eq 0 ] && return 0
@@ -319,7 +333,7 @@ esac
 
 echo "=== Quickshell config dependency installer ==="
 
-# ── Ensure yay is available (needed for quickshell, pywal16) ────────────────
+# ── Ensure yay is available (needed for pywal16) ─────────────────────────────
 if ! command -v yay &>/dev/null; then
     echo "yay not found — installing it first..."
     sudo pacman -S --needed --noconfirm git base-devel
@@ -422,7 +436,7 @@ fi
 #                                degrades to the plain QML morph. Pulled in here so blob
 #                                works after a normal setup rather than needing a separate
 #                                "go install a C++ toolchain" step. base-devel is already
-#                                required to build quickshell itself from the AUR.
+#                                required to build pywal16 from the AUR.
 #   xdotool / wtype              keystroke injection for the Discord card's screen share
 #                                and camera buttons, which have no RPC command and can
 #                                only be reached by pressing Discord's own keybind.
@@ -495,16 +509,10 @@ done
 # ── AUR packages ──────────────────────────────────────────────────────────────
 # ── If quickshell ever fails with "symbol lookup error: ... undefined symbol:
 #    _Z...QUntypedPropertyBinding..., version Qt_6_PRIVATE_API" ──────────────
-# quickshell is a COMPILED AUR package, linked against whatever qt6-base version
-# was installed at BUILD time. Qt tags its private (non-stable) ABI with a
-# version marker that changes per minor release, so a `pacman -Syu` that pulls a
-# newer qt6-base does not, by itself, rebuild quickshell against it — pacman has
-# no idea an AUR package depends on Qt's internals, only yay does, and only when
-# you ask it to. The binary on disk is then linked against a private ABI that no
-# longer exists in the qt6-base actually installed, which is exactly this error.
-# Fix: `yay -S quickshell` (or a full `yay -Syu`) to rebuild it against the
-# current qt6-base. Not something this repo's QML/scripts can fix from inside —
-# it is a build/link-time fact about a binary this repo doesn't build.
+# Only a -git build from the AUR does this: it links Qt's private ABI as it was at
+# BUILD time, and a `pacman -Syu` that bumps qt6-base doesn't rebuild it. Fix:
+# rebuild it (`yay -S quickshell-git`). The [extra] package is rebuilt by Arch with
+# each Qt bump, so a normal install never sees this.
 echo
 echo "--- Installing AUR packages via yay ---"
 yay -S --needed --noconfirm "${AUR_PKGS[@]}"

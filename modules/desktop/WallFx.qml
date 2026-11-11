@@ -30,7 +30,9 @@ Item {
     property Item source: null
     property bool allowed: false
 
-    readonly property bool wanted: Config.wallFx && root.allowed && FX.anyOn(Config.wallFxMix) && !PowerSaver.active
+    // Reduced motion: the wallpaper no longer moves with the music. (`!reduced`, not `ambientOn`:
+    // "animations off" never stopped this, and that stays as it was.)
+    readonly property bool wanted: Config.wallFx && !Motion.reduced && root.allowed && FX.anyOn(Config.wallFxMix) && !PowerSaver.active
 
     property bool _held: false
     onWantedChanged: {

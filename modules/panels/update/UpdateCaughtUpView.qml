@@ -122,7 +122,7 @@ ColumnLayout {
                 cornerRadius: implicitHeight / 2
                 icon: "lock"
                 secret: true
-                placeholder: "sudo password…"
+                placeholder: Translation.tr("sudo password…")
                 onAccepted: panel._confirmVencord(caughtPassField.text)
                 onKeyPressed: (event) => { if (event.key === Qt.Key_Escape) { panel._escClose(); event.accepted = true } }
             }

@@ -205,8 +205,8 @@ class Sandbox:
         (self.shell / "scripts" / "themes" / "discord" / "pywal-midnight.py").write_text(text)
 
     def pwspice(self, text):
-        """Stand in for the shipped pwspice.py, and theme Spotify (QuickSpice installed)."""
-        (self.home / ".config" / "spicetify" / "Themes" / "QuickSpice").mkdir(parents=True, exist_ok=True)
+        """Stand in for the shipped pwspice.py, and theme Spotify (QuickZiro installed)."""
+        (self.home / ".config" / "spicetify" / "Themes" / "QuickZiro").mkdir(parents=True, exist_ok=True)
         (self.shell / "scripts" / "themes" / "spotify" / "pwspice.py").write_text(text)
 
     def set_live(self, pal):

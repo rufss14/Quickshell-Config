@@ -71,9 +71,7 @@ function distance(win, mon) {
 //            literal (Vesktop, WebCord, Legcord… set different classes).
 //   browser  Pywalfox (reload-theme.sh --app browser).
 //   spotify  Spicetify's recolour (reload-theme.sh --app spotify).
-//   steam    steam-live.py's push through Steam's debug port (reload-theme.sh --app steam);
-//            reachable only once the user opted in — `--probe` says so, like the rest.
-// Per APP, those four: one run recolours every window of it. Everything else only
+// Per APP, those three: one run recolours every window of it. Everything else only
 // has its border; GTK/Qt apps take the palette with the fan-out after the wave.
 const BROWSERS = ["zen", "firefox", "librewolf"]
 
@@ -83,7 +81,6 @@ function kind(cls, discordClasses) {
     if ((discordClasses || []).some(p => p && c.startsWith(String(p).toLowerCase()))) return "discord"
     if (BROWSERS.some(p => c.startsWith(p))) return "browser"
     if (c === "spotify") return "spotify"
-    if (c === "steam") return "steam"
     return ""
 }
 
@@ -102,17 +99,14 @@ function kind(cls, discordClasses) {
 //   discord  Vencord re-reads its themes 300ms after the file stops changing (its
 //            watcher's debounce, measured in its build), then restyles
 //   browser  Pywalfox's add-on applying the theme
-//   steam    nothing to guess either, and nothing after: the push's script returns only once
-//            every window has painted two frames (capped), so its exit IS the repaint —
-//            AFTER is one frame of margin
 //   spotify  nothing to guess: the shell's Spicetify extension SAYS when the new
 //            sheets are loaded and painted (SpotifyBridge.restyled), and Contagion
 //            holds until then — never after its script, never on a timer
 // LEADS keeps their whole-trip estimates for the fallback: a window no curtain
 // covers is told this long before the front reaches it.
-const LEADS = { border: 40, kitty: 120, discord: 550, browser: 500, spotify: 1200, steam: 350 }
-const SCRIPTED = { discord: true, browser: true, spotify: true, steam: true }
-const AFTER = { discord: 450, browser: 350, steam: 20 }
+const LEADS = { border: 40, kitty: 120, discord: 550, browser: 500, spotify: 1200 }
+const SCRIPTED = { discord: true, browser: true, spotify: true }
+const AFTER = { discord: 450, browser: 350 }
 
 // ── The plan, made at the freeze ──────────────────────────────────────────────
 // clients:  `hyprctl clients -j` — asked for fresh at the freeze, because a window

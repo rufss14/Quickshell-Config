@@ -63,7 +63,11 @@ RowLayout {
                 border.color: Config.wallMaterial ? panel.accent : Colors.of(QsWindow.window).outline
                 Behavior on border.color { ColorAnimation { duration: Motion.respond } }
 
-                MaterialWallpaper { anchors.fill: parent }
+                MaterialWallpaper {
+                    anchors.fill: parent
+                    // The Shapes page dims all but the part it is choosing a form for.
+                    highlightSlot: styleSide.page === "shapes" ? styleSide.slot : ""
+                }
 
                 // "On your desktop", said on the picture itself.
                 Rectangle {
@@ -85,6 +89,19 @@ RowLayout {
                 }
             }
 
+            // What the picture is: edits show here at once, the desktop changes only on Apply.
+            StyledText {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 0
+                wrapMode: Text.WordWrap
+                variant: "caption"
+                emphasis: "dim"
+                text: Config.wallMaterial ? Translation.tr("Live on your desktop. Changes show there as you make them.")
+                    : Translation.tr("A preview. Your desktop still shows ")
+                      + (panel.heroName !== "" ? panel.heroName : Translation.tr("your wallpaper"))
+                      + Translation.tr(", and Apply replaces it.")
+            }
+
             RowLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
@@ -102,12 +119,12 @@ RowLayout {
                         else                     Wallpaper.applyMaterial()
                     }
                 }
-                // A different arrangement of the same shapes.
+                // A different arrangement of the same shapes. (Not "Shuffle": that is the wallpaper timer.)
                 PanelButton {
                     variant: "normal"
                     accent: panel.accent
-                    symbol: "shuffle"
-                    label: Translation.tr("Shuffle")
+                    symbol: "casino"
+                    label: Translation.tr("Rearrange")
                     onActivated: Config.wallMaterialSeed = 1 + Math.floor(Math.random() * 1000000)
                 }
             }
@@ -118,9 +135,9 @@ RowLayout {
 
             // The fallback: a still of this held by awww, so it outlives the shell.
             WallpaperOptionRow {
-                label: Translation.tr("Stay without the shell")
+                label: Translation.tr("Keep it if the shell closes")
                 detail: MaterialFallback.blocker() !== "" ? MaterialFallback.blocker()
-                      : "A still is held by awww"
+                      : Translation.tr("Saves a still image of this wallpaper")
                 enabled: MaterialFallback.blocker() === ""
                 checked: Config.wallMaterialFallback && MaterialFallback.blocker() === ""
                 onToggled: Config.wallMaterialFallback = !Config.wallMaterialFallback
@@ -257,6 +274,35 @@ RowLayout {
                         }
                     }
 
+                    // ── Save the mix in use ───────────────────────────────
+                    RowLayout {
+                        visible: styleSide.page === "looks"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: false
+                        spacing: Tokens.spacingSm
+
+                        InputField {
+                            id: lookName
+                            Layout.fillWidth: true
+                            implicitHeight: Tokens.iconXl + Tokens.spacingMd
+                            cornerRadius: implicitHeight / 2
+                            placeholder: Translation.tr("Name this look…")
+                            onAccepted: function (v) { if (MaterialPresets.save(v) !== "") lookName.clear() }
+                            onKeyPressed: function (e) {
+                                if (e.key !== Qt.Key_Escape) return
+                                lookName.blur()
+                                e.accepted = true
+                            }
+                        }
+                        PanelButton {
+                            Layout.fillHeight: false
+                            variant: "normal"
+                            accent: panel.accent
+                            symbol: "save"
+                            label: Translation.tr("Save")
+                            onActivated: if (MaterialPresets.save(lookName.text) !== "") lookName.clear()
+                        }
+                    }
                     // ── The lock: this look ↔ the colour scheme worn ──────
                     // Like the colours panel's lock, for the picture: link the look in use to the
                     // scheme the shell wears, and applying that scheme loads it.
@@ -316,46 +362,9 @@ RowLayout {
                         }
                     }
 
-                    // ── Save the mix in use ───────────────────────────────
-                    RowLayout {
-                        visible: styleSide.page === "looks"
-                        Layout.fillWidth: true
-                        Layout.fillHeight: false
-                        spacing: Tokens.spacingSm
-
-                        InputField {
-                            id: lookName
-                            Layout.fillWidth: true
-                            implicitHeight: Tokens.iconXl + Tokens.spacingMd
-                            cornerRadius: implicitHeight / 2
-                            placeholder: Translation.tr("Name this look…")
-                            onAccepted: function (v) { if (MaterialPresets.save(v) !== "") lookName.clear() }
-                            onKeyPressed: function (e) {
-                                if (e.key !== Qt.Key_Escape) return
-                                lookName.blur()
-                                e.accepted = true
-                            }
-                        }
-                        PanelButton {
-                            Layout.fillHeight: false
-                            variant: "normal"
-                            accent: panel.accent
-                            symbol: "save"
-                            label: Translation.tr("Save")
-                            onActivated: if (MaterialPresets.save(lookName.text) !== "") lookName.clear()
-                        }
-                    }
-                    WallpaperOptionRow {
-                        visible: styleSide.page === "looks"
-                        label: Translation.tr("Mirror")
-                        detail: Translation.tr("Flip the picture left to right")
-                        checked: Config.wallMaterialMirror
-                        onToggled: Config.wallMaterialMirror = !Config.wallMaterialMirror
-                    }
-
                     // ── Colour ────────────────────────────────────────
                     // ROLES of the palette (never a hex), so they follow every wallpaper.
-                    StyledText { visible: styleSide.page === "colour"; text: "Colour"; variant: "label"; emphasis: "dim" }
+                    StyledText { visible: styleSide.page === "colour"; text: Translation.tr("Main colour"); variant: "label"; emphasis: "dim" }
                     RowLayout {
                         visible: styleSide.page === "colour"
                         Layout.fillWidth: true
@@ -409,7 +418,16 @@ RowLayout {
                             }
                         }
                     }
-                    StyledText { visible: styleSide.page === "colour"; text: "Second colour"; variant: "label"; emphasis: "dim" }
+                    StyledText { visible: styleSide.page === "colour"; text: Translation.tr("Accent shapes"); variant: "label"; emphasis: "dim" }
+                    StyledText {
+                        visible: styleSide.page === "colour"
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 0
+                        wrapMode: Text.WordWrap
+                        variant: "caption"
+                        emphasis: "dim"
+                        text: Translation.tr("The edge shapes and the second stack. None keeps everything in the main colour.")
+                    }
                     RowLayout {
                         visible: styleSide.page === "colour"
                         Layout.fillWidth: true
@@ -487,12 +505,21 @@ RowLayout {
                     // ── Shapes ────────────────────────────────────────
                     // Pick the part of the picture, then the shape it wears. The composition's
                     // own shape is stored as "", never as a default baked into the config.
+                    StyledText {
+                        visible: styleSide.page === "shapes"
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 0
+                        wrapMode: Text.WordWrap
+                        variant: "caption"
+                        emphasis: "dim"
+                        text: Translation.tr("Pick a part of the picture, then its shape. The rest of the preview dims.")
+                    }
                     ChipRow {
                         visible: styleSide.page === "shapes"
                         Layout.fillHeight: false
                         accent: panel.accent
                         model: [
-                            { value: "stack",  label: "Bursts" },
+                            { value: "stack",  label: "Background" },
                             { value: "centre", label: "Centre" },
                             { value: "side",   label: "Side" },
                             { value: "corner", label: "Corner" }
@@ -575,6 +602,14 @@ RowLayout {
                         value: Config.wallMaterialSize
                         readout: Math.round(Config.wallMaterialSize * 100) + "%"
                         onCommit: function (v) { Config.wallMaterialSize = v }
+                    }
+
+                    WallpaperOptionRow {
+                        visible: styleSide.page === "shapes"
+                        label: Translation.tr("Mirror")
+                        detail: Translation.tr("Flip the picture left to right")
+                        checked: Config.wallMaterialMirror
+                        onToggled: Config.wallMaterialMirror = !Config.wallMaterialMirror
                     }
 
                     // ── Motion ────────────────────────────────────────

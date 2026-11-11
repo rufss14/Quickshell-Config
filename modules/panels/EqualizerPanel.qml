@@ -524,7 +524,7 @@ Item {
                     visible: devicesPage.opacity > 0.01
                     spacing: Tokens.spacingSm
 
-                    Heading { text: "Output" }
+                    Heading { text: Translation.tr("Output") }
                     Repeater {
                         model: Audio.sinks
 
@@ -653,7 +653,7 @@ Item {
                         }
                     }
 
-                    Heading { text: "Input" }
+                    Heading { text: Translation.tr("Input") }
                     Repeater {
                         model: Audio.sources
                         DeviceCard {
@@ -728,7 +728,7 @@ Item {
                     }
 
                     // ── Behaviour ─────────────────────────────────────────────
-                    Heading { text: "Behaviour" }
+                    Heading { text: Translation.tr("Behaviour") }
                     ShapeTile {
                         symbol: "volume_up"
                         shape: "burst"

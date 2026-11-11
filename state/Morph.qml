@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import "../services"
 
 // ── Morph ─────────────────────────────────────────────────────────────────────
 // "Is the blob plugin actually here." One flag, nothing else — this is the ONLY
@@ -53,6 +54,9 @@ QtObject {
     Component.onCompleted: root._probe()
 
     function _probe() {
+        // Safe mode (services/SafeMode): the shell crashed while starting, and a native
+        // plugin is the first suspect. Not even probed, so it is never loaded.
+        if (SafeMode.on) { root.available = false; root.checked = true; return }
         const comp = Qt.createComponent(Qt.resolvedUrl("../components/blob/MorphProbe.qml"))
         root._resolve(comp)
     }

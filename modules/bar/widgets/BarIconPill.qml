@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import "../../../config"
 import "../../../components"
+import "../../../services"
 
 // ── BarIconPill ───────────────────────────────────────────────────────────────
 // A bar module that is just an icon and a click: the shape/mode toggles, palette,
@@ -58,4 +59,10 @@ IconButton {
     // sentinel and leaves IconButton's own padding alone, so an untouched config
     // is unchanged — see IconButton.spacing.
     spacing:    Config.groupSpacing(root.moduleId)
+
+    accessibleName: root.moduleId !== "" ? ModuleGlance.label(root.moduleId) : ""
+
+    // Resting on it says what it is and what it is doing; not while its own panel is open under it.
+    tipProvider: Config.barTooltips && root.moduleId !== ""
+        ? function () { return root.active ? "" : ModuleGlance.tip(root.moduleId) } : null
 }

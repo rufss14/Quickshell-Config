@@ -3,4 +3,5 @@ singleton Morph 1.0 Morph.qml
 singleton BarDrag 1.0 BarDrag.qml
 singleton Media 1.0 Media.qml
 singleton SideDrag 1.0 SideDrag.qml
+singleton ModuleDrag 1.0 ModuleDrag.qml
 singleton Intro 1.0 Intro.qml

@@ -40,6 +40,16 @@ Item {
     property string titleTail: ""
     property string subtitle:  ""
     property color  accent:    Colors.of(QsWindow.window).primary
+    // The header badge's Material 3 Expressive shape (components/shapes.js). Left empty, a page gets one of
+    // these by its title, so each page wears a different one and the same page always the same.
+    property string headerShape: ""
+    readonly property var _shapes: ["cookie9", "sunny", "clover", "squircle", "hexagon", "pentagon", "burst", "cookie6"]
+    readonly property string _headerShape: {
+        if (root.headerShape !== "") return root.headerShape
+        let h = 0
+        for (let i = 0; i < root.title.length; i++) h = (h * 31 + root.title.charCodeAt(i)) % 997
+        return root._shapes[h % root._shapes.length]
+    }
 
     // Header-right controls (a Reset button, a master toggle). A RowLayout, so
     // several lay out properly instead of stacking.
@@ -204,6 +214,10 @@ Item {
             titleTail: root.titleTail
             subtitle:  root.subtitle
             accent:    root.accent
+            morph:     root._headerShape
+            chipSize:  Tokens.iconXl + Tokens.spacingLg
+            titleVariant: "headline"
+            subtitleVariant: "label"
         }
 
         // No rule under the header: the panels' headers have none, and the cards below
@@ -303,7 +317,13 @@ Item {
                 }
             }
 
-            Scrollbar { flickable: flick }
+            // A notch moves a quarter of what you can see (never less than the default):
+            // the fixed step Scrollbar defaults to was "too little per notch" on the long
+            // pages (the user, 2026-11-08) — a page five screens tall took dozens.
+            Scrollbar {
+                flickable: flick
+                wheelStep: Math.max(Tokens.spacingXl * 4, Math.round(flick.height / 4))
+            }
         }
     }
 }

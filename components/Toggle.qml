@@ -52,12 +52,10 @@ Rectangle {
     // 52×30, up from 44×24. Sized so the thumb has room for a glyph that is still
     // legible at this type scale — at the old 18px thumb a check rendered as a
     // smudge, which is worse than no glyph because it reads as dirt on the screen.
+    // Material 3's switch: a 52×32 capsule (2026-11-09, M3E; was 52×30 with a soft-rectangle track).
     implicitWidth:  52
-    implicitHeight: 30
-    // A soft rectangle, not a capsule — see the corner language in Section.qml. The
-    // switch is the most-repeated control in settings, so its shape sets the tone of
-    // every page it appears on.
-    radius: Tokens.radiusPill
+    implicitHeight: 32
+    radius: height / 2
 
     color: root.checked ? Colors.of(QsWindow.window).alpha(root.accent, toggleHover.containsMouse ? 1.0 : 0.92)
                         : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, toggleHover.containsMouse ? 0.16 : 0.10)
@@ -88,7 +86,9 @@ Rectangle {
         // Grows on the way in. A thumb that only slides reads as a dot moving; one
         // that also swells reads as a switch engaging, which is the whole point of
         // the gesture.
-        readonly property int size: root.checked ? 22 : 18
+        // 20 off, 24 on and 28 under the finger (Material 3's 16/24/28, the off one kept at 20 so its cross
+        // stays legible). The press grows it on the same spring as the rest.
+        readonly property int size: toggleHover.pressed ? 28 : (root.checked ? 24 : 20)
 
         // ── Squash and stretch ────────────────────────────────────────────────
         // The thumb smears in the direction of travel and settles back — the oldest
@@ -98,7 +98,8 @@ Rectangle {
         // rightward; checked, x is derived from the right edge, so it grows leftward.
         // Either way the trailing edge is what stretches.
         property real stretch: 1.0
-        onSizeChanged: stretchAnim.restart()
+        // A smear for a state change only: pressing grows the thumb, and that is not a throw.
+        Connections { target: root; function onCheckedChanged() { stretchAnim.restart() } }
 
         SequentialAnimation {
             id: stretchAnim
@@ -115,14 +116,14 @@ Rectangle {
 
         width:  Math.round(thumb.size * thumb.stretch)
         height: thumb.size
-        // Rounded square, not a circle: the thumb belongs to the same geometry as the
-        // track it slides in.
-        radius: Math.round(thumb.size * 0.34)
+        radius: height / 2
 
         color: root.checked ? Colors.of(QsWindow.window).fgOnPrimary : Colors.of(QsWindow.window).fgMuted
 
         anchors.verticalCenter: parent.verticalCenter
-        x: root.checked ? parent.width - width - 4 : 4
+        // Equal air on every side, whatever size the thumb is at.
+        readonly property real inset: (root.height - thumb.height) / 2
+        x: root.checked ? parent.width - width - thumb.inset : thumb.inset
 
         // Spring, not travel: the thumb runs past its stop and settles back, which is
         // what a physical switch does. `Motion.spring`'s 1.21 control point IS the
@@ -132,6 +133,20 @@ Rectangle {
         Behavior on height { NumberAnimation { duration: Motion.standard; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spring } }
         Behavior on x      { NumberAnimation { duration: Motion.standard; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spring } }
         Behavior on color  { ColorAnimation  { duration: Motion.fast } }
+
+        // The state layer: a halo behind the thumb, 8% under the pointer and 10% pressed (Tokens.state*). It is
+        // the on-track's ink on, the text colour off, so it reads on either.
+        Rectangle {
+            z: -1
+            anchors.centerIn: parent
+            width: 40
+            height: 40
+            radius: 20
+            color: Colors.of(QsWindow.window).alpha(root.checked ? Colors.of(QsWindow.window).fgOnPrimary : Colors.of(QsWindow.window).fg,
+                                                    toggleHover.pressed ? Tokens.statePress
+                                                    : toggleHover.containsMouse ? Tokens.stateHover : 0)
+            Behavior on color { ColorAnimation { duration: Motion.fast } }
+        }
 
         // Both glyphs are always instantiated and cross-fade. Swapping `text` on one
         // Text would snap between them, and a switch is the one control where the

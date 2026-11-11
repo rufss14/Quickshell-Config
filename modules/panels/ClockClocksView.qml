@@ -491,7 +491,7 @@ Item {
                         spacing: Tokens.spacingXs
 
                         StyledText {
-                            text: "NEXT ALARM"
+                            text: Translation.tr("NEXT ALARM")
                             variant: "micro"
                             font.bold: true
                             font.letterSpacing: Tokens.borderWidth

@@ -64,7 +64,9 @@ Item {
     // ══ Set by the host ═══════════════════════════════════════════════════════
     // Which screen edge the strip sits against. Decides the main axis, which side
     // of a button is "outward" (the running indicator's side) and which way a
-    // hovered icon lifts. Anything else reads as "bottom".
+    // hovered icon lifts. "top" is the dock as a TOP-BAR module (widgets/DockPill): the
+    // indicators sit on the windows' side (below), menus anchor under a button. Anything
+    // else reads as "bottom".
     property string edge: "bottom"
     readonly property bool vertical: root.edge === "left" || root.edge === "right"
 
@@ -108,10 +110,14 @@ Item {
     // pip and the travelling glider, a hairline between groups, a keep button before the
     // apps (auto-hide only: it holds the dock out) and an overview button after them.
     // The card around the strip stays whatever the host makes it (welded or floating).
-    readonly property bool ii:   Config.dockStyle === "ii"
+    // The bar's dock opts out of both (2026-11-08, the user's pick: "bar-sized, no
+    // magnification"): a bar module is a row of pills, not a dock of its own style.
+    property bool iiAllowed: true
+    property bool magnifyAllowed: true
+    readonly property bool ii:   root.iiAllowed && Config.dockStyle === "ii"
     readonly property bool flat: root.barFeedback || root.ii
     // Magnification is a swell; a flat dock has none.
-    readonly property bool magnifyOn: Config.dockMagnify && !root.ii
+    readonly property bool magnifyOn: Config.dockMagnify && !root.ii && root.magnifyAllowed
     // Icons in the palette's colours, when the shell asks for it (Config.colorizeIcons — the
     // tray pill's rule): since 2026-10-31 end-4's way (MonoIconEffect — the whole icon,
     // mostly desaturated, a tenth of the primary over it), where it was the whole icon
@@ -125,7 +131,9 @@ Item {
     // Every rounded thing on a button: the bar's corner with its feedback, the
     // dock's own otherwise. With the feedback it is the sidebar's inner pill less the gap
     // it keeps round a cell, so the wash, run pills and focus ring are concentric with it.
-    readonly property real cellRadius: root.barFeedback ? Tokens.corner(Config.barShape, Math.max(0, Config.barRoundness - Tokens.spacingXs))
+    // The pill it stands in: the sidebar's (its own roundness once unlinked in Style).
+    property int roundness: Config.sideRoundness
+    readonly property real cellRadius: root.barFeedback ? Tokens.corner(Config.barShape, Math.max(0, root.roundness - Tokens.spacingXs))
                                      : root.ii          ? Tokens.radiusPill
                                                         : Tokens.radiusSm
 
@@ -327,12 +335,13 @@ Item {
     // the bottom), measured as the button's own coordinates.
     function indicatorAt(w) {
         const fromEdge = root.indicatorsInward ? root.button - w - Tokens.spacingXs : Tokens.spacingXs
-        return root.edge === "left" ? fromEdge : root.button - w - fromEdge
+        return root.edge === "left" || root.edge === "top" ? fromEdge : root.button - w - fromEdge
     }
     // The indicator hugs the button's low-coordinate side (x 0 on a side, y 0
     // along the bottom): what grows (the level bars) grows away from it.
     readonly property bool indicatorLow:
-        root.vertical ? (root.edge === "left") !== root.indicatorsInward : root.indicatorsInward
+        root.vertical ? (root.edge === "left") !== root.indicatorsInward
+                      : root.edge === "top" ? !root.indicatorsInward : root.indicatorsInward
 
     // ── The focus indicator ───────────────────────────────────────────────────
     // ONE accent pill that travels to the focused app, stretching across the
@@ -726,7 +735,7 @@ Item {
     // A far-end button's anchor point for a menu, in scene coordinates.
     function _tailScene(key) {
         const b = tailButtons.itemAt(root.tailKeys.indexOf(key))
-        return b ? b.mapToItem(null, b.width / 2, root.edge === "bottom" ? 0 : b.height / 2)
+        return b ? b.mapToItem(null, b.width / 2, root.edge === "bottom" ? 0 : root.edge === "top" ? b.height : b.height / 2)
                  : Qt.point(0, 0)
     }
 
@@ -738,7 +747,7 @@ Item {
         }
         const btn = buttons.itemAt(root.kbIndex)
         if (!btn) return
-        const p = btn.mapToItem(null, btn.width / 2, root.edge === "bottom" ? 0 : btn.height / 2)
+        const p = btn.mapToItem(null, btn.width / 2, root.edge === "bottom" ? 0 : root.edge === "top" ? btn.height : btn.height / 2)
         root._openMenu(btn.key, p.x, p.y)
     }
 
@@ -812,13 +821,21 @@ Item {
         root._menuKey  = "__dock"
         root._menuOpen = true
         const pos = Config.dockPosition
-        const items = [
+        // On the bar (DockPill, `edge: "top"`) the sidebar's edge and auto-hide aren't the
+        // dock's to set: it offers the way back to the sidebar instead. On the sidebar, the
+        // way onto the bar. Either move is Config.placeModule (one place per module).
+        const items = root.edge === "top" ? [
+            { key: "toSidebar", glyph: "\u{F10A9}", label: "Move to the sidebar" },
+            { separator: true },
+            { key: "settings", glyph: "\u{F0493}", label: "Dock settings…" }
+        ] : [
             { key: "", label: "Position", enabled: false },
             { key: "pos:left",   glyph: pos === "left"   ? "\u{F012C}" : "", label: "Left"   },
             { key: "pos:bottom", glyph: pos === "bottom" ? "\u{F012C}" : "", label: "Bottom" },
             { key: "pos:right",  glyph: pos === "right"  ? "\u{F012C}" : "", label: "Right"  },
             { separator: true },
             { key: "autohide", glyph: Config.sidebarAutoHide ? "\u{F012C}" : "", label: "Auto-hide" },
+            { key: "toBar", glyph: "\u{F10A9}", label: "Move to the bar" },
             { separator: true },
             { key: "settings", glyph: "\u{F0493}", label: "Dock settings…" }
         ]
@@ -936,7 +953,7 @@ Item {
                 : { key: "pin",   glyph: "󰐃", label: "Pin to dock" })
         } else {
             items.push({ key: "launch", glyph: "󰐊", enabled: false,
-                         label: "Can't launch — no desktop entry" })
+                         label: Translation.tr("Can't launch — no desktop entry") })
             if (Taskbar.isPinned(key))
                 items.push({ key: "unpin", glyph: "󰐃", label: "Unpin from dock" })
         }
@@ -975,6 +992,8 @@ Item {
             if (key === "__dock") {
                 if (choice.startsWith("pos:"))  Config.dockPosition = choice.slice(4)
                 else if (choice === "autohide") Config.sidebarAutoHide = !Config.sidebarAutoHide
+                else if (choice === "toSidebar") Config.placeModule("dock", "side")
+                else if (choice === "toBar")     Config.placeModule("dock", "bar")
                 else if (choice === "settings") UiState.openSettingsTo("DockPage.qml")
                 return
             }

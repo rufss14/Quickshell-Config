@@ -62,10 +62,18 @@ Item {
     }
 
     SideCell {
+
+        moduleId: "notifications"
         anchors.fill: parent
-        glyph:  Notifications.quiet ? "\u{F009B}" : "\u{F009A}"            // 󰂛 bell-off / 󰂚 bell
+        // The bar pill's four states and colours (Bar.qml notificationsC): same face on
+        // both surfaces (2026-11-08).
+        symbol: Notifications.quiet       ? "bedtime"
+              : Notifications.hasCritical ? "notifications_active"
+              : Notifications.count > 0   ? "notifications_unread"
+              :                             "notifications"
         tint:   Notifications.quiet       ? Colors.of(QsWindow.window).warning
               : Notifications.hasCritical ? Colors.of(QsWindow.window).danger
+              : Notifications.count > 0   ? Colors.of(QsWindow.window).info
               :                             Colors.of(QsWindow.window).stateIdleFg
         active: root.open
         glyphAngle: root.swing

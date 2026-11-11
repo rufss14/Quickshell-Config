@@ -106,7 +106,7 @@ Item {
                     // light enough to carry. Colors.shadow is the palette's one
                     // constant black (#000000 in every generated scheme).
                     StyledText {
-                        text: "6500K neutral"
+                        text: Translation.tr("6500K neutral")
                         variant: "micro"
                         color: Colors.of(QsWindow.window).shadow
                         opacity: 0.6

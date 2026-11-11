@@ -277,9 +277,9 @@ Item {
     // the grid shows only what matched. (`id` is what the pager's model compares by.)
     readonly property var actionEntry: root.isImages
         ? { id: "action:add", action: "add", glyph: "󰋺", title: "Add images",
-            caption: "Copy pictures in from any folder" }
+            caption: Translation.tr("Copy pictures in from any folder") }
         : { id: "action:workshop", action: "workshop", glyph: "󰓓", title: "Workshop",
-            caption: "Subscribe to scenes, then rescan" }
+            caption: Translation.tr("Subscribe to scenes, then rescan") }
     readonly property var entries: root.query.trim() === ""
         ? [root.actionEntry].concat(root.filtered) : root.filtered
     readonly property int pageCount: Math.max(1, Math.ceil(root.entries.length / root.pageSize))
@@ -342,7 +342,7 @@ Item {
     Timer { id: _rescanSpinTimer; interval: 850; onTriggered: root._rescanSpinning = false }
     NumberAnimation {
         target: root; property: "_rescanPhase"
-        from: 0; to: 360; duration: 850
+        from: 0; to: 360; duration: Motion.spin
         loops: Animation.Infinite
         running: root._rescanSpinning
     }
@@ -387,6 +387,11 @@ Item {
         // `iconClip` takes the mark alone out of a mark-plus-wordmark file, and
         // `glyph` is the fallback for a machine without the app.
         PanelHeader {
+            // The same header every Settings page wears (SettingsPage): a morphing badge, a headline.
+            morph:     "clover"
+            chipSize:  Tokens.iconXl + Tokens.spacingLg
+            titleVariant: "headline"
+            subtitleVariant: "label"
             Layout.fillHeight: false
             icon:      root.isImages && root.view === "gallery"
                        ? Icons.asset("wallpaper")

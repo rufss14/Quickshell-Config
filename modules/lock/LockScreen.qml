@@ -334,7 +334,7 @@ WlSessionLock {
                 // the drift below a frozen frame reads as an ambient background rather
                 // than as a broken video. Config.motionEnabled is the shell-wide "stop
                 // things moving on their own", which this obeys as well.
-                playing: Config.motionEnabled && Config.lockSceneAnimate
+                playing: Motion.ambientOn && Config.lockSceneAnimate
                 cache: true
                 smooth: true
 
@@ -376,7 +376,7 @@ WlSessionLock {
             // point — and running it through Config.motionScale would let a 2× preference
             // turn it into a minute-and-a-half crawl.
             SequentialAnimation on scale {
-                running: Config.motionEnabled && surface.hasBackdrop
+                running: Motion.ambientOn && surface.hasBackdrop
                 loops: Animation.Infinite
                 NumberAnimation { from: 1.0;  to: 1.10; duration: 45000; easing.type: Motion.ambient }
                 NumberAnimation { from: 1.10; to: 1.0;  duration: 45000; easing.type: Motion.ambient }

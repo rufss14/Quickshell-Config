@@ -16,7 +16,7 @@ from colorsys import rgb_to_hls, hls_to_rgb
 from datetime import datetime
 
 DEFAULT_WAL_JSON = str(Path.home() / ".cache" / "wal" / "colors.json")
-DEFAULT_OUTPUT   = str(Path.home() / ".config" / "spicetify" / "Themes" / "QuickSpice" / "color.ini")
+DEFAULT_OUTPUT   = str(Path.home() / ".config" / "spicetify" / "Themes" / "QuickZiro" / "color.ini")
 
 # ── Utilities ──────────────────────────────────────────────────────────────────
 
@@ -279,8 +279,8 @@ def parse_args():
     p.add_argument('-w', '--wal-json',     default=DEFAULT_WAL_JSON)
     p.add_argument('-o', '--out',          default=DEFAULT_OUTPUT)
     p.add_argument('--accent-index',       type=int, default=5, help=argparse.SUPPRESS)  # ignored; kept so old invocations still parse
-    p.add_argument('--style',              choices=('spice', 'ziro'), default='spice',
-                   help="slot layout: QuickSpice derives roles in CSS; QuickZiro reads the slots as finished colours")
+    p.add_argument('--style',              choices=('spice', 'ziro'), default='ziro',
+                   help="slot layout: ziro (QuickZiro) reads the slots as finished colours; spice derives roles in CSS (a leftover QuickSpice install)")
     p.add_argument('--backup',             action='store_true')
     p.add_argument('--preview',            action='store_true', help='Print colors, do not write')
     p.add_argument('--wait-for-wal',       type=float, default=10.0, metavar='SECONDS')

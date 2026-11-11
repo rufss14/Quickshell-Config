@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # ── shell-env.sh ─────────────────────────────────────────────────────────────
-# `source` this before launching Quickshell. It exports, plus one idempotent side effect (Steam's
-# debug-port flag, below).
+# `source` this before launching Quickshell. It exports the environment the shell needs.
 #
 # Used by:
 #   · ~/.config/hypr/autostart.lua   — the boot autostart
@@ -21,6 +20,15 @@
 # Kept as the one file the autostart and reload both source, so anything that
 # genuinely must differ between a booted and a reloaded shell has a home.
 export QSG_RHI_BACKEND="${QSG_RHI_BACKEND:-vulkan}"
+
+# ── Log noise that is not ours ───────────────────────────────────────────────
+# "Error updating property …StatusNotifierItem:IconName … error occurred in Get": a tray app (Discord,
+# measured) that doesn't implement a property of its own StatusNotifierItem. Quickshell logs it per
+# property and nothing in the shell can fix it. Only this category's warnings. It has to be in the
+# environment BEFORE Quickshell starts: it reads QT_LOGGING_RULES when it sets up logging, ahead of the
+# `//@ pragma DefaultEnv` lines in shell.qml, so a pragma there does nothing. A bare `qs -p` still logs it.
+# Rules the user already exports are kept.
+export QT_LOGGING_RULES="${QT_LOGGING_RULES:+$QT_LOGGING_RULES;}quickshell.dbus.properties.warning=false"
 
 # ── The cursor theme, for the shell's own windows and everything it launches ─────
 # Clients that load their own cursor read XCURSOR_THEME when they start. Only exported
@@ -45,11 +53,3 @@ unset _qs_icons
 _qs_gio="${XDG_DATA_HOME:-$HOME/.local/share}/quicktest/gio-modules"
 [[ -f "$_qs_gio/libgiolivetheme.so" ]] && export GIO_EXTRA_MODULES="$_qs_gio${GIO_EXTRA_MODULES:+:$GIO_EXTRA_MODULES}"
 unset _qs_gio
-
-# ── Steam's live-recolour flag (opt-in) ──────────────────────────────────────────
-# Steam opens its debug port only when ~/.local/share/Steam/.cef-enable-remote-debugging exists
-# AT START, and deletes it as it reads it. Put it back at every shell start so the next Steam
-# launch can be repainted live; theme runs and ThemeRunner's Restart button do the same. A
-# no-op unless `scripts/steam-live.py enable` was run — that port is unauthenticated (see the
-# header of that script), so nothing here opens it for anyone who hasn't asked.
-python3 "$(dirname "${BASH_SOURCE[0]}")/steam-live.py" flag >/dev/null 2>&1 || true

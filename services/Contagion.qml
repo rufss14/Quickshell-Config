@@ -121,7 +121,7 @@ Singleton {
                 if (line.indexOf("APPS=") !== 0) return
                 const able = {}
                 for (const a of line.substring(5).trim().split(/\s+/))
-                    if (a === "discord" || a === "browser" || a === "spotify" || a === "steam") able[a] = true
+                    if (a === "discord" || a === "browser" || a === "spotify") able[a] = true
                 c._able = able
                 c._probed = true
             }
@@ -267,7 +267,7 @@ Singleton {
         }
         if (f.app === "kitty")
             Quickshell.execDetached(["kill", "-USR1", String(f.pid)])
-        else if (f.app === "discord" || f.app === "browser" || f.app === "spotify" || f.app === "steam")
+        else if (f.app === "discord" || f.app === "browser" || f.app === "spotify")
             c._runApp(f)
     }
 
@@ -277,8 +277,7 @@ Singleton {
     // reload-theme.sh while Vencord's theme is half-written would leave Discord a
     // broken stylesheet. A request that arrives mid-run runs again after it.
     function _procFor(app) {
-        return app === "discord" ? discordProc : app === "spotify" ? spotifyProc
-             : app === "steam" ? steamProc : browserProc
+        return app === "discord" ? discordProc : app === "spotify" ? spotifyProc : browserProc
     }
     function _runApp(f) {
         c._runJob(f.app, { hold: f.hold, atMin: f.atMin, token: c._token, staged: false })
@@ -349,14 +348,6 @@ Singleton {
         property var queued: null
         property double started: 0
         onExited: function(exitCode) { c._appDone(browserProc, exitCode) }
-    }
-    Process {
-        id: steamProc
-        readonly property string app: "steam"
-        property var job: null
-        property var queued: null
-        property double started: 0
-        onExited: function(exitCode) { c._appDone(steamProc, exitCode) }
     }
 
     // ── Spotify says when it's done ─────────────────────────────────────────────
@@ -536,7 +527,7 @@ Singleton {
                  + " covered=" + JSON.stringify(Object.keys(c._covered))
                  + " pending=" + c._flips.length
                  + " reachable=" + JSON.stringify(Object.keys(c._able))
-                 + " running=" + JSON.stringify(["discord", "spotify", "browser", "steam"].filter(a => c._procFor(a).running))
+                 + " running=" + JSON.stringify(["discord", "spotify", "browser"].filter(a => c._procFor(a).running))
                  + " early=" + JSON.stringify(c._early)
                  + " borderFade=" + (c._borderAnim ? (c._borderAnim.enabled ? c._borderAnim.speed * 100 + "ms" : "off") : "unknown")
                  + " muted=" + c._borderMuted

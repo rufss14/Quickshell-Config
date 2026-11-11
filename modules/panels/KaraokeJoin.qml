@@ -77,7 +77,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: false
                     spacing: 2
-                    StyledText { text: "Joined mid-song"; font.bold: true }
+                    StyledText { text: Translation.tr("Joined mid-song"); font.bold: true }
                     StyledText {
                         Layout.fillWidth: true
                         text: Translation.tr("This run won't be ranked")
@@ -186,7 +186,7 @@ Item {
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Math.round(count.unit * 0.1)
             visible: Karaoke.countdown > 0
-            text: "GET READY"
+            text: Translation.tr("GET READY")
             color: root.pal.fgMuted
             font.family: Tokens.fontFamily
             font.bold: true

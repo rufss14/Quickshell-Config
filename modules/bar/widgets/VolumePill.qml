@@ -73,6 +73,7 @@ Item {
 
     IconButton {
         id: pill
+        tipProvider: Config.barTooltips ? function () { return ModuleGlance.tip("volume") } : null
         container: false
         height: Config.barPillHeight
         // The row's width, which the level's slot animates (it closes while muted).

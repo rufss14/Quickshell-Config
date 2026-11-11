@@ -25,15 +25,23 @@ Item {
     // The room the slot has (SidePanelDock sets it); the rule list scrolls past it.
     property real maxHeight: Infinity
 
-    readonly property int pad: Tokens.spacingLg
+    readonly property int pad: Tokens.spacingXl
+    readonly property color accent: Colors.of(QsWindow.window).primary
     implicitWidth: Tokens.sideCardUnit * 8
     implicitHeight: Math.min(root.maxHeight, col.implicitHeight + root.pad * 2)
 
-    // What the list may take: what the slot leaves under the header, the switch row and
-    // the notes — never less than two card units, so a rule stays editable.
+    // What the list may take: what the slot leaves under the header, the hero and the add row; never
+    // less than two card units, so a rule stays editable.
     readonly property real listRoom: Math.max(Tokens.sideCardUnit * 2,
-        root.maxHeight - root.pad * 2 - head.implicitHeight - master.implicitHeight
-        - notes.implicitHeight - col.spacing * 4)
+        root.maxHeight - root.pad * 2 - (head.visible ? head.implicitHeight + col.spacing : 0)
+        - hero.implicitHeight - addRow.implicitHeight - col.spacing * 3)
+
+    // What explains a quiet machine: held awake, nothing set yet, what last ran.
+    readonly property string heroLine:
+          Idle.inhibited && Inactivity.enabled ? Translation.tr("Paused: %1").arg(Idle.reasonText.toLowerCase())
+        : Inactivity.last ? Translation.tr("Last ran: %1, %2").arg(Inactivity.describe(Inactivity.last.rule))
+                                .arg(Qt.formatDateTime(new Date(Inactivity.last.at), "HH:mm"))
+        : Inactivity.summary
 
     // "Can this machine hibernate" is asked, not assumed (logind, once per open).
     Component.onCompleted: Session.probe()
@@ -44,80 +52,47 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.margins: root.pad
-        spacing: Tokens.spacingMd
+        spacing: Tokens.spacingSm
 
         PanelHeader {
             id: head
             Layout.fillHeight: false
+            visible: Config.panelHeader("inactivity")
             symbol: "pause_circle"
             title: Translation.tr("Idle")
-            titleTail: "actions"
-            accent: Colors.of(QsWindow.window).primary
+            titleTail: Translation.tr("actions")
+            accent: root.accent
             subtitle: Inactivity.summary
-
-            ActionGroup {
-                PanelButton {
-                    variant: "ghost"
-                    symbol: "add"
-                    enabled: Inactivity.rules.length < Inactivity.maxRules
-                    onActivated: Inactivity.addRule()
-                }
-            }
         }
 
-        // The master switch: off, no rule runs and none is lost.
-        RowLayout {
-            id: master
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            spacing: Tokens.spacingSm
-            StyledText {
-                Layout.fillWidth: true
-                text: Translation.tr("Run these rules")
-                variant: "label"
-            }
+        // The master switch, as the hero: off, no rule runs and none is lost.
+        PanelHero {
+            id: hero
+            symbol: "bedtime"
+            shape: "clover"
+            active: Inactivity.enabled && !Idle.inhibited
+            warn: Inactivity.enabled && Idle.inhibited
+            turning: false
+            accent: root.accent
+            title: !Inactivity.enabled ? Translation.tr("Idle actions off")
+                 : Idle.inhibited      ? Translation.tr("Held awake")
+                 :                       Translation.tr("Idle actions on")
+            line: root.heroLine
+
             Toggle {
+                Layout.alignment: Qt.AlignVCenter
+                accessibleName: Translation.tr("Run these rules")
                 checked: Inactivity.enabled
                 onToggled: Inactivity.setEnabled(!Inactivity.enabled)
             }
         }
 
-        // What explains a quiet machine: held awake, nothing set yet, what last ran.
-        ColumnLayout {
-            id: notes
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            spacing: Tokens.spacingXs
-
-            StyledText {
-                Layout.fillWidth: true
-                visible: Idle.inhibited
-                text: "Paused — " + Idle.reasonText.toLowerCase()
-                      + ". Rules wait while the screen is held awake."
-                variant: "caption"
-                color: Colors.of(QsWindow.window).info
-                wrapMode: Text.WordWrap
-            }
-            StyledText {
-                Layout.fillWidth: true
-                visible: Inactivity.ready && Inactivity.rules.length === 0
-                text: Translation.tr("Add a rule: after some minutes without input, lock, turn the screen off, ")
-                      + "suspend, or run a command of your own."
-                variant: "caption"
-                emphasis: "dim"
-                wrapMode: Text.WordWrap
-            }
-            StyledText {
-                Layout.fillWidth: true
-                visible: Inactivity.last !== null
-                text: Inactivity.last
-                      ? "Last ran: " + Inactivity.describe(Inactivity.last.rule) + ", "
-                        + Qt.formatDateTime(new Date(Inactivity.last.at), "HH:mm")
-                      : ""
-                variant: "caption"
-                emphasis: "dim"
-                wrapMode: Text.WordWrap
-            }
+        PanelEmpty {
+            visible: Inactivity.ready && Inactivity.rules.length === 0
+            quiet: true
+            symbol: "bedtime"
+            title: Translation.tr("No rules yet")
+            text: Translation.tr("Add a rule: after some minutes without input, lock, turn the screen off, suspend, or run a command of your own.")
         }
 
         ListView {
@@ -137,6 +112,20 @@ Item {
                 width: list.width
             }
         }
+
+        RowLayout {
+            id: addRow
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            Item { Layout.fillWidth: true }
+            PanelButton {
+                capsule: true
+                symbol: "add"
+                label: Translation.tr("Add a rule")
+                enabled: Inactivity.rules.length < Inactivity.maxRules
+                onActivated: Inactivity.addRule()
+            }
+        }
     }
 
     // One rule: on/off, how long, what, and — for a command — which.
@@ -151,11 +140,9 @@ Item {
             : row.modelData.action === "screenoff" ? "Wakes on the next key or mouse move."
             : ""
 
-        implicitHeight: inner.implicitHeight + Tokens.spacingMd * 2
-        radius: Tokens.radiusSm
-        color: Colors.of(QsWindow.window).surfaceContainer
-        border.width: Tokens.borderWidth
-        border.color: Colors.of(QsWindow.window).outline
+        implicitHeight: inner.implicitHeight + Tokens.spacingMd * 2 + Tokens.spacingXs * 2
+        radius: Tokens.radiusCard
+        color: Colors.of(QsWindow.window).section
         opacity: row.modelData.enabled ? 1 : 0.6
         Behavior on opacity { NumberAnimation { duration: Motion.fast } }
 
@@ -164,7 +151,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.margins: Tokens.spacingMd
+            anchors.margins: Tokens.spacingMd + Tokens.spacingXs
             spacing: Tokens.spacingSm
 
             RowLayout {
@@ -175,7 +162,7 @@ Item {
                     checked: row.modelData.enabled
                     onToggled: Inactivity.patchRule(row.modelData.id, { enabled: !row.modelData.enabled })
                 }
-                StyledText { text: "After"; variant: "label"; emphasis: "dim" }
+                StyledText { text: Translation.tr("After"); variant: "label"; emphasis: "dim" }
                 NumberStepper {
                     from: Inactivity.minMinutes
                     to: Inactivity.maxMinutes

@@ -42,7 +42,7 @@ Item {
     SpringValue { id: spin;   spec: Motion.springSpatial; epsilon: 0.05 }
 
     Timer {
-        running: root.beat && root.live && Config.motionEnabled
+        running: root.beat && root.live && Motion.ambientOn
         interval: root.beatMs
         repeat: true
         onTriggered: spin.target += Shapes.turnFor(root._held)

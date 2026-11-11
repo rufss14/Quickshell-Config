@@ -92,7 +92,7 @@ check("catalogue: a fresh machine needs everything essential", cf.filter(s => ["
 check("catalogue: the AUR helper step is there only without one", ids(P.catalogue({ ...fresh(), aurHelper: "yay" })).includes("aurhelper"), false);
 check("catalogue: the helper is not recommended when pywal is already in", P.catalogue({ ...fresh(), pywal: true }).find(s => s.id === "aurhelper").recommended, false);
 check("catalogue: default selection is the recommended todo ones", P.defaultSelection(cf), ["core", "aurhelper", "aur", "clips", "gamemode", "blob", "hypr", "autostart", "themes", "colours"]);
-check("catalogue: extras are never ticked", P.defaultSelection(cf).some(id => ["spotify", "wpe", "argos", "songrec", "awww", "ddc", "beatsync", "discordkeys"].includes(id)), false);
+check("catalogue: extras are never ticked", P.defaultSelection(cf).some(id => ["discordtheme", "spotifytheme", "spotify", "wpe", "argos", "songrec", "awww", "ddc", "beatsync", "discordkeys"].includes(id)), false);
 check("packs: a pack step runs its pack job", ["clips", "gamemode", "ddc", "beatsync", "discordkeys"].map(id => cf.find(s => s.id === id).jobs), [["pack-clips"], ["pack-gamemode"], ["pack-ddc"], ["pack-beatsync"], ["pack-discordkeys"]]);
 check("packs: the blob step installs its toolchain, then builds", cf.find(s => s.id === "blob").jobs, ["pack-blob", "blob"]);
 check("packs: an installed pack is done", P.catalogue({ ...fresh(), packs: { clips: true } }).find(s => s.id === "clips").state, "done");
@@ -103,6 +103,24 @@ check("packs: no pack step needs the AUR helper", P.buildPlan(P.catalogue({ ...f
 check("catalogue: apps that are not installed are not a to-do", cf.find(s => s.id === "themes").detail.includes("Discord"), false);
 check("catalogue: themes step needs root when a todo app does", cf.find(s => s.id === "themes").root, true);
 check("catalogue: …and not when none does", P.catalogue({ ...fresh(), themes: { qt: { state: "todo", sudo: false, detail: "" } } }).find(s => s.id === "themes").root, false);
+// Discord and Spotify are opt-in steps of their own; the themes step is the system-wide ones.
+{
+    const theme = (c, id) => c.find(s => s.id === id);
+    const withThemes = t => P.catalogue({ ...fresh(), themes: { ...fresh().themes, ...t } });
+    check("app themes: an app that isn't installed has no step", [theme(cf, "discordtheme"), theme(cf, "spotifytheme")], [undefined, undefined]);
+    check("app themes: Discord without Vencord is blocked, with the script's reason", (s => [s.state, s.why])(theme(withThemes({ discord: { state: "blocked", sudo: false, detail: "Patch Discord with Vencord first" } }), "discordtheme")), ["blocked", "Patch Discord with Vencord first"]);
+    const on = withThemes({ discord: { state: "todo", sudo: false, detail: "" }, spotify: { state: "todo", sudo: true, detail: "" } });
+    check("app themes: a todo app is a todo step, in the extras", [theme(on, "discordtheme").state, theme(on, "discordtheme").group, theme(on, "spotifytheme").state], ["todo", "extras", "todo"]);
+    check("app themes: each runs its own job", [theme(on, "discordtheme").jobs, theme(on, "spotifytheme").jobs], [["theme-discord"], ["theme-spotify"]]);
+    check("app themes: never ticked by default", P.defaultSelection(on).some(id => /theme$/.test(id) && id !== "themes"), false);
+    check("app themes: root only when the status says so", [theme(on, "discordtheme").root, theme(on, "spotifytheme").root], [false, true]);
+    check("app themes: ready is done", theme(withThemes({ spotify: { state: "ready", sudo: false, detail: "" } }), "spotifytheme").state, "done");
+    check("app themes: Spotify's needs the network for Spicetify", theme(P.catalogue({ ...on0(), network: false }), "spotifytheme").state, "blocked");
+    check("app themes: …unless Spicetify is already there", theme(P.catalogue({ ...on0(), network: false, optional: { spicetify: true } }), "spotifytheme").state, "todo");
+    check("app themes: the themes step no longer runs them", theme(on, "themes").jobs, ["theme-gtk", "theme-qt"]);
+    check("app themes: a plan with both runs them, after the colours", P.buildPlan(P.catalogue({ ...on0(), aurHelper: "paru", coreMissing: 0, pywal: true }), ["spotifytheme", "discordtheme", "colours"]).run.map(s => s.id), ["colours", "discordtheme", "spotifytheme"]);
+    function on0() { return { ...fresh(), themes: { ...fresh().themes, discord: { state: "todo", sudo: false, detail: "" }, spotify: { state: "todo", sudo: false, detail: "" } } } }
+}
 const cfull = P.catalogue(full());
 check("catalogue: a finished machine is all done", cfull.every(s => s.state === "done"), true);
 check("catalogue: …and nothing is ticked", P.defaultSelection(cfull), []);

@@ -38,13 +38,21 @@ Singleton {
     JsonStore {
         id: store
         path: Quickshell.statePath("screen-time.json")
-        defaults: ({ version: 1, days: {} })
-        onLoaded: if (!root.loaded) { root.days = St.clean(store.value); root.loaded = true }
+        defaults: ({ version: 1, days: {}, hours: {} })
+        onLoaded: root._load()
     }
-    Component.onCompleted: if (store.ready && !root.loaded) { root.days = St.clean(store.value); root.loaded = true }
+    Component.onCompleted: root._load()
+    function _load() {
+        if (root.loaded || !store.ready) return
+        root.days = St.clean(store.value)
+        root.hours = St.cleanHours(store.value)
+        root.loaded = true
+    }
 
     // In memory, ahead of the file by at most a flush.
     property var days: ({})
+    // The same time by local hour, no apps: { day: [24 seconds] } (screentime.js "Hours").
+    property var hours: ({})
     property bool loaded: false
     property bool _dirty: false
 
@@ -52,9 +60,25 @@ Singleton {
     // `?? ""` outside too: this is a `string`, and a toplevel with no app id yet must give "" and not `undefined`.
     readonly property string app: St.appKey(Hyprland.activeToplevel?.wayland?.appId ?? "") ?? ""
     readonly property bool away: idle.isIdle || Lock.locked
-    readonly property bool counting: root.enabled && root.loaded && root.app !== "" && !root.away
+    readonly property bool counting: root.enabled && root.loaded && root.app !== "" && !root.away && !root.paused
+
+    // ── Pause ─────────────────────────────────────────────────────────────────
+    // "Not for a while": counting stops for `minutes`, then resumes by itself. In memory only — a reload ends it,
+    // which is the safe way round. Turning counting off ends it too.
+    property real pausedUntil: 0
+    readonly property bool paused: root.pausedUntil > 0
+    function pause(minutes) {
+        root.pausedUntil = Date.now() + minutes * 60000
+        pauseTimer.interval = minutes * 60000
+        pauseTimer.restart()
+    }
+    function resume() { root.pausedUntil = 0; pauseTimer.stop() }
+    onEnabledChanged: if (!root.enabled) root.resume()
+    Timer { id: pauseTimer; onTriggered: root.resume() }
 
     property string _app: ""
+    // When the app in focus got it (ms, 0 = not counting): the "this stretch" the panel reads.
+    property real stretchStart: 0
     property real _since: 0
 
     // Credit what's been running and start the next span.
@@ -62,9 +86,13 @@ Singleton {
         const now = Date.now()
         if (root._app !== "" && root._since > 0) {
             root.days = St.credit(root.days, root._app, root._since, now, root.tick * 2 + 5000)
+            root.hours = St.creditHours(root.hours, root._since, now, root.tick * 2 + 5000)
             root._dirty = true
         }
-        root._app = root.counting ? root.app : ""
+        const next = root.counting ? root.app : ""
+        // A stretch is one unbroken run in one app: it restarts when the app changes or counting stops.
+        if (next !== root._app) root.stretchStart = next !== "" ? now : 0
+        root._app = next
         root._since = now
     }
     onCountingChanged: root._settle()
@@ -85,7 +113,8 @@ Singleton {
     function _flush() {
         if (!root._dirty) return
         root.days = St.prune(root.days, Config.screenTimeKeepDays, Date.now())
-        store.value = ({ version: 1, days: root.days })
+        root.hours = St.prune(root.hours, Config.screenTimeKeepDays, Date.now())
+        store.value = ({ version: 1, days: root.days, hours: root.hours })
         root._dirty = false
     }
     Component.onDestruction: { root._settle(); root._flush(); store.flush() }
@@ -110,6 +139,33 @@ Singleton {
     }
 
     function dayFor(key) { return root.days[key] ?? ({}) }
+    // A day's 24 hours of seconds, zeros when there are none.
+    function hoursFor(key) { return St.hoursOf(root.hours, key) }
+    readonly property var todayHours: St.hoursOf(root.hours, root.todayKey)
+    // Yesterday's total (the week's second-last day).
+    readonly property real yesterday: root.week.length > 1 ? root.week[root.week.length - 2].seconds : 0
+    // Today so far against the same moment on the days before (screentime.js paceVs), null until there is a basis.
+    readonly property var pace: St.paceVs(root.hours, root.todayKey, root.week.slice(0, -1).map(d => d.key), Clock.now.getTime())
+
+    // The last month, for the heat strip: as many days as are kept, at most 30.
+    readonly property var month: St.lastDays(root.days, Clock.now.getTime(), Math.max(7, Math.min(30, Config.screenTimeKeepDays)))
+    readonly property real monthPeak: Math.max(0, ...root.month.map(d => d.seconds))
+
+    // The week's three biggest apps: a colour in the week chart stands for one of them in every bar.
+    readonly property var weekApps: St.topAcross(root.days, root.week.map(d => d.key), 3)
+    // Today against the week's other days (null until there is an earlier day to compare with).
+    readonly property var versus: St.versus(root.week)
+    // The app with the most time today ("" before anything is counted).
+    readonly property string topToday: St.top(root.today, 1)[0]?.app ?? ""
+
+    // A day cut into its stack against `apps` (default: the week's three biggest).
+    // The daily goal in seconds (0 = none) and the run of days you have kept to it. With no goal the run is
+    // days with anything recorded — "n days in a row".
+    readonly property real goalSeconds: Math.max(0, Config.screenTimeGoalMinutes) * 60
+    readonly property int streak: St.streak(root.month, root.goalSeconds > 0 ? "under" : "any", root.goalSeconds)
+
+    function segments(key, apps) { return St.segments(root.dayFor(key), apps ?? root.weekApps) }
+    function heat(seconds) { return St.heat(seconds, root.monthPeak) }
 
     // ── Names for what ran ────────────────────────────────────────────────────
     // A Steam game's window class is `steam_app_<id>`; its title is in the library's
@@ -140,6 +196,17 @@ Singleton {
             Quickshell.env("HOME") || ""]
         stdout: StdioCollector { onStreamFinished: root.gameNames = St.steamNames(text) }
     }
+    // What a list calls an app: a Steam game by its title, anything else by its desktop entry,
+    // failing that as the window class said it.
+    function labelOf(app) {
+        const g = root.nameOf(app)
+        return g !== "" ? g : (Icons.nameForAppId(app) || app)
+    }
+    // A game has no icon file worth drawing (its class is steam_app_<id>): the views show a glyph.
+    function isGame(app) { return St.steamId(app) !== "" || app === "steam_proton" }
+    function iconOf(app) { return root.isGame(app) ? "" : Icons.pathForAppId(app) }
+    // The Steam id of a game's class, "" for anything else (what Gamemode.requestArt asks for).
+    function steamIdOf(app) { return St.steamId(app) }
     function topApps(key, n) { return St.top(root.dayFor(key), n) }
     function duration(s) { return St.duration(s) }
     function short(s) { return St.short(s) }
@@ -153,7 +220,8 @@ Singleton {
     function clear() {
         root._settle()
         root.days = ({})
-        store.value = ({ version: 1, days: {} })
+        root.hours = ({})
+        store.value = ({ version: 1, days: {}, hours: {} })
         root._dirty = false
     }
 
@@ -161,7 +229,7 @@ Singleton {
         target: "screentime"
         function status(): string {
             return "enabled=" + root.enabled + " loaded=" + root.loaded + " counting=" + root.counting
-                 + " away=" + root.away + " days=" + Object.keys(root.days).length
+                 + " away=" + root.away + " paused=" + root.paused + " days=" + Object.keys(root.days).length
                  + " appsToday=" + Object.keys(root.today).length
                  + " minutesToday=" + Math.floor(root.todayTotal / 60)
         }

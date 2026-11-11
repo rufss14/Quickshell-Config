@@ -42,8 +42,8 @@ Item {
     // The tail of pacman's own log: what actually got upgraded/installed/removed and
     // when. This is the page's memory — a list of pending updates says what's coming,
     // this says what happened, and after a run it's the receipt.
-    // Read from Updates.history (one parse of the log for the whole shell; it used to
-    // read pacman.log a second time here). updatelog.js recentChanges flattens it.
+    // Read from Updates.history (one parse of the log for the whole shell, not a
+    // second read of pacman.log here). updatelog.js recentChanges flattens it.
     readonly property var recentChanges: UL.recentChanges(Updates.history, 10)   // [{ date, action, name, to }], newest first
     Component.onCompleted: Updates.loadHistory()
 
@@ -185,6 +185,11 @@ Item {
         spacing: Tokens.spacingMd
 
         PanelHeader {
+            // The same header every Settings page wears (SettingsPage): a morphing badge, a headline.
+            morph:     "sunny"
+            chipSize:  Tokens.iconXl + Tokens.spacingLg
+            titleVariant: "headline"
+            subtitleVariant: "label"
             glyph:     Updates.total > 0 ? "󰚰" : "󰄬"        // update / check
             title:     Translation.tr("Updates")
             titleTail: Updates.checking ? "checking…"
@@ -213,7 +218,7 @@ Item {
                         NumberAnimation on angle {
                             running: Updates.checking
                             from: 0; to: 360
-                            duration: 1200
+                            duration: Motion.spin
                             loops: Animation.Infinite
                         }
                     }
@@ -223,8 +228,8 @@ Item {
 
         // ══ What's waiting, and installing it ═════════════════════════════════
         // One card across the top: the number, what kind it is, and the way to act on it.
-        // The page's question is "what is waiting?", and it used to be answered by a rail of
-        // nine cards beside the list.
+        // The page's question is "what is waiting?": one card answers it, not a rail of
+        // nine beside the list.
         Section {
             Layout.fillWidth: true
             Layout.fillHeight: false
@@ -299,7 +304,7 @@ Item {
                         Layout.fillWidth: true
                         visible: Updates.total > 0 && !Updates.runBusy
                         secret: true
-                        placeholder: "sudo password"
+                        placeholder: Translation.tr("sudo password")
                         onAccepted: root.selectedCount > 0 ? root.runSelected() : root.runFullUpdate()
                     }
                     RowLayout {
@@ -587,9 +592,9 @@ Item {
                     Scrollbar { flickable: listFlick; visible: listFlick.visible }
 
                     // ── Empty pane, done properly ──────────────────────────────
-                    // This used to be one dim line of text floating in an otherwise
-                    // blank ~1100×700 box — and during a CHECK it showed nothing at
-                    // all (the old condition explicitly excluded `Updates.checking`).
+                    // Not one dim line of text floating in a blank ~1100×700 box,
+                    // and not nothing during a CHECK (`Updates.checking` shows here
+                    // too).
                     // "Up to date" is the most common state this page is ever in, so
                     // leaving it the emptiest-looking one was backwards. Same spinning-
                     // glyph idiom ReloadPill uses for "working", not a new one.
@@ -825,8 +830,8 @@ Item {
                 // Only when a kernel or graphics module is in the list. This is the one
                 // consequence of an upgrade that bites you later rather than at the time,
                 // so it's worth a whole card instead of a footnote.
-                // The icon-plus-bold-label row this used to open with IS a Section
-                // heading, hand-built — so it becomes one. Tonal is deliberately left
+                // Its heading is a Section heading, not a hand-built icon-plus-bold-
+                // label row. Tonal is deliberately left
                 // ON here even though the accent is `warning`: Section's own note
                 // warns against tinting a whole card with an alarm colour, and the
                 // exception it is describing is a blocker or an error, where the alarm

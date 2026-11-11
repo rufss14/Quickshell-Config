@@ -9,16 +9,22 @@ import "../../components"
 import "../../services"
 
 // ── LayoutPanel ───────────────────────────────────────────────────────────────
-// Hyprland's tiling layouts as four cards — pick one and it is live at once and kept
-// for the next start (services/HyprLayout) — and, under them, the few layout messages
-// that matter for the one you're on (dwindle's split, master's master).
+// Hyprland's tiling layouts. In the shell's Material 3 Expressive panel shape:
+//
+//   Header  (Settings › Modules › Window layout hides it) the title and the layout's name
+//   Hero    the layout you are on and what it does, with its own moves for the focused window as chips
+//           (dwindle's split, master's master)
+//   Tiles   one per layout: pick one and it is live at once and kept for the next start
+//
+// Everything real is services/HyprLayout; this shows it and asks.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
 
     property real maxHeight: Infinity
 
-    readonly property int pad: Tokens.spacingLg
+    readonly property int pad: Tokens.spacingXl
+    readonly property color accent: Colors.of(QsWindow.window).primary
     implicitWidth: Tokens.sideCardUnit * 8
     implicitHeight: Math.min(root.maxHeight, col.implicitHeight + root.pad * 2)
 
@@ -51,16 +57,45 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.margins: root.pad
-        spacing: Tokens.spacingMd
+        spacing: Tokens.spacingSm
 
         PanelHeader {
             Layout.fillHeight: false
-            glyph:     "\u{F0574}"                                   // 󰕴 view-dashboard
+            visible: Config.panelHeader("layout")
+            symbol:    "dashboard"
             title:     Translation.tr("Window")
-            titleTail: "layout"
-            accent:    Colors.of(QsWindow.window).primary
-            subtitle:  HyprLayout.lastError !== "" ? HyprLayout.lastError
-                     : HyprLayout.info.label + " — " + HyprLayout.info.about
+            titleTail: Translation.tr("layout")
+            accent:    root.accent
+            subtitle:  HyprLayout.info.label
+        }
+
+        PanelHero {
+            symbol: HyprLayout.info.symbol ?? "dashboard"
+            shape: "squircle"
+            active: HyprLayout.lastError === ""
+            warn: HyprLayout.lastError !== ""
+            turning: false
+            accent: root.accent
+            title: HyprLayout.info.label
+            line: HyprLayout.lastError !== "" ? HyprLayout.lastError : HyprLayout.info.about
+
+            // The current layout's own moves, on the focused window.
+            footer: Flow {
+                Layout.fillWidth: true
+                visible: root.here.length > 0
+                spacing: Tokens.spacingSm
+
+                Repeater {
+                    model: root.here
+                    delegate: ChipButton {
+                        required property var modelData
+                        symbol: modelData.symbol
+                        label: modelData.label
+                        tint: root.accent
+                        onActivated: Hyprland.dispatch(`hl.dsp.layout("${modelData.msg}")`)
+                    }
+                }
+            }
         }
 
         GridLayout {
@@ -69,71 +104,21 @@ Item {
             columns: 2
             columnSpacing: Tokens.spacingSm
             rowSpacing: Tokens.spacingSm
+            uniformCellWidths: true
 
             Repeater {
                 model: HyprLayout.layouts
-                delegate: Rectangle {
-                    id: card
+                delegate: PanelRow {
                     required property var modelData
-                    readonly property bool on: HyprLayout.current === card.modelData.id
-
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 0
-                    implicitHeight: 56
-                    radius: Tokens.radiusPill
-                    color: card.on ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).focus, 0.22)
-                         : cardHover.hovered ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.08)
-                         : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.04)
-                    border.width: Tokens.borderWidth
-                    border.color: card.on ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).focus, 0.55)
-                                          : Colors.of(QsWindow.window).outline
-                    Behavior on color { ColorAnimation { duration: Motion.respond } }
-
-                    scale: cardTap.pressed ? 0.96 : 1
-                    Behavior on scale { NumberAnimation { duration: Motion.respond; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spring } }
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: Tokens.spacingMd
-                        anchors.rightMargin: Tokens.spacingMd
-                        spacing: Tokens.spacingMd
-
-                        MaterialIcon {
-                            name: card.modelData.symbol
-                            fill: card.on ? 1 : 0
-                            color: card.on ? Colors.of(QsWindow.window).focus : Colors.of(QsWindow.window).fgMuted
-                            font.pixelSize: Tokens.iconLg
-                        }
-                        StyledText {
-                            Layout.fillWidth: true
-                            text: card.modelData.label
-                            variant: "body"
-                            font.weight: card.on ? Font.DemiBold : Font.Medium
-                            color: card.on ? Colors.of(QsWindow.window).focus : Colors.of(QsWindow.window).fg
-                        }
-                    }
-
-                    HelpTip { text: card.modelData.about }
-                    HoverHandler { id: cardHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { id: cardTap; onTapped: HyprLayout.set(card.modelData.id) }
-                }
-            }
-        }
-
-        // The current layout's own moves, on the focused window.
-        Flow {
-            Layout.fillWidth: true
-            visible: root.here.length > 0
-            spacing: Tokens.spacingSm
-
-            Repeater {
-                model: root.here
-                delegate: PanelButton {
-                    required property var modelData
-                    variant: "normal"
+                    Layout.preferredWidth: 1
                     symbol: modelData.symbol
-                    label: modelData.label
-                    onActivated: Hyprland.dispatch(`hl.dsp.layout("${modelData.msg}")`)
+                    title: modelData.label
+                    help: modelData.about
+                    shape: "squircle"
+                    clickable: true
+                    active: HyprLayout.current === modelData.id
+                    accent: root.accent
+                    onActivated: HyprLayout.set(modelData.id)
                 }
             }
         }

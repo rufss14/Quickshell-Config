@@ -113,15 +113,13 @@ Item {
         Rectangle {
             id: statusBar
             Layout.fillWidth: true
-            Layout.preferredHeight: 40
-            radius: Tokens.radiusSm + 2
+            Layout.preferredHeight: Tokens.sideCardUnit
+            radius: Tokens.radiusCard
             visible: Net.lastError !== "" || Net.connecting !== null
 
             readonly property bool isError: Net.lastError !== ""
 
-            color:        statusBar.isError ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).danger, 0.10) : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).focus, 0.08)
-            border.color: statusBar.isError ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).danger, 0.28) : Colors.of(QsWindow.window).outline
-            border.width: Tokens.borderWidth
+            color: statusBar.isError ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).danger, 0.16) : Colors.of(QsWindow.window).section
 
             RowLayout {
                 anchors.fill: parent
@@ -158,11 +156,9 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: passLayout.implicitHeight + Tokens.spacingXxl
-            radius: Tokens.radiusPill
+            radius: Tokens.radiusCard
             visible: root.passwordMode
-            color:        Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).focus, 0.07)
-            border.color: Colors.of(QsWindow.window).outline
-            border.width: Tokens.borderWidth
+            color: Colors.of(QsWindow.window).section
 
             ColumnLayout {
                 id: passLayout
@@ -219,11 +215,9 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: hiddenLayout.implicitHeight + Tokens.spacingXxl
-            radius: Tokens.radiusPill
+            radius: Tokens.radiusCard
             visible: root.hiddenMode
-            color:        Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).info, 0.07)
-            border.color: Colors.of(QsWindow.window).outline
-            border.width: Tokens.borderWidth
+            color: Colors.of(QsWindow.window).section
 
             ColumnLayout {
                 id: hiddenLayout
@@ -324,8 +318,8 @@ Item {
             Item { Layout.fillWidth: true }
 
             PanelButton {
-                Layout.preferredWidth: 150
-                glyph: "󰀂"
+                capsule: true
+                symbol: "add"
                 label: Translation.tr("Hidden network")
                 enabled: Net.wifiEnabled
                 onActivated: { root.hiddenMode = !root.hiddenMode; root.passwordMode = false }
@@ -450,68 +444,75 @@ Item {
         readonly property bool isSaved:      netRow.network?.known ?? false
         readonly property int  strength:     Net.strengthOf(netRow.network)
 
-        height: 58
-        radius: Tokens.radiusPill - 1
+        height: root.rowHeight - 4
+        radius: Tokens.radiusCard
 
-        color: netRow.isActive
-            ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).focus, rowHover.hovered ? 0.20 : 0.13)
-            : rowHover.hovered ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.08)
-                               : Colors.of(QsWindow.window).surfaceContainer
-        Behavior on color { ColorAnimation { duration: Motion.respond } }
+        // The connected network is the subject: the tonal container, its bars on the accent.
+        readonly property color ink: netRow.isActive ? Colors.of(QsWindow.window).fgOnPrimaryContainer : Colors.of(QsWindow.window).fg
+        readonly property color inkDim: netRow.isActive ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fgOnPrimaryContainer, 0.78)
+                                                        : Colors.of(QsWindow.window).fgDim
+
+        color: netRow.isActive ? Colors.of(QsWindow.window).primaryContainer : Colors.of(QsWindow.window).section
+        Behavior on color { ColorAnimation { duration: Motion.standard } }
 
         HoverHandler { id: rowHover }
 
-        // Active indicator strip.
+        // State layer.
         Rectangle {
-            anchors {
-                left: parent.left; top: parent.top; bottom: parent.bottom
-                topMargin: Tokens.spacingMd; bottomMargin: Tokens.spacingMd; leftMargin: Tokens.spacingSm
-            }
-            width: 3
-            radius: 2
-            visible: netRow.isActive
-            color: Colors.of(QsWindow.window).focus
+            anchors.fill: parent
+            radius: parent.radius
+            color: netRow.ink
+            opacity: rowHover.hovered ? Tokens.stateHover : 0
+            Behavior on opacity { NumberAnimation { duration: Motion.respond } }
         }
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin:  netRow.isActive ? Tokens.spacingXl : Tokens.spacingMd + 2
+            anchors.leftMargin:  Tokens.spacingMd + 2
             anchors.rightMargin: Tokens.spacingMd + 2
             spacing: Tokens.spacingMd + 2
 
-            // Signal bars.
+            // Signal bars, on the row's shape: a disc, a cookie while this is the connected one.
             Item {
-                id: signalBars
-                Layout.preferredWidth: 20
-                Layout.preferredHeight: 20
+                Layout.preferredWidth: Tokens.iconXl + Tokens.spacingMd
+                Layout.preferredHeight: Tokens.iconXl + Tokens.spacingMd
 
-                readonly property int bars: Net.bars(netRow.strength)
-                readonly property color tint: netRow.isActive ? Colors.of(QsWindow.window).focus
-                    : netRow.strength < 25 ? Colors.of(QsWindow.window).danger
-                    : netRow.strength < 50 ? Colors.of(QsWindow.window).warning
-                    : Colors.of(QsWindow.window).focus
+                MorphShape {
+                    anchors.fill: parent
+                    shape: netRow.isActive ? "cookie9" : "circle"
+                    fillColor: netRow.isActive ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).surfaceHigh
+                }
 
-                Repeater {
-                    model: 4
+                Item {
+                    id: signalBars
+                    anchors.centerIn: parent
+                    width: 19
+                    height: 17
 
-                    Rectangle {
-                        required property int index
-                        width:  4
-                        radius: 2
-                        height: 5 + index * 4
-                        anchors.bottom: parent.bottom
-                        x: index * 5
+                    readonly property int bars: Net.bars(netRow.strength)
+                    readonly property color tint: netRow.isActive ? Colors.of(QsWindow.window).fgOnPrimary
+                        : netRow.strength < 25 ? Colors.of(QsWindow.window).danger
+                        : netRow.strength < 50 ? Colors.of(QsWindow.window).warning
+                        : Colors.of(QsWindow.window).fg
 
-                        // `signalBars`, not `parent`. A Repeater reparents its delegates to
-                        // the Repeater's OWN parent, so `parent.bars` did resolve at
-                        // runtime — but only by accident of that reparenting, and nothing
-                        // in the code says so. Statically it reads as "bars on a Repeater",
-                        // which is why the linter flagged it, and it would break silently
-                        // the first time someone wrapped these in a layout.
-                        color: index < signalBars.bars ? signalBars.tint
-                                                       : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.18)
+                    Repeater {
+                        model: 4
 
-                        Behavior on color { ColorAnimation { duration: Motion.respond } }
+                        Rectangle {
+                            required property int index
+                            width:  4
+                            radius: 2
+                            height: 5 + index * 4
+                            anchors.bottom: parent.bottom
+                            x: index * 5
+
+                            // `signalBars`, not `parent`: a Repeater reparents its delegates to its own
+                            // parent, so `parent.bars` resolves only by accident of that.
+                            color: index < signalBars.bars ? signalBars.tint
+                                                           : Colors.of(QsWindow.window).alpha(signalBars.tint, 0.25)
+
+                            Behavior on color { ColorAnimation { duration: Motion.respond } }
+                        }
                     }
                 }
             }
@@ -524,8 +525,9 @@ Item {
                 StyledText {
                     Layout.fillWidth: true
                     text: netRow.network?.name ?? ""
-                    variant: "label"
-                    font.weight: netRow.isActive ? Font.DemiBold : Font.Normal
+                    variant: "body"
+                    font.weight: Font.DemiBold
+                    color: netRow.ink
                     elide: Text.ElideRight
                 }
 
@@ -535,20 +537,20 @@ Item {
                     MaterialIcon {
                         name: Net.isSecured(netRow.network) ? "lock" : "lock_open"
                         variant: "micro"
-                        emphasis: "dim"
+                        color: netRow.inkDim
                     }
                     StyledText {
                         text: Net.isSecured(netRow.network)
                             ? Net.securityLabel(netRow.network)
                             : "Open"
                         variant: "micro"
-                        emphasis: "dim"
+                        color: netRow.inkDim
                     }
-                    StyledText { text: "·"; variant: "micro"; emphasis: "dim" }
+                    StyledText { text: "·"; variant: "micro"; color: netRow.inkDim }
                     StyledText {
                         text: netRow.strength + "%"
                         variant: "micro"
-                        emphasis: "dim"
+                        color: netRow.inkDim
                     }
 
                     Badge {
@@ -559,7 +561,7 @@ Item {
                     Badge {
                         visible: netRow.isActive && Net.address !== ""
                         label: root.ipBlurred ? "connected" : Net.address
-                        tint:  Colors.of(QsWindow.window).focus
+                        tint:  netRow.ink
                     }
                 }
             }
@@ -570,7 +572,7 @@ Item {
             // time the pointer crossed a row — the list would squirm under the
             // mouse. Their space is reserved permanently; only opacity changes.
             PanelButton {
-                Layout.preferredWidth: 74
+                capsule: true
                 opacity: (rowHover.hovered && !netRow.isConnecting) ? 1.0 : 0.0
                 enabled: rowHover.hovered && !netRow.isConnecting
                 label:   netRow.isActive ? "Disconnect" : "Connect"
@@ -579,7 +581,7 @@ Item {
             }
 
             PanelButton {
-                Layout.preferredWidth: 60
+                capsule: true
                 // Still collapses when the network was never saved — that isn't a
                 // hover-driven change, so it can't squirm.
                 visible: netRow.isSaved
@@ -594,7 +596,7 @@ Item {
                 Layout.preferredWidth:   6
                 Layout.preferredHeight:  6
                 radius:  3
-                color:   Colors.of(QsWindow.window).focus
+                color:   netRow.ink
                 visible: netRow.isConnecting
                 Layout.alignment: Qt.AlignVCenter
 

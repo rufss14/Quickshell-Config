@@ -19,7 +19,9 @@ import "../../state"
 //   click a tile     its settings page, in depth (the ring's old left-click)
 //   middle-click     the system monitor in a terminal (SysStats.openMonitor)
 //
-// The panel recipe: PanelHeader + ActionGroup, tokens throughout, shared widgets.
+// The shell's Material 3 Expressive panel shape: an optional header (Settings › Modules › System stats),
+// a hero that says whether anything is over its threshold, with the monitor and settings buttons, then a
+// tonal tile per metric.
 // Everything real is services/SysStats (readout(), metrics, alerts); this shows
 // it. It holds the samplers for as long as it exists (StatsSampler).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -29,14 +31,23 @@ Item {
     // The room the slot has (SidePanelDock sets it); the tiles scroll past it.
     property real maxHeight: Infinity
 
-    readonly property int pad: Tokens.spacingLg
+    readonly property int pad: Tokens.spacingXl
+    readonly property color accent: Colors.of(QsWindow.window).primary
     // Narrower than a bar panel: it hangs off the sidebar beside a button, and a
     // tile is a ring and a few lines of text.
     implicitWidth: Tokens.sideCardUnit * 8
     implicitHeight: Math.min(root.maxHeight,
-                             head.implicitHeight + col.spacing + tiles.implicitHeight + root.pad * 2)
+                             (head.visible ? head.implicitHeight + col.spacing : 0)
+                             + hero.implicitHeight + col.spacing + tiles.implicitHeight + root.pad * 2)
 
     StatsSampler { metrics: Config.sidebarStatsMetrics }
+
+    // The "Busiest" tile's sampler runs only while this panel exists (the dock's Loader destroys it on close).
+    Component.onCompleted: SysStats.acquireTop()
+    Component.onDestruction: SysStats.releaseTop()
+    // Which list the tile shows: the processes using the most CPU, or the most memory.
+    property string topBy: "cpu"
+    readonly property var topRows: root.topBy === "cpu" ? SysStats.topCpu : SysStats.topMem
 
     readonly property var metrics: SysStats.metrics
     readonly property var alerting: root.metrics.filter(k => SysStats.isAlerting(k))
@@ -45,31 +56,53 @@ Item {
         id: col
         anchors.fill: parent
         anchors.margins: root.pad
-        spacing: Tokens.spacingMd
+        spacing: Tokens.spacingSm
 
         PanelHeader {
             id: head
-            glyph:     "\u{F0EE0}"                                   // 󰻠 cpu-64-bit
+            Layout.fillHeight: false
+            visible: Config.panelHeader("stats")
+            symbol:    "memory"
             title:     Translation.tr("System")
-            titleTail: "stats"
-            accent:    Colors.of(QsWindow.window).primary
-            subtitle: root.metrics.length === 0 ? "Nothing chosen to show"
-                    : root.alerting.length > 0
-                    ? root.alerting.map(k => SysStats.readout(k).label).join(", ") + " over threshold"
+            titleTail: Translation.tr("stats")
+            accent:    root.accent
+            subtitle: root.metrics.length === 0 ? Translation.tr("Nothing chosen to show")
                     : SysStats.cpuName !== "" ? SysStats.cpuName
-                    : root.metrics.length + " readings, live"
+                    : Translation.tr("%1 readings, live").arg(root.metrics.length)
+        }
 
-            ActionGroup {
-                PanelButton {
-                    variant: "ghost"
-                    symbol:  "terminal"
-                    onActivated: SysStats.openMonitor()
-                }
-                PanelButton {
-                    variant: "ghost"
-                    symbol:  "settings"
-                    onActivated: UiState.openSettingsTo("SidebarStatsPage.qml")
-                }
+        // Calm, or what is over its threshold; the monitor and this module's settings.
+        PanelHero {
+            id: hero
+            compact: true
+            symbol: root.alerting.length > 0 ? "warning" : "speed"
+            shape: "cookie12"
+            active: root.metrics.length > 0 && root.alerting.length === 0
+            warn: root.alerting.length > 0
+            turning: false
+            accent: root.accent
+            title: root.metrics.length === 0 ? Translation.tr("Nothing to read")
+                 : root.alerting.length > 0  ? Translation.tr("Over threshold")
+                 :                             Translation.tr("Running calm")
+            line: root.alerting.length > 0
+                  ? root.alerting.map(k => SysStats.readout(k).label).join(", ")
+                  : root.metrics.length === 1 ? Translation.tr("1 reading, live")
+                  : Translation.tr("%1 readings, live").arg(root.metrics.length)
+
+            PanelButton {
+                variant: "ghost"
+                capsule: true
+                symbol:  "terminal"
+                glyphTint: hero.ink
+                onActivated: SysStats.openMonitor()
+                HelpTip { text: Translation.tr("Open the system monitor") }
+            }
+            PanelButton {
+                variant: "ghost"
+                capsule: true
+                symbol:  "settings"
+                glyphTint: hero.ink
+                onActivated: UiState.openSettingsTo("SidebarStatsPage.qml")
             }
         }
 
@@ -94,14 +127,111 @@ Item {
                     delegate: Tile {}
                 }
 
+                // ── Busiest: what is using the machine right now ─────────────────
+                Rectangle {
+                    id: busiest
+                    width: parent.width
+                    visible: SysStats.topMem.length > 0
+                    height: busyCol.implicitHeight + (Tokens.spacingMd + Tokens.spacingXs) * 2
+                    radius: Tokens.radiusCard
+                    color: Colors.of(QsWindow.window).section
+
+                    ColumnLayout {
+                        id: busyCol
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.margins: Tokens.spacingMd + Tokens.spacingXs
+                        spacing: Tokens.spacingSm
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: false
+                            spacing: Tokens.spacingSm
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: Translation.tr("Busiest")
+                                variant: "body"
+                                font.weight: Font.DemiBold
+                            }
+                            ChipButton {
+                                label: Translation.tr("CPU")
+                                on: root.topBy === "cpu"
+                                tint: root.accent
+                                onActivated: root.topBy = "cpu"
+                            }
+                            ChipButton {
+                                label: Translation.tr("Memory")
+                                on: root.topBy === "mem"
+                                tint: root.accent
+                                onActivated: root.topBy = "mem"
+                            }
+                        }
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            visible: root.topRows.length === 0
+                            text: Translation.tr("Nothing is using the processor")
+                            variant: "caption"
+                            emphasis: "dim"
+                        }
+
+                        Repeater {
+                            model: ScriptModel { values: root.topRows; objectProp: "name" }
+                            delegate: ColumnLayout {
+                                id: proc
+                                required property var modelData
+                                // The bar: this row against the list's biggest, so the order reads at a glance.
+                                readonly property real peak: root.topBy === "cpu" ? (root.topRows[0]?.cpu ?? 1) : (root.topRows[0]?.mb ?? 1)
+                                readonly property real mine: root.topBy === "cpu" ? proc.modelData.cpu : proc.modelData.mb
+                                Layout.fillWidth: true
+                                Layout.fillHeight: false
+                                spacing: Tokens.spacingXs
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: false
+                                    spacing: Tokens.spacingSm
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: proc.modelData.name + (proc.modelData.procs > 1 ? "  ×" + proc.modelData.procs : "")
+                                        variant: "label"
+                                        elide: Text.ElideRight
+                                    }
+                                    StyledText {
+                                        text: Math.round(proc.modelData.cpu) + "%"
+                                        variant: "caption"
+                                        emphasis: root.topBy === "cpu" ? "normal" : "dim"
+                                        font.features: ({ tnum: 1 })
+                                    }
+                                    StyledText {
+                                        Layout.preferredWidth: Tokens.sideCardUnit * 1.4
+                                        horizontalAlignment: Text.AlignRight
+                                        text: proc.modelData.mb >= 1024 ? (proc.modelData.mb / 1024).toFixed(1) + " GB"
+                                                                         : Math.round(proc.modelData.mb) + " MB"
+                                        variant: "caption"
+                                        emphasis: root.topBy === "mem" ? "normal" : "dim"
+                                        font.features: ({ tnum: 1 })
+                                    }
+                                }
+                                Meter {
+                                    Layout.fillWidth: true
+                                    value: proc.peak > 0 ? proc.mine / proc.peak : 0
+                                    accent: root.accent
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Nothing chosen, or nothing this machine can read.
-                StyledText {
+                PanelEmpty {
                     visible: root.metrics.length === 0
                     width: parent.width
-                    wrapMode: Text.WordWrap
-                    variant: "caption"
-                    emphasis: "dim"
-                    text: Translation.tr("Choose what to show in Settings › Sidebar & dock › System stats.")
+                    quiet: true
+                    symbol: "speed"
+                    title: Translation.tr("No readings chosen")
+                    text: Translation.tr("Choose what to show in Settings › Modules, with System stats picked.")
                 }
             }
         }
@@ -114,7 +244,7 @@ Item {
 
         readonly property var info: SysStats.readout(tile.modelData)
         readonly property bool alert: SysStats.isAlerting(tile.modelData)
-        readonly property int inset: Tokens.spacingMd
+        readonly property int inset: Tokens.spacingMd + Tokens.spacingXs
         readonly property int ring: Tokens.sideCardUnit
 
         width: tiles.width
@@ -129,12 +259,17 @@ Item {
 
         Rectangle {
             anchors.fill: parent
-            radius: Tokens.radiusSm
-            color: Colors.of(QsWindow.window).alpha(tile.alert ? Colors.of(QsWindow.window).danger : Colors.of(QsWindow.window).fg,
-                                tileMouse.containsMouse ? 0.08 : 0.04)
-            border.width: tile.alert ? Tokens.borderWidth : 0
-            border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).danger, 0.4)
-            Behavior on color { ColorAnimation { duration: Motion.respond } }
+            radius: Tokens.radiusCard
+            color: tile.alert ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).section, Colors.of(QsWindow.window).danger, 0.22)
+                              : Colors.of(QsWindow.window).section
+            Behavior on color { ColorAnimation { duration: Motion.standard } }
+            Rectangle {
+                anchors.fill: parent
+                radius: parent.radius
+                color: Colors.of(QsWindow.window).fg
+                opacity: tileMouse.containsMouse ? Tokens.stateHover : 0
+                Behavior on opacity { NumberAnimation { duration: Motion.respond } }
+            }
         }
 
         MouseArea {
@@ -168,6 +303,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     thickness: Math.max(Tokens.spacingXs, Math.round(gauge.width / 14))
                     value: tile.info.ratio
+                    wavy: true
                     sampleInterval: tile.modelData === "net" ? NetStats.rateInterval : SysInfo.interval
                     glide: true
                     scale: 0.6 + 0.4 * tile.appear
@@ -216,8 +352,8 @@ Item {
                         width: parent.width
                         elide: Text.ElideRight
                         text: tile.info.value
-                        variant: "label"
-                        font.bold: true
+                        variant: "title"
+                        font.weight: Font.DemiBold
                         color: tile.alert ? Colors.of(QsWindow.window).danger : Colors.of(QsWindow.window).fg
                     }
                     Flow {
@@ -291,14 +427,14 @@ Item {
                         required property int index
                         width: coreRow.barW
                         height: coreRow.height
-                        radius: Tokens.spacingXs / 2
+                        radius: width / 2
                         color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.10)
                         Rectangle {
                             anchors.bottom: parent.bottom
                             width: parent.width
                             height: parent.height * (SysInfo.cores[parent.index] ?? 0)
                             radius: parent.radius
-                            color: Colors.of(QsWindow.window).focus
+                            color: root.accent
                         }
                     }
                 }

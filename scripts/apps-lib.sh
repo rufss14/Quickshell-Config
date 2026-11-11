@@ -1,6 +1,6 @@
 # ── apps-lib.sh ───────────────────────────────────────────────────────────────
 # Sourced, never run (by wave-lib.sh, so by both theming scripts): how each app the
-# wave reaches one by one is recoloured — Discord, Firefox-family browsers, Spotify, Steam.
+# wave reaches one by one is recoloured — Discord, Firefox-family browsers, Spotify.
 # One copy, used by reload-theme.sh's fan-out, its `--app`, and the staging below.
 #
 # The caller defines step/skip/have and sets CACHE, LOG, STAGE.
@@ -150,22 +150,8 @@ recolor_darkreader() {
     fi
 }
 
-# ── Steam (Millennium / simply-dark): live, through Steam's debug port ───────
-# scripts/steam-live.py pushes the theme's colours into every open Steam window and exits
-# once they are painted. OPT-IN (its header says why: the port it needs is unauthenticated):
-# until `steam-live.py enable`, Steam is restart-only here and `probe` says so, so the wave
-# never holds for it. The colours for a restarted Steam are steam-colors.py's, separately.
-STEAM_LIVE="$SHELL_DIR/scripts/steam-live.py"
-recolor_steam() {
-    if python3 "$STEAM_LIVE" probe >/dev/null 2>&1; then
-        step steamlive "Recolouring Steam windows" -- python3 "$STEAM_LIVE" push "$WAL_CACHE/colors.json"
-    else
-        skip steamlive "Steam live isn't enabled, or its debug port isn't open (colours apply on restart)"
-    fi
-}
-
 # ── Spotify, through Spicetify ───────────────────────────────────────────────
-# The shipped pwspice.py writes QuickSpice's color.ini (theme-setup.sh installs QuickSpice and
+# The shipped pwspice.py writes QuickZiro's color.ini (theme-setup.sh installs QuickZiro and
 # the bridge), `spicetify refresh -s -n` bakes it into the app's files, and the running app
 # is told through the shell's Spicetify extension (spicetify/Extensions/quickshell-bridge.js):
 # a POST to the bridge's /restyle; it swaps the sheets and reports `restyled`, which is
@@ -178,19 +164,20 @@ recolor_steam() {
 [[ -d "$HOME/.spicetify" && ":$PATH:" != *":$HOME/.spicetify:"* ]] && PATH="$PATH:$HOME/.spicetify"
 SPOTIFY_PWSPICE="$SHELL_DIR/scripts/themes/spotify/pwspice.py"
 SPOTIFY_THEME_ROOT="${XDG_CONFIG_HOME:-$HOME/.config}/spicetify/Themes"
-SPOTIFY_THEME="$SPOTIFY_THEME_ROOT/QuickSpice"; SPOTIFY_STYLE=spice
+SPOTIFY_THEME="$SPOTIFY_THEME_ROOT/QuickZiro"; SPOTIFY_STYLE=ziro
 SPOTIFY_BRIDGE="http://127.0.0.1:${QS_SPOTIFY_BRIDGE_PORT:-47821}"
 [[ "${QS_SPOTIFY_BRIDGE_PORT:-47821}" =~ ^[0-9]{1,5}$ ]] || SPOTIFY_BRIDGE="http://127.0.0.1:47821"
 spotify_listening() {
     curl -s -m 1 "$SPOTIFY_BRIDGE/" 2>/dev/null | grep -q '"listening":true'
 }
-# Follows whichever theme Spicetify has active (QuickSpice or QuickZiro), so switching the
-# theme needs no change here; anything else, or nothing, is QuickSpice as before. pwspice.py
-# knows two slot layouts: Ziro's user.css wants finished colours, QuickSpice derives them.
+# Follows whichever theme Spicetify has active (QuickZiro, or QuickSpice on a machine set up
+# before it was dropped), so switching the theme needs no change here; anything else, or
+# nothing, is QuickZiro. pwspice.py knows two slot layouts: Ziro's user.css wants finished
+# colours, QuickSpice's derived them.
 spotify_themed() {
     have spicetify || return 1
     local t; t="$(spicetify config current_theme 2>/dev/null | head -1 | tr -d '[:space:]')"
-    case "$t" in QuickZiro|QuickSpice) ;; *) t=QuickSpice ;; esac
+    case "$t" in QuickZiro|QuickSpice) ;; *) t=QuickZiro ;; esac
     SPOTIFY_THEME="$SPOTIFY_THEME_ROOT/$t"
     [[ "$t" = QuickZiro ]] && SPOTIFY_STYLE=ziro || SPOTIFY_STYLE=spice
     [[ -d "$SPOTIFY_THEME" ]]
@@ -260,7 +247,6 @@ can_recolor() {
     case "$1" in
         discord) [[ -n "$(discord_themes)" ]] ;;
         browser) have pywalfox ;;
-        steam)   python3 "$STEAM_LIVE" probe >/dev/null 2>&1 ;;
         # Live only through the extension: without it the wave would wait on a
         # Spotify that can't answer (it still gets the theme on disk, for next launch).
         spotify) spotify_themed && spotify_listening ;;

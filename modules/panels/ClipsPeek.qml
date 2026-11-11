@@ -8,6 +8,7 @@ import "../../components"
 import "../../services"
 import "../../state"
 import "../../services/clockfmt.js" as ClockFmt
+import "../../services/clips.js" as ClipsJs
 // ── ClipsPeek ─────────────────────────────────────────────────────────────────
 // Medal's "clipped!" moment: a save opens this beside the clips button for a
 // moment (Config.clipsPeek), on the focused monitor, with the clip's thumbnail and
@@ -17,6 +18,10 @@ import "../../services/clockfmt.js" as ClockFmt
 //
 // It shows a COPY of what was saved, taken when it opened and never cleared
 // (CLAUDE.md's fade rule): the next save must not rewrite a card on its way out.
+//
+// A thin rail under the frame runs down with the time it has left (the dock's own rule: restarted
+// when the pointer leaves, held while it rests there). The song that was playing and who was in
+// the call, when stamped, are the line under the name.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
@@ -30,9 +35,16 @@ Item {
     implicitWidth: Tokens.sideCardUnit * 6
     implicitHeight: Math.min(root.maxHeight, col.implicitHeight + root.pad * 2)
 
+    readonly property var pal: Colors.of(QsWindow.window)
     property var held: null
-    Component.onCompleted: root.held = Clips.lastSaved
+    Component.onCompleted: { root.held = Clips.lastSaved; railAnim.restart() }
+
+    // The time left, 1 → 0. A countdown is linear.
+    property real rail: 1
+    NumberAnimation { id: railAnim; target: root; property: "rail"; from: 1; to: 0; duration: root.autoCloseMs; easing.type: Easing.Linear }
+    HoverHandler { onHoveredChanged: if (!hovered) railAnim.restart() }
     // The library's entry for it, once indexed (it has the duration and a thumbnail).
+    readonly property string context: root.held ? ClipsJs.contextLine(Clips.contextOf(root.held.path)) : ""
     readonly property var entry: root.held ? (Clips.clips.find(c => c.path === root.held.path) ?? null) : null
 
     ColumnLayout {
@@ -56,9 +68,17 @@ Item {
                 height: width
                 name: "play_arrow"
                 primary: true
-                tint: Colors.of(QsWindow.window).focus
+                tint: root.pal.focus
                 enabled: root.held !== null
                 onActivated: { Clips.playClip(root.held.path); UiState.closeSidePanel() }
+            }
+            // How long the card has left.
+            Rectangle {
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                height: Tokens.spacingXs
+                width: parent.width * root.rail
+                color: root.pal.primary
             }
         }
 
@@ -74,10 +94,19 @@ Item {
             text: root.entry ? root.entry.name + "  ·  " + ClockFmt.clock(root.entry.duration)
                 : root.held ? root.held.path.split("/").pop() : ""
         }
+        // What was going on: the song, and who was in the call.
+        StyledText {
+            Layout.fillWidth: true
+            visible: root.context !== ""
+            elide: Text.ElideRight
+            variant: "micro"
+            emphasis: "dim"
+            text: root.context
+        }
 
         // What you would do next, as the panel's own chips (ChipTray): copy it, cut it (opens the
-        // gallery's editor on it), send it to Discord (copies it and brings Discord forward — a paste
-        // attaches the file), play it, or open the library.
+        // gallery's editor on it), send it to Discord (shrunk under the upload cap if need be, then copied
+        // — a paste attaches the file), keep it (a star), or open the library. The frame plays it.
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: false
@@ -85,35 +114,36 @@ Item {
             ChipTray {
                 ChipButton {
                     symbol: "content_copy"
-                    tint: Colors.of(QsWindow.window).focus
+                    tint: root.pal.focus
                     enabled: root.held !== null
                     onActivated: { Clips.copyClip(root.held.path); UiState.closeSidePanel() }
                 }
                 ChipButton {
                     symbol: "content_cut"
-                    tint: Colors.of(QsWindow.window).focus
+                    tint: root.pal.focus
                     enabled: root.held !== null && (root.entry?.ok ?? false)
                     onActivated: { UiState.closeSidePanel(); Clips.editClip(root.held.path) }
                 }
                 ChipButton {
                     symbol: "send"
                     label: Translation.tr("Discord")
-                    tint: Colors.of(QsWindow.window).focus
-                    enabled: root.held !== null
+                    tint: root.pal.focus
+                    enabled: root.held !== null && Clips.sharing === ""
                     onActivated: { Clips.sendToDiscord(root.held.path); UiState.closeSidePanel() }
                 }
                 ChipButton {
-                    symbol: "play_arrow"
-                    tint: Colors.of(QsWindow.window).focus
+                    symbol: "star"
+                    on: root.held !== null && Clips.isFavourite(root.held.path)
+                    tint: root.pal.focus
                     enabled: root.held !== null
-                    onActivated: { Clips.playClip(root.held.path); UiState.closeSidePanel() }
+                    onActivated: Clips.toggleFavourite(root.held.path)
                 }
             }
             Item { Layout.fillWidth: true }
             ChipTray {
                 ChipButton {
                     symbol: "movie"
-                    tint: Colors.of(QsWindow.window).focus
+                    tint: root.pal.focus
                     onActivated: { UiState.closeSidePanel(); Clips.openGallery() }
                 }
             }

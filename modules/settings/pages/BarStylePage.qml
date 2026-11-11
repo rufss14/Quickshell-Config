@@ -8,52 +8,38 @@ import "../../../components"
 import ".."
 import "../../../services"
 
-// ── BarStylePage — Bar › Style ────────────────────────────────────────────────
-// The bar's own geometry and finish: how thick it is, how round, how solid, and
-// whether its groups wear an inner chip. Split out of BarPage, which used to carry
-// this behind its own segmented strip (see that file's header).
+// ── BarStylePage — Bar & sidebar › Style ──────────────────────────────────────
+// How both surfaces look: ONE set of knobs (2026-11-08, the user's pick). The sidebar
+// used to borrow the bar's corners, fill, inner pills and scales with no say of its own,
+// and keep two switches (islands, the music) on a page of its own. Now every shared knob
+// is here once, and under each a SideLink — "Sidebar: same as bar" until unlinked, and
+// then the sidebar's own control appears (Config.sidebarStyle, surfaces.js).
 //
-// ── No preview here either ─────────────────────────────────────────────────────
-// A scaled screen used to sit at the top of this page too (`BarPreview`, off
-// `Config.layout`) — the same picture BarPage carried, for the same reason: the
-// real bar is a few pixels above this window at full brightness, already showing
-// every one of these settings live. A second, smaller copy of it answered nothing
-// the real one didn't. There is no Apply button because there is nothing to apply.
+//   shared, linkable   roundness, opacity, text, icons, inner pills, the music's glow
+//   shell-wide         square corners (every corner in the shell, Tokens.corner)
+//   one surface        the bar's thickness and size presets (the sidebar's size is the
+//                      dock's icon size — Behaviour); the sidebar's islands (the bar's
+//                      groups are always islands)
 //
-// ── Fits the window ───────────────────────────────────────────────────────────
-// Size beside Look (two cards of three controls each, so the row is flush), the
-// bar-wide switches as tiles, then presets as chips. The text and icon scales had no
-// control at all after an earlier pass (barFontScale/barIconScale were only reachable
-// through a size preset); they are back, in Look. "Grow on hover" moved to Desktop ›
-// Style — it is the desktop widgets' (WidgetFrame), whatever its Config name says.
-//
-// ── What is NOT here any more ─────────────────────────────────────────────────
-// "Animations" and "Speed" used to sit in this card. They are `Config.motionEnabled`
-// and `Config.motionScale` — every surface in the shell reads them, not just the bar
-// — so they live in Appearance › Type & shape, with the other shell-wide look
-// settings. Setting the whole shell's motion from the Bar page was a category error
-// that only looked harmless because nowhere else offered it.
+// The file keeps its name so every link to the bar's style still lands here.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
+
+    readonly property int unlinked: { void Config.sidebarStyle; return Object.keys(Config.sidebarStyle).length }
 
     SettingsPage {
         anchors.fill: parent
 
         bento:     true
         glyph:     "󰸌"
-        title:     Translation.tr("Bar")
-        titleTail: "style"
+        title:     Translation.tr("Style")
         accent:    Colors.of(QsWindow.window).primary
-        // Parenthesised: `a ?? b + c` binds as `a ?? (b + c)`, which would drop the
-        // rest of the line for every size that HAS a label — i.e. always.
         subtitle:  (Config.barSizeLabels[Config.barSizeName] ?? "Custom")
                    + "  ·  " + Config.barThicknessPref + " px"
-                   + "  ·  " + Math.round(Config.barOpacity * 100) + "% opaque"
+                   + "  ·  " + (root.unlinked === 0 ? "sidebar matches the bar"
+                                : root.unlinked + (root.unlinked === 1 ? " sidebar override" : " sidebar overrides"))
 
-        // Loads the default preset, which throws away your layout as well as your
-        // sizes — so it arms first. ArmLatch is the shell's click-twice control;
-        // there is no undo for a discarded arrangement.
         actions: ChipTray {
             ChipButton {
                 ArmLatch {
@@ -74,7 +60,7 @@ Item {
             glyph:  "󰩨"
             title:  Translation.tr("Size")
             accent: Colors.of(QsWindow.window).primary
-            help:   Translation.tr("Small, Normal and Big move thickness, roundness, inset and the text and icon scales together. Any slider takes you off them, to Custom.")
+            help:   Translation.tr("Small, Normal and Big move the bar's thickness, roundness, inset and the text and icon scales together. Any slider takes you off them, to Custom. The sidebar's size is the dock's icon size, in Behaviour.")
 
             TabStrip {
                 Layout.fillWidth: true
@@ -82,8 +68,6 @@ Item {
                 model: Config.barSizeOrder.map(k => ({
                     value: k,
                     label: Config.barSizeLabels[k],
-                    // Small → large, as three sizes of the same mark. Every name has
-                    // an icons.js fallback.
                     icon: k === Config.barSizeOrder[0] ? "density_small"
                         : k === Config.barSizeOrder[Config.barSizeOrder.length - 1]
                           ? "density_large" : "density_medium"
@@ -97,9 +81,6 @@ Item {
                 accent: Colors.of(QsWindow.window).primary
                 from: Config.barThicknessMin
                 to:   Config.barThicknessMax
-                // The raw preference, not Config.barThickness — that's the
-                // resolution-scaled value everything else reads, and this slider sets
-                // the base the scaling multiplies, not the rendered pixel count.
                 value: Config.barThicknessPref
                 readout: Config.barThicknessPref + " px"
                 onCommit: function (v) { Config.barThicknessPref = v }
@@ -113,6 +94,20 @@ Item {
                 readout: Config.barShape ? "square" : Config.barRoundness + " px"
                 enabled: !Config.barShape
                 onCommit: function (v) { Config.barRoundness = v }
+            }
+            SideLink {
+                key: "roundness"
+                barValue: Config.barRoundness
+                Fader {
+                    label: Translation.tr("Sidebar roundness")
+                    accent: Colors.of(QsWindow.window).primary
+                    from: 0
+                    to:   Config.barRoundnessMax
+                    value: Config.sideRoundness
+                    readout: Config.barShape ? "square" : Config.sideRoundness + " px"
+                    enabled: !Config.barShape
+                    onCommit: function (v) { Config.setSideStyle("roundness", v) }
+                }
             }
         }
 
@@ -134,11 +129,23 @@ Item {
                 readout: Math.round(Config.barOpacity * 100) + "%"
                 onCommit: function (v) { Config.barOpacity = v }
             }
-            // Multipliers, not pixel sizes (see Config.barFontScalePref): the ratios
-            // between Tokens' sizes are the design.
+            SideLink {
+                key: "opacity"
+                barValue: Config.barOpacity
+                Fader {
+                    label: Translation.tr("Sidebar opacity")
+                    accent: Colors.of(QsWindow.window).primary
+                    from: Config.barOpacityMin
+                    to:   1.0
+                    step: 0.01
+                    value: Config.sideOpacity
+                    readout: Math.round(Config.sideOpacity * 100) + "%"
+                    onCommit: function (v) { Config.setSideStyle("opacity", v) }
+                }
+            }
             Fader {
                 label: Translation.tr("Text")
-                help:  Translation.tr("How big the bar's text runs — the clock, the workspace numbers, labels.")
+                help:  Translation.tr("How big the text runs — the clock, the workspace numbers, labels.")
                 accent: Colors.of(QsWindow.window).primary
                 from: 0.8
                 to:   1.6
@@ -147,9 +154,23 @@ Item {
                 readout: Config.barFontScalePref.toFixed(2) + "×"
                 onCommit: function (v) { Config.barFontScalePref = v }
             }
+            SideLink {
+                key: "fontScale"
+                barValue: Config.barFontScalePref
+                Fader {
+                    label: Translation.tr("Sidebar text")
+                    accent: Colors.of(QsWindow.window).primary
+                    from: 0.8
+                    to:   1.6
+                    step: 0.02
+                    value: Config.sideFontScalePref
+                    readout: Config.sideFontScalePref.toFixed(2) + "×"
+                    onCommit: function (v) { Config.setSideStyle("fontScale", v) }
+                }
+            }
             Fader {
                 label: Translation.tr("Icons")
-                help:  Translation.tr("How big the bar's icons run. Separate from text: a glyph is an icon that happens to be a character.")
+                help:  Translation.tr("How big the icons run. Separate from text: a glyph is an icon that happens to be a character.")
                 accent: Colors.of(QsWindow.window).primary
                 from: 0.8
                 to:   1.6
@@ -158,11 +179,74 @@ Item {
                 readout: Config.barIconScalePref.toFixed(2) + "×"
                 onCommit: function (v) { Config.barIconScalePref = v }
             }
+            SideLink {
+                key: "iconScale"
+                barValue: Config.barIconScalePref
+                Fader {
+                    label: Translation.tr("Sidebar icons")
+                    accent: Colors.of(QsWindow.window).primary
+                    from: 0.8
+                    to:   1.6
+                    step: 0.02
+                    value: Config.sideIconScalePref
+                    readout: Config.sideIconScalePref.toFixed(2) + "×"
+                    onCommit: function (v) { Config.setSideStyle("iconScale", v) }
+                }
+            }
         }
 
-        // ══ The switches ══════════════════════════════════════════════════════
-        // Tiles, not rows: each one changes the bar's whole silhouette, and each is
-        // visible on the real bar the moment you tap it.
+        // ══ Pills ═════════════════════════════════════════════════════════════
+        Section {
+            span:   1
+            symbol: "layers"
+            title:  Translation.tr("Pills")
+            accent: Colors.of(QsWindow.window).primary
+            help:   Translation.tr("The chips the modules stand on. A module can opt out of its inner pill in its own settings, in Modules.")
+
+            SettingRow {
+                label:  Translation.tr("Inner pill")
+                detail: Config.barInnerPill ? "A lighter chip behind each group" : "Groups sit straight on the bar"
+                Toggle { checked: Config.barInnerPill; onToggled: Config.barInnerPill = !Config.barInnerPill }
+            }
+            SideLink {
+                key: "innerPill"
+                barValue: Config.barInnerPill
+                SettingRow {
+                    label:  Translation.tr("Sidebar inner pill")
+                    detail: Config.sideInnerPill ? "A lighter chip behind each group" : "Straight on the sidebar"
+                    Toggle { checked: Config.sideInnerPill; onToggled: Config.setSideStyle("innerPill", !Config.sideInnerPill) }
+                }
+            }
+
+            SettingRow {
+                label:  Translation.tr("Tooltips")
+                detail: Config.barTooltips ? Translation.tr("Rest on a pill to see what it is doing") : Translation.tr("Off")
+                help:   Translation.tr("Resting the pointer on a bar module shows its name and what it is doing right now: the network you are on, the volume, how many updates are waiting.")
+                Toggle { checked: Config.barTooltips; onToggled: Config.barTooltips = !Config.barTooltips }
+            }
+            SettingRow {
+                label:  Translation.tr("With the music")
+                detail: Config.barMusicReact ? "The pills' rims glow while music plays" : "Still"
+                Toggle { checked: Config.barMusicReact; onToggled: Config.barMusicReact = !Config.barMusicReact }
+            }
+            SideLink {
+                key: "musicReact"
+                barValue: Config.barMusicReact
+                SettingRow {
+                    label:  Translation.tr("Sidebar with the music")
+                    detail: Config.sideMusicReact ? "Its rims glow while music plays" : "Still"
+                    Toggle { checked: Config.sideMusicReact; onToggled: Config.setSideStyle("musicReact", !Config.sideMusicReact) }
+                }
+            }
+
+            SettingRow {
+                label:  Translation.tr("Sidebar islands")
+                detail: Config.sidebarIslands ? "A pill per group, like the bar" : "One pill per region, with dividers"
+                help:   Translation.tr("The bar's groups are always islands. The sidebar can run one pill down each region instead, with a divider between groups.")
+                Toggle { checked: Config.sidebarIslands; onToggled: Config.sidebarIslands = !Config.sidebarIslands }
+            }
+        }
+
         QuickToggleTile {
             roomy:  true
             symbol: "square"
@@ -175,50 +259,19 @@ Item {
             onToggled: Config.toggleShape()
         }
 
-        QuickToggleTile {
-            roomy:  true
-            symbol: "layers"
-            label:  Translation.tr("Inner pill")
-            accent: Colors.of(QsWindow.window).primary
-            active: Config.barInnerPill
-            subLabel: Config.barInnerPill
-                ? "A lighter chip behind each group"
-                : "Groups sit straight on the bar"
-            onToggled: Config.barInnerPill = !Config.barInnerPill
-        }
-
-        // Moved from Modules: it is about the whole bar's centring, not one module.
-        QuickToggleTile {
-            roomy:  true
-            symbol: "center_focus_strong"
-            label:  Translation.tr("Anchor on workspaces")
-            accent: Colors.of(QsWindow.window).primary
-            active: Config.barCentreAnchor
-            available: Config.isPlaced("workspaces")
-            subLabel: !Config.isPlaced("workspaces")
-                ? "Needs the workspaces module on the bar"
-                : Config.barCentreAnchor
-                ? "The dots hold true screen centre"
-                : "Centred on its own region instead"
-            help: Translation.tr("Keeps the workspace dots at the exact centre of the screen, however wide the modules either side of them grow.")
-            onToggled: Config.barCentreAnchor = !Config.barCentreAnchor
-        }
-
         // ══ Presets ═══════════════════════════════════════════════════════════
-        // A preset is the whole bar — the layout AND these sizes — so it sits with
-        // them rather than on the Modules view.
         Section {
-            span:   1
+            span:   2
             glyph:  "󰸖"
             title:  Translation.tr("Presets")
-            help:   Translation.tr("The whole bar, saved under a name: what is on it and every size on this page.")
+            help:   Translation.tr("Both surfaces, saved under a name: what is on them and every knob on this page. A preset saved before the sidebar was in presets leaves the sidebar alone.")
             accent: Colors.of(QsWindow.window).primary
 
             PresetChips {
                 accent:   Colors.of(QsWindow.window).primary
                 presets:  Config.allPresets
                 isActive: function (name) { return Config.presetActive(name) }
-                savePlaceholder: "Name this bar"
+                savePlaceholder: "Name this setup"
                 onLoad:   function (name) { Config.loadPreset(name) }
                 onSave:   function (name) { Config.savePreset(name) }
                 onRename: function (from, to) { Config.renamePreset(from, to) }

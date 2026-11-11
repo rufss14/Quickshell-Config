@@ -184,7 +184,7 @@ Singleton {
         }
     }
 
-    readonly property bool _running: (root._refs > 0 || root._blobRefs > 0) && Config.motionEnabled && !root.frozen
+    readonly property bool _running: (root._refs > 0 || root._blobRefs > 0) && Motion.ambientOn && !root.frozen
     // ── How often it steps ────────────────────────────────────────────────────
     // At rest, 30 times a second: the whole field drifts 6px/s, so a step is a fifth of a pixel
     // — below what an antialiased edge shows — and every step costs a repaint of the bar's whole

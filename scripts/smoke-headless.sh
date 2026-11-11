@@ -6,6 +6,10 @@
 #     bash scripts/smoke-headless.sh              exits non-zero on any smoke failure
 #     bash scripts/smoke-headless.sh --keep       leave the sandbox dir behind to read
 #     bash scripts/smoke-headless.sh --shots DIR  also screenshot every panel/page into DIR
+#     bash scripts/smoke-headless.sh --run 'CMD'  run CMD (bash) inside the sandbox INSTEAD of the smoke checks:
+#                                                   $REPO is the repo, $SANDBOX the temp dir, a compositor is up
+#     bash scripts/smoke-headless.sh --config FILE  start from that config.json instead of a first run
+#                                                   (a COPY: your own bar and sidebar layout, in the sandbox)
 #
 # It LAUNCHES QUICKSHELL (and sway). The checks themselves are smoke.sh's, unchanged:
 # this file only builds the room it runs in.
@@ -46,11 +50,13 @@ set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 repo=$PWD
 
-keep=0; shots=""
+keep=0; shots=""; seed_config=""; run_cmd=""
 while [ $# -gt 0 ]; do
     case $1 in
         --keep) keep=1 ;;
         --shots) shots=$(realpath -m "${2:?--shots needs a directory}"); shift ;;
+        --run) run_cmd=${2:?--run needs a command}; shift ;;
+        --config) seed_config=$(realpath -e "${2:?--config needs a file}") || exit 2; shift ;;
         *) echo "smoke-headless: unknown option $1" >&2; exit 2 ;;
     esac
     shift
@@ -103,6 +109,19 @@ fi
 mkdir -p "$HOME/wallpapers/walls"
 cp "$repo/assets/previews/TopBarPreview.png" "$repo/assets/previews/MorphPreview.png" "$HOME/wallpapers/walls/" 2>/dev/null
 
+# Three tiny clips in the default library (Clips.saveDir), a day apart, so the Clips panel's Latest row
+# and the gallery build real tiles and day headings. Generated, not downloaded; skipped without ffmpeg.
+if command -v ffmpeg >/dev/null 2>&1; then
+    mkdir -p "$HOME/Videos/Clips"
+    for n in 1 2 3; do
+        f="$HOME/Videos/Clips/Smoke-Game_Replay_2026-11-0${n}_20-00-0${n}.mp4"
+        ffmpeg -loglevel error -y -f lavfi -i "testsrc=size=320x180:rate=15:duration=2" \
+            -c:v libx264 -pix_fmt yuv420p "$f" 2>/dev/null || ffmpeg -loglevel error -y -f lavfi \
+            -i "testsrc=size=320x180:rate=15:duration=2" "$f" 2>/dev/null
+        touch -d "2026-11-0${n} 20:00:0${n}" "$f" 2>/dev/null
+    done
+fi
+
 # Seeded state, so the dock's buttons get built (the dock settings page's preview strip):
 # one pinned app — a desktop entry that exists in any container, ours, whose Exec does
 # nothing — and the Downloads/Trash tail switched on. Written where Quickshell.statePath
@@ -114,7 +133,8 @@ printf '[Desktop Entry]\nType=Application\nName=Smoke Test\nExec=true\nIcon=appl
 state_dir="$XDG_STATE_HOME/quickshell/by-shell/$(printf '%s' "$repo/shell.qml" | md5sum | cut -c1-32)"
 mkdir -p "$state_dir"
 printf '["qs-smoke"]\n' >"$state_dir/pins.json"
-printf '{"dockShowTrash": true, "dockShowDownloads": true}\n' >"$state_dir/config.json"
+if [ -n "$seed_config" ]; then cp "$seed_config" "$state_dir/config.json"
+else printf '{"dockShowTrash": true, "dockShowDownloads": true}\n' >"$state_dir/config.json"; fi
 
 # The stock session.conf minus <standard_session_servicedirs/> and its includes: a bus
 # nothing can be activated on. A name the shell asks for just isn't there.
@@ -153,13 +173,13 @@ if [ -z "${sock:-}" ]; then
     exit 2
 fi
 export WAYLAND_DISPLAY="$sock" QT_QPA_PLATFORM=wayland
-bash "$REPO/scripts/smoke.sh" $ALONGSIDE
+if [ -n "${RUN_CMD:-}" ]; then bash -c "$RUN_CMD"; else bash "$REPO/scripts/smoke.sh" $ALONGSIDE; fi
 EOF
 )
 # Lowest CPU priority, and lavapipe capped at 4 threads: software rendering otherwise takes
 # every core, and on a desktop whose PipeWire isn't realtime (no rtkit) the live audio
 # crackles for the whole run.
 export LP_NUM_THREADS=4
-QS_SMOKE_SHOTS="$shots" SANDBOX="$sandbox" REPO="$repo" ALONGSIDE="$alongside" \
+QS_SMOKE_SHOTS="$shots" SANDBOX="$sandbox" REPO="$repo" ALONGSIDE="$alongside" RUN_CMD="$run_cmd" \
     nice -n 19 dbus-run-session --config-file="$sandbox/session.conf" -- bash -c "$exec_inside"
 exit $?

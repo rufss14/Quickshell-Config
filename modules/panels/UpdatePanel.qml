@@ -13,9 +13,9 @@ import "update"
 // Embeddable content Item — the bar update pill's popup, hosted inside OverlayRoot's
 // Center container (one instance per screen, same pattern as every other module).
 //
-// ── It is now a VIEW over the one runner, not a second updater ─────────────────
-// It used to run `yay -Syu --noconfirm` through a plain `bash -c` with no PTY. Two ways
-// that hangs, both silent, both reported by the user:
+// ── A VIEW over the one runner, not a second updater ───────────────────────────
+// It does not run `yay -Syu --noconfirm` itself through a plain `bash -c` with no PTY. Two
+// ways that hangs, both silent, both reported by the user:
 //   • A long AUR build outlives sudo's cached credential, and yay's inner sudo
 //     RE-PROMPTS on a terminal that doesn't exist — nothing can answer it, so it wedges
 //     with no indicator.
@@ -52,8 +52,8 @@ Item {
     property alias viewState: state   // not `state`: that would mask Item.state
 
     // ── UiState.updateOpen is the one owner of "is this panel up" ────────────
-    // It used to be the other way round: this Item owned `visible` and MIRRORED it
-    // out. That only worked while the host was a plain always-visible holder. The
+    // Not the other way round (this Item owning `visible` and MIRRORING it out): that
+    // only works while the host is a plain always-visible holder. The
     // panel now lives in a BarDock Card whose own visibility is animated by the
     // Accordion, and `Item.visible` is EFFECTIVE visibility — an invisible ancestor
     // forces it false — so the panel and its container each thought they owned the
@@ -93,7 +93,7 @@ Item {
     // ── Presentation state ────────────────────────────────────────────────────
     // Only what to SHOW lives here now. Whether a run is happening, its outcome, AND
     // its progress all come from the service: the `:: [n/N]` parser and the `inHooks`
-    // latch that used to sit in this object are a protocol shared with update-run.sh,
+    // latch are a protocol shared with update-run.sh,
     // not something a popup should own — see the block comment on Updates.runProgress.
     // These stay bindings rather than copies so there is still exactly one parser.
     QtObject {
@@ -101,10 +101,10 @@ Item {
         property string view:        "main"    // main | running | caught
         property int    elapsedSecs: 0
 
-        // How many updates are WAITING, as the caller passed them to openWith(). This
-        // used to share `pkgCount` with the running view's transaction total below —
-        // two different numbers under one name, which only worked because the two views
-        // are never on screen at once. Separating them was forced by pkgCount becoming
+        // How many updates are WAITING, as the caller passed them to openWith(). Not
+        // `pkgCount` (the running view's transaction total below): two different numbers
+        // under one name only work while the two views are never on screen at once, and
+        // they had to part when pkgCount became
         // a binding, and it should have been separate anyway.
         property int    pendingCount: 0
 
@@ -213,8 +213,8 @@ Item {
     property bool expanded: false
 
     // ── The pre-run peek ──────────────────────────────────────────────────────
-    // The main view used to be a count and a password field — "5 updates ready",
-    // trust us. This opens the actual list: what's pending, split by source, with a
+    // Not a count and a password field ("5 updates ready", trust us): this opens the
+    // actual list: what's pending, split by source, with a
     // hold toggle and (for AUR/Flatpak) a tick so you can install a subset without
     // opening full Settings.
     property bool peekExpanded: false
@@ -308,8 +308,8 @@ Item {
     property real _shellPhase: 0
 
     // ── What the gear says, and for how long ──────────────────────────────────
-    // No line of its own. It used to be a caption under the password row, and its
-    // coming and going changed the panel's height — the card springs after the
+    // No line of its own. A caption under the password row would change the panel's
+    // height as it comes and goes — the card springs after the
     // content, and for that moment the content ran over the card's bottom edge. So
     // the words borrow a line that's always there: the header subtitle (main view)
     // or the "last updated" line (caught-up view). Shown while the gear is hovered,
@@ -339,7 +339,7 @@ Item {
         return "Check for Quicktest updates"
     }
     NumberAnimation on _shellPhase {
-        from: 0; to: 360; duration: 900
+        from: 0; to: 360; duration: Motion.spin
         loops: Animation.Infinite
         running: ShellUpdate.checking || ShellUpdate.installing
     }
@@ -347,7 +347,7 @@ Item {
     // Spinner phase for the header re-check button.
     property real _checkPhase: 0
     NumberAnimation on _checkPhase {
-        from: 0; to: 360; duration: 900
+        from: 0; to: 360; duration: Motion.spin
         loops: Animation.Infinite
         running: Updates.checking
     }
@@ -411,9 +411,8 @@ Item {
         id: updateFocusItem
         Keys.onEscapePressed: panel._escClose()
         // Effective visibility, so this fires when the CONTAINER has finished
-        // fading in — which is the first moment a forceActiveFocus can stick. It
-        // used to fire on this Item's own flag, back when the host was always
-        // visible and the two were the same thing.
+        // fading in — which is the first moment a forceActiveFocus can stick. This
+        // Item's own flag would be too early: the host isn't always visible.
         Connections {
             target: panel
             function onVisibleChanged() {

@@ -8,8 +8,7 @@
 // the jobs; modules/onboard/SetupFlow.qml shows it. Pure functions: `bun scripts/test-setupplan.js`.
 //
 // ── One plan, one button ──────────────────────────────────────────────────────
-// Setup used to be seven pages and about fifteen separate install buttons, one job at a time. Now it is a
-// list of steps: the RECOMMENDED ones are ticked, the optional ones are not, and "Set up N things" runs the
+// Setup is a list of steps, not pages of install buttons: the RECOMMENDED ones are ticked, the optional ones are not, and "Set up N things" runs the
 // ticked ones in order — pulling in what they need (a step that builds from the AUR needs an AUR helper,
 // which needs the base tools), skipping what is already done, and carrying on past a failure for every
 // step that did not depend on it.
@@ -105,15 +104,18 @@ function hyprMode(hyprConfig) {
 //   blocked   cannot run right now — `why` says what to fix
 // Order here IS the order they run in.
 var ORDER = ["core", "aurhelper", "aur", "clips", "gamemode", "blob", "hypr", "autostart", "themes", "colours",
-             "spotify", "wpe", "argos", "songrec", "awww", "ddc", "beatsync", "discordkeys"]
+             "discordtheme", "spotifytheme", "spotify", "wpe", "argos", "songrec", "awww", "ddc", "beatsync", "discordkeys"]
 
+var SYSTEM_THEMES = ["gtk", "qt", "steam"]
 function _installed(f, k) { return !!(f.optional && f.optional[k]) }
 // A feature pack (install-dependencies.sh PACK_PKGS): every one of its packages is installed.
 function _pack(f, k) { return !!(f.packs && f.packs[k]) }
 
 function catalogue(f, mode) {
     var m = mode || hyprMode(f.hyprConfig)
-    var themeTodo = Object.keys(f.themes || {}).filter(function (id) { return f.themes[id].state === "todo" })
+    // The system-wide themes are one step. Discord and Spotify patch somebody else's client, so each is its
+    // own opt-in step below (the colours step runs first, so they are painted from the palette as they land).
+    var themeTodo = SYSTEM_THEMES.filter(function (id) { return f.themes && f.themes[id] && f.themes[id].state === "todo" })
     var themeRoot = themeTodo.some(function (id) { return f.themes[id].sudo })
     var bl = blockers(f)
     var fatal = bl.filter(function (b) { return b.level === "fatal" })
@@ -187,9 +189,9 @@ function catalogue(f, mode) {
 
     steps.push(mk("themes", "yours", "Theme your apps",
         themeTodo.length ? themeTodo.length + (themeTodo.length === 1 ? " app can" : " apps can") + " follow the shell's colours: "
-                           + themeTodo.map(function (id) { return { gtk: "GTK", qt: "Qt", discord: "Discord", spotify: "Spotify", steam: "Steam" }[id] || id }).join(", ")
+                           + themeTodo.map(function (id) { return { gtk: "GTK", qt: "Qt", steam: "Steam" }[id] || id }).join(", ")
                          : "Every installed app that can follow the colours already does",
-        { jobs: ["theme-all"], root: themeRoot, eta: 60, done: themeTodo.length === 0, recommended: true, verb: "Set up" }))
+        { jobs: themeTodo.map(function (id) { return "theme-" + id }), root: themeRoot, eta: 60, done: themeTodo.length === 0, recommended: true, verb: "Set up" }))
 
     steps.push(mk("colours", "yours", "Colours from your wallpaper",
         f.palette ? "A palette is in place" : "Paints the shell, your terminal and every themed app once, from the wallpaper on screen",
@@ -197,6 +199,22 @@ function catalogue(f, mode) {
 
     // ── Extras: each one is somebody's choice, none ticked ────────────────────
     var extraWhy = function (installed) { return installed ? "" : pkgWhy }
+    // An app theme: ready → done; todo → ticked by hand; blocked → the script's own reason (Vencord missing).
+    // An app that isn't installed has nothing to offer, so no step (the colours page still shows it).
+    function appTheme(id, app, title, doneText, todoText, eta, why) {
+        var t = f.themes && f.themes[app]
+        if (!t || t.state === "absent" || t.state === "") return
+        var reason = t.state === "blocked" ? t.detail : why
+        steps.push(mk(id, "extras", title, t.state === "ready" ? doneText : t.state === "todo" ? todoText : reason,
+            { jobs: ["theme-" + app], root: t.sudo, eta: eta, done: t.state === "ready",
+              why: t.state === "ready" ? "" : reason, verb: "Install" }))
+    }
+    appTheme("discordtheme", "discord", "Discord theme",
+        "Quicktest is on, following the palette", "Adds the Quicktest theme to Vencord or Vesktop, in the shell's colours", 10, "")
+    appTheme("spotifytheme", "spotify", "Spotify theme",
+        "QuickZiro is on, following the palette", "Installs Spicetify and the QuickZiro theme, in the shell's colours; Spotify restarts", 60,
+        net && !_installed(f, "spicetify") ? "No network: Spicetify is a download" : "")
+
     steps.push(mk("spotify", "extras", "Spotify lyrics, word by word",
         "Spicetify and a small extension, so lyrics follow Spotify's own playhead",
         { jobs: ["spicetify", "bridge"], eta: 60, done: _installed(f, "spicetify") && _installed(f, "bridge"), verb: "Set up" }))
@@ -283,16 +301,24 @@ function touchesFor(id, f, m) {
                 { k: "file", t: "An existing quicktest.lua is copied to quicktest.lua.bak.<time> first" },
                 { k: "note", t: "Your own hyprland.lua is NOT edited — you add  require(\"quicktest\")  yourself" }]
     case "autostart":
-        return [{ k: "file", t: "One line in your Hyprland autostart that starts the shell (qs -p <this folder>)" },
+        return [{ k: "file", t: "One line in your Hyprland autostart that starts the shell (scripts/shell-run.sh, which restarts it after a startup crash)" },
                 { k: "note", t: "It only edits a file it can read with confidence; otherwise it prints the line for you to place" },
                 { k: "cmd", t: "scripts/install-autostart.sh --uninstall removes exactly that line again" }]
     case "themes":
-        var names = { gtk: "GTK colour files", qt: "a Qt (qt6ct) colour scheme", discord: "the Midnight theme for your Discord client (downloaded at a pinned commit)",
-                      spotify: "Spicetify with the QuickSpice theme", steam: "the Simply Dark skin (downloaded at a pinned commit)" }
-        var todo = Object.keys(f.themes || {}).filter(function (k) { return f.themes[k].state === "todo" })
+        var names = { gtk: "GTK colour files", qt: "a Qt (qt6ct) colour scheme", steam: "the Material theme for Steam (downloaded at a pinned commit)" }
+        var todo = SYSTEM_THEMES.filter(function (k) { return f.themes && f.themes[k] && f.themes[k].state === "todo" })
         var out = todo.map(function (k) { return { k: "file", t: names[k] || k } })
         out.push({ k: "note", t: "Third-party themes are downloaded, never bundled; the recolouring that maps the palette on is this shell's own" })
         return out
+    case "discordtheme":
+        return [{ k: "file", t: "quicktest.theme.css (this repo's vencord/) is copied into each Vencord or Vesktop config's themes folder, and switched on in its settings.json" },
+                { k: "note", t: "Your other themes and settings are kept; an old Midnight theme is switched off, not deleted" },
+                { k: "note", t: "Restart Discord to load it; after that it follows every colour change live" }]
+    case "spotifytheme":
+        return [{ k: "cmd", t: "Spicetify is installed into ~/.spicetify if it isn't there — no root" },
+                { k: "file", t: "QuickZiro (this repo's spicetify/Themes/, Ziro by schnensch, MIT) is copied into Spicetify's Themes folder; an existing colour file is kept" },
+                { k: "cmd", t: "spicetify config current_theme QuickZiro … && spicetify apply — patches the Spotify client, which restarts it" },
+                { k: "note", t: "If Spotify's folder isn't writable, Spicetify's documented chmod is run as root" }]
     case "colours":
         return [{ k: "cmd", t: "pywal extracts a palette from the wallpaper on screen" },
                 { k: "file", t: "The palette file in your cache folder; the shell, Hyprland's borders, your terminal and the apps themed above repaint from it" }]
@@ -351,7 +377,7 @@ function formatReport(f, run, x) {
 }
 
 // ── Health: what has drifted since setup ─────────────────────────────────────
-// The things that used to work or were set up and no longer do, plus the things that quietly don't work and say
+// The things that worked or were set up and don't any more, plus the things that quietly don't work and say
 // nothing. `f` = the plan's facts; `x` = { rivalNotifiers, rivalBars, rivalAgents (names), polkitConfig (bool),
 // barBlur ("on"|"off"|"absent"), barOpacity }. → [{ id, level: "bad"|"warn"|"info", text, page }] — `page` is
 // the wizard page that fixes it (-1: nothing to click, the text says what to do). Most urgent first.

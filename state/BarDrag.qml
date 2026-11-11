@@ -68,13 +68,14 @@ import "../config"
 Singleton {
     id: root
 
-    // The module being dragged, or "" for none.
-    property string dragId: ""
-    // True while a drag is actually in flight. Set from the source's
-    // `Drag.onActiveChanged` rather than from a distance threshold measured here —
-    // Qt applies the platform's own start distance before `Drag.active` goes true,
-    // so a press that never travels far enough simply never reports one.
-    property bool dragging: false
+    // ── The gesture itself is ModuleDrag's (2026-11-08) ───────────────────────
+    // One drag for both surfaces, so a module picked up on the sidebar can land here.
+    // These mirror it for the bar's readers. `dragging` is true only for a module the
+    // bar can take — one with a bar form — so the seams and empty-region zones don't
+    // open for a drag that would be refused on drop. Start and end a drag through
+    // ModuleDrag.begin / end; only `drop` is written here.
+    readonly property string dragId: ModuleDrag.dragId
+    readonly property bool dragging: ModuleDrag.dragging && Config.moduleInfo(ModuleDrag.dragId) !== null
 
     // (`dragPos`, `dragSize`, `pressPos` and `threshold` lived here, tracking the
     // pointer so an overlay could draw a ghost under it. All four are gone with the
@@ -101,6 +102,16 @@ Singleton {
     // longer breaks a placement, it just makes the bar stop showing you where the
     // module will land.
     property var drop: null
+    // A DropArea that lit up for a module the bar can't take (its containsDrag still
+    // tracks the mime) mustn't draw an indicator for it; nor may one outlive the drag.
+    onDropChanged: if (root.drop !== null && !root.dragging && ModuleDrag.dragging) root.drop = null
+    property Connections _end: Connections {
+        target: ModuleDrag
+        function onDraggingChanged() { if (!ModuleDrag.dragging) root.drop = null }
+    }
+
+    // "Move to the bar" before the placement, when it comes from the sidebar.
+    function _across() { return Config.sidebarPlaced(root.dragId) ? "Move to the bar  ·  " : "" }
 
     // ── What the current drop would actually DO, in words ─────────────────────
     // The indicators say WHERE — a line between two modules, an outline in a seam,
@@ -139,12 +150,12 @@ Singleton {
                 const naming = others.length === 0 ? "an empty group"
                              : others.length === 1 ? others[0]
                              : others[0] + " +" + (others.length - 1)
-                return "Join the " + naming + " group  ·  " + Config.regionLabel(d.region)
+                return root._across() + "Join the " + naming + " group  ·  " + Config.regionLabel(d.region)
             }
             case "gap":
-                return "New group of its own  ·  " + Config.regionLabel(d.region)
+                return root._across() + "New group of its own  ·  " + Config.regionLabel(d.region)
             case "region":
-                return "New group at the end  ·  " + Config.regionLabel(d.region)
+                return root._across() + "New group at the end  ·  " + Config.regionLabel(d.region)
             case "shelf":
                 // Named by where it ENDS UP, not by what is lost. "Take it off the
                 // bar" describes a deletion; the module is not deleted, it goes back
@@ -189,14 +200,16 @@ Singleton {
     // `keys` against the drag's MIME FORMATS instead — so the key IS the mime type,
     // and it has to be a real one. Vendor-prefixed so nothing else on the desktop can
     // be mistaken for a bar module.
-    readonly property string mime: "application/x-quickshell-barmodule"
+    //
+    // One mime for every module drag now (ModuleDrag.mime, 2026-11-08); this mirrors it.
+    readonly property string mime: ModuleDrag.mime
 
-    // The module id carried by an incoming platform drag, or "" if this drag is not
-    // one of ours. Called from the bar's drop handlers, which have no other way to
-    // know what is being dropped — `dragId` is only set for drags that STARTED here.
+    // The module id carried by an incoming platform drag, or "" if it isn't one of
+    // ours or has no bar form. Called from the bar's drop handlers, which read the id
+    // off the drop event itself rather than trusting `dragId`.
     function idFromDrop(d) {
-        if (!d || !d.formats || d.formats.indexOf(root.mime) === -1) return ""
-        return d.getDataAsString(root.mime)
+        const id = ModuleDrag.idFromDrop(d)
+        return Config.moduleInfo(id) ? id : ""
     }
 
     // ── The one place a placement is applied ──────────────────────────────────
@@ -212,7 +225,8 @@ Singleton {
             case "gap":    Config.moveToOwnGroup(id, target.region, target.groupIndex);         break
             case "region": Config.moveToOwnGroup(id, target.region,
                                                  (Config.layout[target.region] ?? []).length);  break
-            case "shelf":  Config.removeModule(id);                                             break
+            // Off whichever surface it is on (a sidebar module dropped on the shelf too).
+            case "shelf":  Config.placeModule(id, "");                                          break
             default:       return false
         }
         return true
@@ -232,9 +246,8 @@ Singleton {
     // started on the bar the platform owns the gesture from the threshold onward.
     function dropExternal(id, target) {
         const ok = root.commit(id, target)
-        root.drop     = null
-        root.dragging = false
-        root.dragId   = ""
+        root.drop = null
+        ModuleDrag.end()
         return ok
     }
 
@@ -242,8 +255,7 @@ Singleton {
     // committing — used when arrange mode ends under an active drag, which would
     // otherwise leave `dragId` set and the next entry into the mode already dragging.
     function cancel() {
-        root.dragging = false
-        root.dragId   = ""
-        root.drop     = null
+        root.drop = null
+        ModuleDrag.end()
     }
 }

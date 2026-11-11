@@ -48,7 +48,7 @@ Item {
     implicitWidth: 535
 
     // The layout reports its own height; nothing here is hand-summed.
-    readonly property int margin: Tokens.spacingLg
+    readonly property int margin: Tokens.spacingXl
     implicitHeight: content.implicitHeight + root.margin * 2
 
     readonly property color accent: Config.moduleAccent("bluetooth", Colors.of(QsWindow.window).primary)
@@ -192,13 +192,9 @@ Item {
         Layout.fillWidth: true
         Layout.fillHeight: false
         implicitHeight: washCol.implicitHeight + Tokens.spacingLg * 2
-        radius: Tokens.radiusCard
-        border.width: Tokens.borderWidth
-        border.color: Colors.of(QsWindow.window).alpha(wash.tint, 0.28)
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceContainer, wash.tint, 0.16) }
-            GradientStop { position: 1.0; color: Colors.of(QsWindow.window).surfaceContainer }
-        }
+        // Tonal, like every panel's hero: the section ground leaning to the tint, no outline.
+        radius: Tokens.radiusXl
+        color: Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).section, wash.tint, 0.20)
         ColumnLayout {
             id: washCol
             anchors.left:  parent.left
@@ -210,7 +206,7 @@ Item {
     }
 
     // ── The big glyph chip ────────────────────────────────────────────────────
-    component GlyphChip: Rectangle {
+    component GlyphChip: Item {
         id: chip
         property string glyph: ""
         property string symbol: ""
@@ -218,16 +214,17 @@ Item {
         Layout.alignment: Qt.AlignVCenter
         implicitWidth:  Tokens.iconXl + Tokens.spacingXl
         implicitHeight: implicitWidth
-        radius: Tokens.radiusPill
-        color:        Colors.of(QsWindow.window).alpha(chip.tint, 0.22)
-        border.width: Tokens.borderWidth
-        border.color: Colors.of(QsWindow.window).alpha(chip.tint, 0.36)
+        MorphShape {
+            anchors.fill: parent
+            shape: Config.barShape ? "squircle" : "cookie9"
+            fillColor: chip.tint
+        }
         MaterialIcon {
             anchors.centerIn: parent
             visible: chip.symbol === ""
             glyph: chip.glyph
             variant: "headline"
-            color: chip.tint
+            color: Colors.of(QsWindow.window).fgOnPrimary
         }
         MaterialIcon {
             anchors.centerIn: parent
@@ -235,7 +232,7 @@ Item {
             name: chip.symbol
             fill: 1
             font.pixelSize: Tokens.iconLg
-            color: chip.tint
+            color: Colors.of(QsWindow.window).fgOnPrimary
         }
     }
 
@@ -267,18 +264,14 @@ Item {
         Layout.fillHeight: false
         elevation: Tokens.elevationNested
         castsShadow: false
-        cornerRadius: Tokens.radiusPill
+        cornerRadius: Tokens.radiusCard
         implicitHeight: rowCol.implicitHeight + Tokens.spacingMd * 2
 
-        // Connected is carried by the tile, the settings page's rule: the fill warms
-        // toward the accent and the outline follows. Hover adds a lighter warm.
-        color: Colors.of(QsWindow.window).fade(
-            Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceFor(row.elevation), root.accent,
-                       row.isOn ? 0.14 : (rowHover.hovered && row.actionable ? 0.07 : 0)),
-            row.fillOpacity)
-        borderColor: row.isOn || row.open
-            ? Colors.of(QsWindow.window).alpha(root.accent, 0.45)
-            : Colors.of(QsWindow.window).outlineFor(row.elevation)
+        // Connected is carried by the tile: the tonal ground leans to the accent. Hover adds a lighter
+        // lean. No outline, like every panel's rows; the open row keeps one so its actions read as its own.
+        color: Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).section, root.accent,
+                       row.isOn ? 0.22 : (rowHover.hovered && row.actionable ? 0.08 : 0))
+        borderColor: row.open ? Colors.of(QsWindow.window).alpha(root.accent, 0.45) : "transparent"
         Behavior on color       { ColorAnimation { duration: Motion.standard } }
         Behavior on borderColor { ColorAnimation { duration: Motion.standard } }
 
@@ -812,40 +805,31 @@ Item {
 
         // ══ Off / no hardware ═════════════════════════════════════════════════
         // Two different nothings: no adapter is permanent, radio-off is one tap.
-        ColumnLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            Layout.topMargin: Tokens.spacingLg
-            Layout.bottomMargin: Tokens.spacingLg
+        PanelEmpty {
             visible: !root.live
-            spacing: Tokens.spacingMd
-
-            MaterialIcon {
-                Layout.alignment: Qt.AlignHCenter
-                name: "bluetooth_disabled"
-                font.pixelSize: Tokens.iconXl
-                color: Colors.of(QsWindow.window).fgDim
-            }
-            StyledText {
-                Layout.alignment: Qt.AlignHCenter
-                text: root.hasAdapter ? "Bluetooth is off" : "No Bluetooth adapter on this machine"
-                variant: "label"
-                emphasis: "dim"
-            }
-            PanelButton {
-                Layout.alignment: Qt.AlignHCenter
-                visible: root.hasAdapter
-                variant: "primary"
-                accent:  root.accent
-                symbol:  "power_settings_new"
-                label:   Translation.tr("Turn on")
-                onActivated: Bt.adapter.enabled = true
-            }
+            quiet: true
+            symbol: "bluetooth_disabled"
+            title: root.hasAdapter ? Translation.tr("Bluetooth is off") : Translation.tr("No Bluetooth adapter")
+            text: root.hasAdapter ? Translation.tr("Turn the radio on to see your devices.")
+                                  : Translation.tr("This machine has no Bluetooth adapter, or its driver isn't loaded.")
+        }
+        PanelButton {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.bottomMargin: Tokens.spacingMd
+            visible: !root.live && root.hasAdapter
+            capsule: true
+            variant: "primary"
+            accent:  root.accent
+            symbol:  "power_settings_new"
+            label:   Translation.tr("Turn on")
+            onActivated: Bt.adapter.enabled = true
         }
 
         // ══ Devices │ Nearby ═════════════════════════════════════════════════
-        TabStrip {
+        SegmentSwitch {
             Layout.fillWidth: true
+            Layout.fillHeight: false
+            Layout.preferredHeight: implicitHeight
             visible: root.live
             accent:  root.accent
             current: root.view

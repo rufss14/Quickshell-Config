@@ -338,26 +338,12 @@ Item {
             visible: root.view === "player"
             spacing: Tokens.spacingLg
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.topMargin:    Tokens.spacingXl
-                Layout.bottomMargin: Tokens.spacingXl
+            PanelEmpty {
                 visible: !media.player
-                spacing: Tokens.spacingSm
-
-                MaterialIcon {
-                    Layout.alignment: Qt.AlignHCenter
-                    name: "music_note"
-                    fill: 0
-                    font.pixelSize: Tokens.fontNumeralMd
-                    color: Colors.of(QsWindow.window).fgDim
-                }
-                StyledText {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: Translation.tr("Nothing playing")
-                    variant: "body"
-                    emphasis: "dim"
-                }
+                quiet: true
+                symbol: "music_note"
+                title: Translation.tr("Nothing playing")
+                text: Translation.tr("Start something in a player and its controls and lyrics show up here.")
             }
 
             ColumnLayout {

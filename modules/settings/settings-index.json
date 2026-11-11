@@ -62,16 +62,178 @@
       "detail": "The fallback colour, for widgets that ask for one. Picked by role, so it follows the next wallpaper."
     },
     {
-      "file": "BarPage.qml",
+      "file": "AppearancePage.qml",
       "kind": "section",
-      "title": "Your bar",
-      "detail": "Click a module to change it"
+      "title": "Looks",
+      "detail": "A look is the bar, the sidebar, the style settings and your current colours in one .json file. No wallpaper, no paths, nothing personal, and never your motion settings. Import shows what it would change first, and you can undo it."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "On"
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Region"
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Inner pill",
+      "detail": "Off sits this module directly on the group's own pill instead of the lighter shared chip."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Hero",
+      "detail": "Puts this module on a tinted chip in your accent — the surface's one emphasised pill, as a desktop widget's hero. Each surface has one."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Group spacing",
+      "detail": "Distance between icons in this group:"
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Remember right-click"
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Only while Do Not Disturb",
+      "detail": "Hides the bell unless Do Not Disturb is on, so it reads as a discreet indicator rather than a permanent icon."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Panel header",
+      "detail": "The title row at the top of this module's panel. Off, the panel opens straight onto its content and is a little shorter."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Peek",
+      "detail": "When something happens to it, a card opens beside it for a moment — on the monitor you're on, and never over a panel you opened."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Apps",
+      "detail": "Click an app to open it or go to its next window; Shift-click for a new one; middle-click closes its newest window. Right-click for its jump list. Super+T puts the keyboard on the dock; Super+Alt+1–9 opens its nth app."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Start button"
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Downloads"
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Trash"
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Style",
+      "detail": "ii is End-4's dock: flat rounded buttons, up to three dots under an app (one per window), hairlines between groups, a keep button before the apps (when the sidebar auto-hides — it holds the dock out) and an overview button after them. It has no magnification."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Inner pill",
+      "detail": "Running apps sit on a pill, neighbours sharing one — like the bar's workspaces."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Previews",
+      "detail": "Hover an app for a live thumbnail of each of its windows."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Peek",
+      "detail": "Rest on a window in a preview to glance at its workspace, with that window lit."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Melting",
+      "detail": "Previews and the right-click menu melt out of the dock, inside its length, instead of floating above it."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Magnify"
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Zoom"
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Too many apps"
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Cap",
+      "detail": "How much of the edge the dock may take before it scrolls."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Temperatures",
+      "detail": "An inner arc on the CPU and GPU rings showing the temperature, 0–100°C."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Split network",
+      "detail": "Download on the network ring's outer arc, upload on the inner one."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Line speed",
+      "detail": "What a full network ring means. Fixed, so an idle link never looks busy."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Alerts",
+      "detail": "A ring held over its threshold says so in its card. CPU and memory alert on load, the temperatures on degrees."
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Load"
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Heat"
+    },
+    {
+      "file": "BarPage.qml",
+      "kind": "row",
+      "title": "Notify"
     },
     {
       "file": "BarPage.qml",
       "kind": "section",
-      "title": "Not on the bar",
-      "detail": "Drag one straight up onto the bar, or click it to drop it somewhere sensible. Drag a module off the bar onto this card to take it off."
+      "title": "Library",
+      "detail": "Every module, by kind. Click one to see it above, press Add to put it where it belongs, or drag it onto the bar or the sidebar. Drop a module here to take it off."
     },
     {
       "file": "BarPanelsPage.qml",
@@ -110,9 +272,15 @@
     },
     {
       "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Sidebar roundness",
+      "section": "Size"
+    },
+    {
+      "file": "BarStylePage.qml",
       "kind": "section",
       "title": "Size",
-      "detail": "Small, Normal and Big move thickness, roundness, inset and the text and icon scales together. Any slider takes you off them, to Custom."
+      "detail": "Small, Normal and Big move the bar's thickness, roundness, inset and the text and icon scales together. Any slider takes you off them, to Custom. The sidebar's size is the dock's icon size, in Behaviour."
     },
     {
       "file": "BarStylePage.qml",
@@ -124,15 +292,7 @@
     {
       "file": "BarStylePage.qml",
       "kind": "row",
-      "title": "Text",
-      "detail": "How big the bar's text runs — the clock, the workspace numbers, labels.",
-      "section": "Look"
-    },
-    {
-      "file": "BarStylePage.qml",
-      "kind": "row",
-      "title": "Icons",
-      "detail": "How big the bar's icons run. Separate from text: a glyph is an icon that happens to be a character.",
+      "title": "Sidebar opacity",
       "section": "Look"
     },
     {
@@ -143,24 +303,75 @@
     {
       "file": "BarStylePage.qml",
       "kind": "row",
+      "title": "Text",
+      "detail": "How big the text runs — the clock, the workspace numbers, labels."
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Sidebar text"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Icons",
+      "detail": "How big the icons run. Separate from text: a glyph is an icon that happens to be a character."
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Sidebar icons"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Inner pill",
+      "section": "Pills"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Sidebar inner pill",
+      "section": "Pills"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "section",
+      "title": "Pills",
+      "detail": "The chips the modules stand on. A module can opt out of its inner pill in its own settings, in Modules."
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Tooltips",
+      "detail": "Resting the pointer on a bar module shows its name and what it is doing right now: the network you are on, the volume, how many updates are waiting."
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "With the music"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Sidebar with the music"
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
+      "title": "Sidebar islands",
+      "detail": "The bar's groups are always islands. The sidebar can run one pill down each region instead, with a divider between groups."
+    },
+    {
+      "file": "BarStylePage.qml",
+      "kind": "row",
       "title": "Square corners"
-    },
-    {
-      "file": "BarStylePage.qml",
-      "kind": "row",
-      "title": "Inner pill"
-    },
-    {
-      "file": "BarStylePage.qml",
-      "kind": "row",
-      "title": "Anchor on workspaces",
-      "detail": "Keeps the workspace dots at the exact centre of the screen, however wide the modules either side of them grow."
     },
     {
       "file": "BarStylePage.qml",
       "kind": "section",
       "title": "Presets",
-      "detail": "The whole bar, saved under a name: what is on it and every size on this page."
+      "detail": "Both surfaces, saved under a name: what is on them and every knob on this page. A preset saved before the sidebar was in presets leaves the sidebar alone."
     },
     {
       "file": "BatteryPage.qml",
@@ -343,6 +554,38 @@
       "detail": "Keep recording a few seconds after you press Clip it — so a play you only reacted to afterwards is in the clip."
     },
     {
+      "file": "ClipsPage.qml",
+      "kind": "row",
+      "title": "Remember the song",
+      "detail": "Stamp a saved clip with the song your media player was playing (Spotify included). It shows in the library and can be searched.",
+      "section": "Share & keep"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "row",
+      "title": "Remember who was in the call",
+      "detail": "Stamp a saved clip with the names of the people in your Discord voice channel. The names are written to a file in your state folder; they are never sent anywhere.",
+      "section": "Share & keep"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "row",
+      "title": "Forget what clips remember",
+      "section": "Share & keep"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "row",
+      "title": "Clean up now",
+      "section": "Share & keep"
+    },
+    {
+      "file": "ClipsPage.qml",
+      "kind": "section",
+      "title": "Share & keep",
+      "detail": "Discord upload size, what a clip remembers, clean-up"
+    },
+    {
       "file": "CursorPage.qml",
       "kind": "section",
       "title": "Preview",
@@ -395,6 +638,12 @@
       "kind": "section",
       "title": "Your own application",
       "detail": "About a minute, once"
+    },
+    {
+      "file": "DiscordPage.qml",
+      "kind": "section",
+      "title": "Call log",
+      "detail": "Keeps how long you have been in a call with each person, for the Board tab of the voice panel. Names and time only, on this computer, until you forget them — no server or channel names, no record of when each call was. Discord doesn't say who your friends are, so it counts everyone who joined; hide anyone from the board there."
     },
     {
       "file": "DiscordPage.qml",
@@ -490,105 +739,6 @@
       "kind": "row",
       "title": "Variable refresh rate",
       "detail": "Adaptive sync (FreeSync / G-Sync compatible). Only on screens that support it."
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "section",
-      "title": "Floating, not welded"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "row",
-      "title": "Start button",
-      "section": "Your dock"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "row",
-      "title": "Downloads",
-      "section": "Your dock"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "row",
-      "title": "Trash",
-      "section": "Your dock"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "section",
-      "title": "Your dock",
-      "detail": "Click an app to open it or go to its next window; Shift-click for a new one; middle-click closes its newest window."
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "row",
-      "title": "Style",
-      "detail": "ii is End-4's dock: flat rounded buttons, up to three dots under an app (one per window), hairlines between groups, a keep button before the apps (when the sidebar auto-hides — it holds the dock out) and an overview button after them. It has no magnification.",
-      "section": "Behaviour"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "row",
-      "title": "Previews",
-      "detail": "Hover an app for a live thumbnail of each of its windows.",
-      "section": "Behaviour"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "row",
-      "title": "Peek",
-      "detail": "Rest on a window in a preview to glance at its workspace, with that window lit.",
-      "section": "Behaviour"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "row",
-      "title": "Melting",
-      "detail": "Previews and the right-click menu melt out of the dock, inside its length, instead of floating above it.",
-      "section": "Behaviour"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "row",
-      "title": "Inner pill",
-      "detail": "Running apps sit on a pill, neighbours sharing one — like the bar's workspaces.",
-      "section": "Behaviour"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "section",
-      "title": "Behaviour"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "row",
-      "title": "Magnify",
-      "section": "Zoom & length"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "row",
-      "title": "Zoom",
-      "section": "Zoom & length"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "row",
-      "title": "Cap",
-      "detail": "How much of the edge the dock may take before it scrolls.",
-      "section": "Zoom & length"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "section",
-      "title": "Zoom & length"
-    },
-    {
-      "file": "DockPage.qml",
-      "kind": "section",
-      "title": "Pinned",
-      "detail": "Pin from an app's right-click menu in the dock. Reorder by dragging on the dock itself. Shared with the launcher."
     },
     {
       "file": "HyprTuningPage.qml",
@@ -1155,6 +1305,13 @@
     },
     {
       "file": "ScreenTimePage.qml",
+      "kind": "row",
+      "title": "Daily goal",
+      "detail": "A limit for the day, in hours. The panel draws a ring round today's card toward it and counts the days you stayed under. Off: no ring, and the run is just days in a row.",
+      "section": "What counts"
+    },
+    {
+      "file": "ScreenTimePage.qml",
       "kind": "section",
       "title": "What counts",
       "detail": "The focused window's app counts while you're at the machine. Idle time doesn't, unless something keeps the screen awake (a video playing). Locked time never does."
@@ -1280,6 +1437,13 @@
     {
       "file": "ShapePage.qml",
       "kind": "row",
+      "title": "High contrast",
+      "detail": "Stronger text and accent colours, solid borders and fully opaque surfaces. The opacity sliders keep their values for when you switch it off.",
+      "section": "Shape"
+    },
+    {
+      "file": "ShapePage.qml",
+      "kind": "row",
       "title": "Shadows",
       "detail": "How far surfaces float. At zero the shell stops drawing shadows altogether.",
       "section": "Shape"
@@ -1297,6 +1461,13 @@
     },
     {
       "file": "ShapePage.qml",
+      "kind": "row",
+      "title": "Reduced motion",
+      "detail": "Keeps fades and state changes, drops bounce, parallax, drifting shapes, the colour-change wave and idle spinning.",
+      "section": "Motion"
+    },
+    {
+      "file": "ShapePage.qml",
       "kind": "section",
       "title": "Motion",
       "detail": "Every animation in the shell — panels, notifications, the lock screen, the bar — runs through these two."
@@ -1306,12 +1477,6 @@
       "kind": "section",
       "title": "Settings window",
       "detail": "Window: a floating window the compositor places, like any other app. Panel: pinned to the bottom edge and merged into the frame, so it never covers the bar."
-    },
-    {
-      "file": "SidebarPage.qml",
-      "kind": "section",
-      "title": "On the sidebar",
-      "detail": "Tap one to put it on the sidebar or take it off. The dock, stats and clips have tabs of their own, with their switch in the heading."
     },
     {
       "file": "SidebarPage.qml",
@@ -1358,119 +1523,8 @@
     {
       "file": "SidebarPage.qml",
       "kind": "row",
-      "title": "Islands",
-      "section": "Look"
-    },
-    {
-      "file": "SidebarPage.qml",
-      "kind": "row",
-      "title": "With the music",
-      "section": "Look"
-    },
-    {
-      "file": "SidebarPage.qml",
-      "kind": "section",
-      "title": "Look",
-      "detail": "Islands give each group its own pill. The hero sits on a tinted chip, as the top bar's clock does. The music makes the pills breathe and glow while something plays."
-    },
-    {
-      "file": "SidebarPage.qml",
-      "kind": "row",
-      "title": "Timer",
-      "section": "Peeks"
-    },
-    {
-      "file": "SidebarPage.qml",
-      "kind": "row",
-      "title": "Claude",
-      "section": "Peeks"
-    },
-    {
-      "file": "SidebarPage.qml",
-      "kind": "row",
-      "title": "Colour picker",
-      "section": "Peeks"
-    },
-    {
-      "file": "SidebarPage.qml",
-      "kind": "row",
-      "title": "Clipboard",
-      "detail": "Copies a password manager marks as secret never reach the history, so they never peek.",
-      "section": "Peeks"
-    },
-    {
-      "file": "SidebarPage.qml",
-      "kind": "section",
-      "title": "Peeks",
-      "detail": "When something happens to a module, a card opens beside it for a moment — on the monitor you're on, and never over a panel you opened."
-    },
-    {
-      "file": "SidebarPage.qml",
-      "kind": "section",
-      "title": "Arrange",
-      "detail": "Drag one onto the sidebar, along it to move it, onto another to group them, or off it onto this card to take it off."
-    },
-    {
-      "file": "SidebarStatsPage.qml",
-      "kind": "section",
-      "title": "Readings",
-      "detail": "The button shows the first three"
-    },
-    {
-      "file": "SidebarStatsPage.qml",
-      "kind": "row",
-      "title": "Temperatures",
-      "detail": "An inner arc on the CPU and GPU rings showing the temperature, 0–100°C.",
-      "section": "Rings"
-    },
-    {
-      "file": "SidebarStatsPage.qml",
-      "kind": "row",
-      "title": "Split network",
-      "detail": "Download on the network ring's outer arc, upload on the inner one.",
-      "section": "Rings"
-    },
-    {
-      "file": "SidebarStatsPage.qml",
-      "kind": "row",
-      "title": "Line speed",
-      "detail": "What a full network ring means. Fixed, so an idle link never looks busy.",
-      "section": "Rings"
-    },
-    {
-      "file": "SidebarStatsPage.qml",
-      "kind": "section",
-      "title": "Rings"
-    },
-    {
-      "file": "SidebarStatsPage.qml",
-      "kind": "row",
-      "title": "Load",
-      "section": "Alerts"
-    },
-    {
-      "file": "SidebarStatsPage.qml",
-      "kind": "row",
-      "title": "Heat",
-      "section": "Alerts"
-    },
-    {
-      "file": "SidebarStatsPage.qml",
-      "kind": "row",
-      "title": "Notify",
-      "section": "Alerts"
-    },
-    {
-      "file": "SidebarStatsPage.qml",
-      "kind": "section",
-      "title": "Alerts",
-      "detail": "A ring held over its threshold says so in its card. CPU and memory alert on load, the temperatures on degrees."
-    },
-    {
-      "file": "SidebarStatsPage.qml",
-      "kind": "section",
-      "title": "System monitor",
-      "detail": "What a middle-click on the stats button, or on a reading in its panel, opens. Right-clicking the button opens this page."
+      "title": "Anchor on workspaces",
+      "detail": "Keeps the workspace dots at the exact centre of the screen, however wide the modules either side of them grow."
     },
     {
       "file": "SoundEffectsPage.qml",

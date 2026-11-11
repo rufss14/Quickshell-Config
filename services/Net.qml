@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Networking
 import QtQuick
+import "nmcli.js" as Nm
 
 // ── Net ───────────────────────────────────────────────────────────────────────
 // The shell's single network authority, backed by the native Networking service
@@ -204,6 +205,72 @@ Singleton {
                 root.lastError = ConnectionFailReason.toString(reason)
                     + " — " + (modelData.name || "network")
             }
+        }
+    }
+
+    // ── VPN ───────────────────────────────────────────────────────────────────
+    // Quickshell.Networking has no VPN connections, so these go through nmcli: the profile
+    // list (`connection show`, terse, parsed in nmcli.js) and `connection up/down` by UUID,
+    // as argv (no shell). LC_ALL=C so the error text nmcli.js reads is English. Plugin VPNs
+    // (type "vpn": OpenVPN, OpenConnect, …) and native WireGuard ("wireguard") both count.
+    //
+    // Not polled. The list is read when a VPN list is first shown (VpnList calls
+    // refreshVpns), after every up/down, and again whenever the connectivity or the device
+    // list changes once something has asked; NM changing those is what a VPN coming or
+    // going from outside the shell looks like from here.
+    //
+    // A VPN whose password isn't stored needs a NetworkManager secret agent to ask for it;
+    // without one, nmcli fails with "Secrets were required" and vpnError says so.
+    property var vpns: []              // [{ name, uuid, type, state }], nmcli.js vpnRows
+    readonly property bool vpnActive: root.vpns.some(v => v.state === "activated")
+    property string vpnBusy: ""        // the UUID being switched, "" when idle
+    property string vpnError: ""
+    property bool _vpnWanted: false
+
+    function refreshVpns() {
+        root._vpnWanted = true
+        if (vpnList.running) return
+        vpnList.rows = []
+        vpnList.running = true
+    }
+
+    function setVpn(uuid, on) {
+        if (vpnSwitch.running || !Nm.validUuid(uuid)) return
+        root.vpnError = ""
+        vpnSwitch.err = ""
+        root.vpnBusy = uuid
+        vpnSwitch.command = ["nmcli", "-w", "30", "connection", on ? "up" : "down", "uuid", uuid]
+        vpnSwitch.running = true
+    }
+
+    readonly property int _deviceCount: Networking.devices.values.length
+    on_DeviceCountChanged: if (root._vpnWanted) root.refreshVpns()
+    onOnlineChanged:       if (root._vpnWanted) root.refreshVpns()
+
+    property Process _vpnList: Process {
+        id: vpnList
+        property var rows: []
+        command: ["nmcli", "-t", "-f", "NAME,UUID,TYPE,STATE", "connection", "show"]
+        environment: ({ LC_ALL: "C" })
+        stdout: SplitParser { onRead: function (line) { vpnList.rows.push(line) } }
+        onExited: function (code) {
+            // A failed read (nmcli missing, NM down) leaves the list empty, and an empty
+            // list shows no VPN controls at all, rather than ones that fail on click.
+            root.vpns = code === 0 ? Nm.vpnRows(vpnList.rows) : []
+            vpnList.rows = []
+        }
+    }
+
+    property Process _vpnSwitch: Process {
+        id: vpnSwitch
+        property string err: ""
+        environment: ({ LC_ALL: "C" })
+        stderr: SplitParser { onRead: function (line) { vpnSwitch.err += line + "\n" } }
+        onExited: function (code) {
+            if (code !== 0) root.vpnError = Nm.vpnError(vpnSwitch.err, code)
+            vpnSwitch.err = ""
+            root.vpnBusy = ""
+            root.refreshVpns()
         }
     }
 

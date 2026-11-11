@@ -67,7 +67,7 @@ Item {
         bento:     true
         glyph:     "󰗊"
         title:     Translation.tr("Language")
-        titleTail: "& region"
+        titleTail: Translation.tr("& region")
         accent:    Colors.of(QsWindow.window).primary
         subtitle:  root.current !== "" ? root.current : "Reading locale…"
 
@@ -176,11 +176,11 @@ Item {
             readonly property var  loc: Qt.locale(root.previewCode.split(".")[0])
             readonly property date now: new Date()
 
-            FormatRow { label: "Date";        value: previewBox.now.toLocaleDateString(previewBox.loc, Locale.LongFormat) }
-            FormatRow { label: "Time";        value: previewBox.now.toLocaleTimeString(previewBox.loc, Locale.ShortFormat) }
-            FormatRow { label: "Numbers";     value: Number(1234567.89).toLocaleString(previewBox.loc) }
-            FormatRow { label: "Currency";    value: Number(9.99).toLocaleCurrencyString(previewBox.loc) }
-            FormatRow { label: "Week starts"; value: previewBox.loc.dayName(previewBox.loc.firstDayOfWeek, Locale.LongFormat) }
+            FormatRow { label: Translation.tr("Date");        value: previewBox.now.toLocaleDateString(previewBox.loc, Locale.LongFormat) }
+            FormatRow { label: Translation.tr("Time");        value: previewBox.now.toLocaleTimeString(previewBox.loc, Locale.ShortFormat) }
+            FormatRow { label: Translation.tr("Numbers");     value: Number(1234567.89).toLocaleString(previewBox.loc) }
+            FormatRow { label: Translation.tr("Currency");    value: Number(9.99).toLocaleCurrencyString(previewBox.loc) }
+            FormatRow { label: Translation.tr("Week starts"); value: previewBox.loc.dayName(previewBox.loc.firstDayOfWeek, Locale.LongFormat) }
         }
 
         // ══ Available locales ═════════════════════════════════════════════════

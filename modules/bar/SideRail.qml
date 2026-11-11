@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell.Services.SystemTray
 import "../../config"
 import "../../state"
 import "../../services"
@@ -231,6 +232,7 @@ QtObject {
             // 2 × pad apart, the top bar's gap between the modules of a group.
             pad: 0, inner: 0,
             layout: rail.groups,
+            joined: rail.joins,
             lengths: lengths
         })
     }
@@ -251,6 +253,10 @@ QtObject {
     // A small module's length is data — its cells and its pill's margins — so the
     // rail places it without asking anything that's drawn.
     readonly property var groups: DockJs.sideGroups(Config.sidebarLayout, id => !Config.sidebarIsSmall(id))
+    // Which of those pieces continue the layout group before them: a group holding the dock
+    // is laid gapless and drawn as one island (SideRegionPills), so the dock groups like any
+    // module (2026-11-08) while still standing in a host of its own.
+    readonly property var joins: DockJs.sideJoins(Config.sidebarLayout, id => !Config.sidebarIsSmall(id))
 
     // How many cells a small module takes: its catalogue row's, or — where that
     // changes with what's going on — what it will draw (sidemodules.js, the same
@@ -265,6 +271,8 @@ QtObject {
         }
         // Nothing playing anywhere: it steps aside, as the window cell does (arranging shows it).
         if (id === "nowplaying") return MusicPulse.player !== null || UiState.sidebarArrange ? 1 : 0
+        // A cell per tray icon; an empty tray steps aside too (arranging shows one cell).
+        if (id === "tray") return Math.max(SystemTray.items.values.length, UiState.sidebarArrange ? 1 : 0)
         return Config.sidebarModuleInfo(id)?.cells ?? 0
     }
 

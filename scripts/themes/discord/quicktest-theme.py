@@ -126,7 +126,7 @@ HOT_DEPTH = 0.07   # how much deeper a petalled holder gets while hovered (Shape
 def scallop_polygon(petals: int, depth: float, points: int = 120) -> str:
     """Scallop.qml's outline as a CSS polygon(): r(a) = (R - amp) + amp * (0.5 + 0.5 * cos(n a)), amp = depth * R,
     tips on the box edge. 120 vertices, so a rest and a hot polygon interpolate (clip-path transitions need equal counts).
-    At (8, 0.13) this is byte-identical to QuickSpice's `--qs-mark`, which the test checks."""
+    At (8, 0.13) this is the shell's cookie outline (Scallop.qml)."""
     pts = []
     for i in range(points):
         a = 2 * math.pi * i / points

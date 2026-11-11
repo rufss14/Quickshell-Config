@@ -46,11 +46,13 @@ Item {
         if (Config.barShape)              out.push("square corners")
         if (Config.cornerStyle !== "default") out.push("rounder corners")
         if (Config.iconShape !== "default")   out.push(Config.iconShape + " icons")
-        if (Config.surfaceOpacity !== Defaults.surfaceOpacity)
+        if (Config.highContrast)          out.push("high contrast")
+        else if (Config.surfaceOpacity !== Defaults.surfaceOpacity)
             out.push(Math.round(Config.surfaceOpacity * 100) + "% opaque")
         if (Config.shadowScale !== 1.0)   out.push(Config.shadowScale === 0 ? "no shadows"
                                                    : Config.shadowScale.toFixed(2) + "× shadows")
         if (!Config.motionEnabled)        out.push("no motion")
+        else if (Config.motionReduced)    out.push("reduced motion")
         else if (Config.motionScale !== 1.0) out.push((1 / Config.motionScale).toFixed(1) + "× motion")
         return out.length ? out.join("  ·  ") : "Everything at its default"
     }
@@ -61,7 +63,7 @@ Item {
         bento:     true
         glyph:     "󰛖"
         title:     Translation.tr("Type")
-        titleTail: "& shape"
+        titleTail: Translation.tr("& shape")
         accent:    Colors.of(QsWindow.window).primary
         subtitle:  root.changed
 
@@ -85,6 +87,8 @@ Item {
                     // Motion lives on this page now, so Reset owns it too.
                     Config.motionEnabled  = true
                     Config.motionScale    = 1.0
+                    Config.motionReduced  = false
+                    Config.highContrast   = false
                 }
             }
         }
@@ -298,7 +302,19 @@ Item {
                 step:   0.01
                 value:  Config.surfaceOpacity
                 readout: Math.round(Config.surfaceOpacity * 100) + "%"
+                enabled: !Config.highContrast
                 onCommit: function (v) { Config.surfaceOpacity = v }
+            }
+            // Overrides the opacity above (and the bar's and widgets'): every surface solid,
+            // text and accents at 7:1, 2px solid borders. PaletteRoles and Tokens read it.
+            SettingRow {
+                label: Translation.tr("High contrast")
+                help:  Translation.tr("Stronger text and accent colours, solid borders and fully opaque surfaces. The opacity sliders keep their values for when you switch it off.")
+                Toggle {
+                    accent: Colors.of(QsWindow.window).primary
+                    checked: Config.highContrast
+                    onToggled: Config.highContrast = !Config.highContrast
+                }
             }
             Fader {
                 label:  Translation.tr("Shadows")
@@ -317,9 +333,7 @@ Item {
         // ══ Motion ════════════════════════════════════════════════════════════
         // Shell-wide, and it always was: `Motion._d()` runs every duration in the app
         // through these two, so a panel, a notification, the lock screen and the bar
-        // all slow down together. It used to be set from the Bar page, which is where
-        // it happened to be written first — a category error that only looked harmless
-        // because nowhere else offered it.
+        // all slow down together. That is why it lives here and not on the Bar page.
         //
         // One wrinkle worth knowing: a BAR PRESET snapshots these along with the bar's
         // own settings (Config's preset writer takes motionEnabled/motionScale), so
@@ -353,6 +367,20 @@ Item {
                 readout: (1 / Config.motionScale).toFixed(1) + "×"
                 enabled: Config.motionEnabled
                 onCommit: function (v) { Config.motionScale = v }
+            }
+
+            // Between full and off: fades stay, bounce / parallax / drifting shapes / the colour
+            // wave / idle spinning go (Motion.reduced, Motion.ambientOn). Not part of a bar
+            // preset or a look bundle — it is the user's accessibility choice.
+            SettingRow {
+                label: Translation.tr("Reduced motion")
+                help:  Translation.tr("Keeps fades and state changes, drops bounce, parallax, drifting shapes, the colour-change wave and idle spinning.")
+                enabled: Config.motionEnabled
+                Toggle {
+                    accent: Colors.of(QsWindow.window).primary
+                    checked: Config.motionReduced
+                    onToggled: Config.motionReduced = !Config.motionReduced
+                }
             }
         }
 

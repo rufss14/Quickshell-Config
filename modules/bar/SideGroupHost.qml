@@ -4,6 +4,7 @@ import QtQuick
 import "../../config"
 import "../../components"
 import "../../state"
+import "sidecells.js" as SideCells
 
 // ── SideGroupHost ─────────────────────────────────────────────────────────────
 // A pill of small sidebar modules — the stats and clips buttons, Power, Shell
@@ -32,6 +33,8 @@ Item {
     // This sidebar's screen, where a module opens what it opens, and its monitor.
     property var screen: null
     property var monitor: null
+    // The tray's right-click menu (Bar.qml's BarContextMenu), for SideTray.
+    property var contextMenu: null
     // The sidebar bar's spring deformation; identity while the plugin is absent.
     property matrix4x4 deformMatrix
 
@@ -56,40 +59,11 @@ Item {
           ?? host.rail.regionTracks[host.group.region] ?? null
 
     // ── The registry ──────────────────────────────────────────────────────────
-    // id → the module's file. Config.sidebarModuleList says what one IS (and its
-    // `cells`); only this knows where it's built. Loaded by URL, not as a typed
-    // component, on purpose: a module that fails to load then blanks its own slot
-    // and logs why, where a typed reference would make THIS file fail to exist —
-    // and Bar.qml with it (the "Type … unavailable" cascade, CLAUDE.md).
+    // id → the module's file (sidecells.js, shared with the settings map). Loaded by
+    // URL, not as a typed component — sidecells.js says why.
     function moduleUrl(id) {
-        switch (id) {
-        case "stats":  return Qt.resolvedUrl("SideStats.qml")
-        case "clips":  return Qt.resolvedUrl("SideClips.qml")
-        case "power":  return Qt.resolvedUrl("SidePower.qml")
-        case "tools":  return Qt.resolvedUrl("SideTools.qml")
-        case "voice":  return Qt.resolvedUrl("SideVoice.qml")
-        case "colour": return Qt.resolvedUrl("SideColour.qml")
-        case "notifications": return Qt.resolvedUrl("SideNotifications.qml")
-        case "clipboard":     return Qt.resolvedUrl("SideClipboard.qml")
-        case "timer":         return Qt.resolvedUrl("SideTimer.qml")
-        case "lens":          return Qt.resolvedUrl("SideLens.qml")
-        case "claude":        return Qt.resolvedUrl("SideClaude.qml")
-        case "screentime":    return Qt.resolvedUrl("SideScreenTime.qml")
-        case "inactivity":    return Qt.resolvedUrl("SideInactivity.qml")
-        case "tasks":         return Qt.resolvedUrl("SideTasks.qml")
-        case "brightness":    return Qt.resolvedUrl("SideBrightness.qml")
-        case "window":        return Qt.resolvedUrl("SideWindow.qml")
-        case "layout":        return Qt.resolvedUrl("SideLayout.qml")
-        case "locks":         return Qt.resolvedUrl("SideLocks.qml")
-        case "nowplaying":    return Qt.resolvedUrl("SideNowPlaying.qml")
-        // The bar's one-click modules, as cells — one file, keyed by id.
-        case "shapeToggle": case "modeToggle": case "palette": case "wallpaper":
-        case "volume": case "keyboard": case "update": case "reload": case "wifi":
-        case "bluetooth": case "battery": case "clock": case "overview": case "settings":
-        case "privacy": case "nightlight": case "idle": case "gamemode":
-                              return Qt.resolvedUrl("SideBarModule.qml")
-        default:      return ""
-        }
+        const f = SideCells.file(id)
+        return f === "" ? "" : Qt.resolvedUrl(f)
     }
 
     // ── The pointer on it holds the sidebar out ───────────────────────────────
@@ -184,6 +158,7 @@ Item {
                             if (m.moduleId !== undefined) m.moduleId = slot.modelData
                             if (m.screen !== undefined)  m.screen  = Qt.binding(() => host.screen)
                             if (m.monitor !== undefined) m.monitor = Qt.binding(() => host.monitor)
+                            if (m.contextMenu !== undefined) m.contextMenu = Qt.binding(() => host.contextMenu)
                             if (m.shown !== undefined)
                                 m.shown = Qt.binding(() => host.rail.barShown && !host.collapsed)
                         }

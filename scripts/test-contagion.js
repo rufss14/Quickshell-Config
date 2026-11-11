@@ -75,7 +75,7 @@ const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
     check("Vesktop", kind("vesktop", discord) === "discord");
     check("Zen", kind("zen", discord) === "browser");
     check("Firefox, any case", kind("Firefox", discord) === "browser");
-    check("Steam", kind("steam", discord) === "steam");
+    check("Steam is not a scripted app", kind("steam", discord) === "");
     check("a Steam game is not the Steam client", kind("steam_app_730", discord) === "");
     check("anything else: border only", kind("org.gnome.Nautilus", discord) === "");
     check("a kitty lookalike is not kitty", kind("kitty-scratch", discord) === "");
@@ -182,19 +182,13 @@ const client = (address, extra) => Object.assign({
     check("the plan itself is untouched", p.entries.find(x => x.address === "0xe1").app === "browser");
 }
 
-// ── Steam: scripted like the others, and only when the user opted in ─────────
+// ── Steam: not scripted — QuickSteam's colours load with a window, so it only gets its border ──
 {
     const p = plan([client("0xf1", { class: "steam", at: [78, 60], size: [1820, 998] })], mons, 1000, discord, 3);
-    check("planned as steam", p.entries.find(x => x.address === "0xf1").app === "steam");
-    const on = decide(p, { "DP-2": true }, {}, 150, 450, { steam: true });
-    check("reachable: one run, and the wave holds for it",
-          on.flips.filter(f => f.app === "steam").length === 1 && on.flips.find(f => f.app === "steam").hold === true,
-          JSON.stringify(on.flips));
-    const off = decide(p, { "DP-2": true }, {}, 150, 450, {});
-    check("not opted in: Steam is only a border — no run, no hold", !off.flips.some(f => f.app === "steam"), JSON.stringify(off.flips));
-    check("…its border still flips", off.flips.some(f => f.border && f.address === "0xf1"));
-    check("its script's exit is the repaint: only a frame of margin after", AFTER.steam > 0 && AFTER.steam <= 40, AFTER.steam);
-    check("released after that, less the head start", releaseAfter("steam", 5) === Math.max(0, AFTER.steam - 5));
+    check("planned with no app", p.entries.find(x => x.address === "0xf1").app === "");
+    const d = decide(p, { "DP-2": true }, {}, 150, 450, { steam: true });
+    check("no run, no hold, even if something claimed to reach it", !d.flips.some(f => f.app === "steam" || f.hold), JSON.stringify(d.flips));
+    check("its border still flips", d.flips.some(f => f.border && f.address === "0xf1"));
 }
 
 // ── Deciding without a curtain: timed to the front ───────────────────────────

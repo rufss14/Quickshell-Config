@@ -16,7 +16,7 @@ import "../config"
 //
 // ── Why our own shader, and a bare Image for the mask (round 4) ───────────────
 // The second version used MultiEffect's mask with the mask wrapped in an invisible layer — and the
-// clock drew NOTHING: the repo's own shader notes (liquidglass.frag) record that an invisible
+// clock drew NOTHING: the repo's own shader notes (liquidglass.src.frag) record that an invisible
 // layered source yields a 0x0 texture and the effect then draws nothing. The mask is a plain hidden
 // `Image` now (the ordinary idiom for a ShaderEffect source: its texture exists while it is
 // invisible), and the product is one line of GLSL instead of MultiEffect's thresholds and spread.

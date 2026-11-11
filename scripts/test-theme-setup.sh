@@ -29,9 +29,9 @@ done
 
 # ── The mirror the pinned URLs resolve into
 M="$T/mirror"
-mkdir -p "$M/ejalxndr/simply-dark/tar.gz" "$T/sd/simply-dark-x"
-printf '{"name":"Simple Dark."}\n' > "$T/sd/simply-dark-x/skin.json"
-tar -czf "$M/ejalxndr/simply-dark/tar.gz/5163dcbca3cbde75e6aad29af0c6025612ba8607" -C "$T/sd" simply-dark-x
+mkdir -p "$M/kuska1/Material-Theme/tar.gz" "$T/mat/Material-Theme-x"
+printf '{"name":"Material"}\n' > "$T/mat/Material-Theme-x/skin.json"
+tar -czf "$M/kuska1/Material-Theme/tar.gz/f91b4e9cbc5436f149e6b293391a9a96ab47fbe9" -C "$T/mat" Material-Theme-x
 
 # fresh <name>: a new empty machine; sets H (home) and B (its stand-in bin dir)
 fresh() {
@@ -169,8 +169,8 @@ EOF
 chmod +x "$H/.spicetify/spicetify"
 check "spotify: needs the theme" "$(st spotify)" "todo|0"
 run spotify >/dev/null 2>&1
-check "spotify: QuickSpice installed" "$(test -s "$H/.config/spicetify/Themes/QuickSpice/user.css" && test -s "$H/.config/spicetify/Themes/QuickSpice/theme.js" && echo y)" "y"
-check "spotify: pywal scheme written" "$(grep -c '^\[Pywal\]' "$H/.config/spicetify/Themes/QuickSpice/color.ini")" "1"
+check "spotify: QuickZiro installed" "$(test -s "$H/.config/spicetify/Themes/QuickZiro/user.css" && test -s "$H/.config/spicetify/Themes/QuickZiro/LICENSE" && echo y)" "y"
+check "spotify: pywal scheme written" "$(grep -c '^\[Pywal\]' "$H/.config/spicetify/Themes/QuickZiro/color.ini")" "1"
 check "spotify: first apply made a backup" "$(grep -c '^\[Backup\]' "$H/.config/spicetify/config-xpui.ini")" "1"
 check "spotify: bridge extension copied" "$(test -f "$H/.config/spicetify/Extensions/quickshell-bridge.js" && echo y)" "y"
 check "spotify: ready" "$(st spotify)" "ready|0"
@@ -192,10 +192,17 @@ check "steam: theme to install" "$(st steam)" "todo|0"
 touch "$H/.steam-running"; run steam >/dev/null 2>&1
 check "steam: refuses while Steam runs" "$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["themes"]["activeTheme"])' "$H/.config/millennium/config.json")" "other"
 rm -f "$H/.steam-running"; run steam >/dev/null 2>&1
-check "steam: theme unpacked" "$(test -f "$H/.local/share/Steam/millennium/themes/simply-dark/skin.json" && echo y)" "y"
-check "steam: activated" "$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["themes"]["activeTheme"])' "$H/.config/millennium/config.json")" "simply-dark"
+check "steam: Material downloaded" "$(test -f "$H/.local/share/Steam/millennium/themes/Material-Theme/skin.json" && echo y)" "y"
+check "steam: activated" "$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["themes"]["activeTheme"])' "$H/.config/millennium/config.json")" "Material-Theme"
+check "steam: Matugen colour source" "$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["themes"]["conditions"]["Material-Theme"]["Color"])' "$H/.config/millennium/config.json")" "Matugen"
 check "steam: other settings kept" "$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print(d["general"]["x"], d["themes"]["allowedScripts"])' "$H/.config/millennium/config.json")" "1 True"
 check "steam: ready" "$(st steam)" "ready|0"
+# a user who already has Material set up their way keeps their settings and their copy
+python3 -c 'import json,sys;p=sys.argv[1];d=json.load(open(p));d["themes"]["conditions"]["Material-Theme"]["Font"]="Roboto";d["themes"]["conditions"]["Material-Theme"]["Color"]="Blue";json.dump(d,open(p,"w"))' "$H/.config/millennium/config.json"
+check "steam: other colour source needs setup" "$(st steam)" "todo|0"
+echo mine > "$H/.local/share/Steam/millennium/themes/Material-Theme/mine"; run steam >/dev/null 2>&1
+check "steam: own copy kept" "$(cat "$H/.local/share/Steam/millennium/themes/Material-Theme/mine")" "mine"
+check "steam: own settings kept" "$(python3 -c 'import json,sys;c=json.load(open(sys.argv[1]))["themes"]["conditions"]["Material-Theme"];print(c["Font"],c["Color"])' "$H/.config/millennium/config.json")" "Roboto Matugen"
 rm -rf "$H/.local/share/Steam"; flatpak_ok() { printf '#!/bin/sh\n[ "$1" = info ] && [ "$2" = com.valvesoftware.Steam ]\n' > "$B/flatpak"; chmod +x "$B/flatpak"; }
 flatpak_ok; rm -f "$B/steam"
 check "steam: Flatpak only" "$(st steam)" "blocked|0"

@@ -254,7 +254,7 @@ Item {
                     StyledText {
                         width: parent.width
                         visible: !root.custom && root.extrasCount > 0
-                        text: root.extrasCount + " optional extras (Spotify lyrics, Wallpaper Engine, translation…) are under Custom."
+                        text: root.extrasCount + " optional extras (the Discord and Spotify themes, Spotify lyrics, Wallpaper Engine, translation…) are under Custom."
                         variant: "caption"; emphasis: "dim"; wrapMode: Text.WordWrap
                     }
                 }

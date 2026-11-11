@@ -46,13 +46,15 @@ if [ -n "$ms" ] && [ "$ms" -gt 0 ]; then
 fi
 # kill running instances.
 #
+# The wrapper first (scripts/shell-run.sh), so one caught between two crash restarts
+# can't start a second shell beside the one launched below. Killing it leaves its shell
+# running; that is killed next.
+#
 # Match BOTH names. pkill/pgrep compare against `comm`, not the command line, unless
-# given -f — and the binary is installed twice, as `qs` and as `quickshell`. Hyprland
-# autostarts it as `qs` (~/.config/hypr/autostart.lua), so `comm` is `qs`, while line 36
-# below relaunches it as `quickshell`. Matching only "quickshell" therefore killed
-# NOTHING on a boot-started shell and then started a second one alongside it; it only
-# appeared to work because the first reload renames the process to the one it matches.
+# given -f — and the binary is installed twice, as `qs` and as `quickshell`. An older
+# autostart line, a manual start or a smoke run may use either, so match both.
 # -x so these are exact `comm` matches rather than substrings.
+pkill -TERM -f -- "$SCRIPT_DIR/shell-run.sh" 2>/dev/null
 pkill -TERM -x 'qs|quickshell' 2>/dev/null
 # wait until fully gone
 for i in {1..40}; do
@@ -72,6 +74,8 @@ sleep 0.2
 # THIS session's output, not an ever-growing history.
 QS_LOG="${XDG_CACHE_HOME:-$HOME/.cache}/quickshell/quickshell.log"
 mkdir -p "$(dirname "$QS_LOG")"
-setsid "$QS_BIN" -p "$REPO_DIR" >"$QS_LOG" 2>&1 &
+# Through shell-run.sh, as at boot: it restarts the shell after a startup crash (and
+# falls back to safe mode), and a reload never carries an old QS_SAFE along.
+setsid env -u QS_SAFE "$SCRIPT_DIR/shell-run.sh" >"$QS_LOG" 2>&1 &
 ) & disown
 exit 0

@@ -34,6 +34,8 @@ Item {
     }
 
     SideCell {
+
+        moduleId: "lens"
         anchors.fill: parent
         glyph: Lens.mode === "translate" && Lens.busy ? "\u{F05CA}"     // 󰗊 translate
              :                                          "\u{F113D}"     // 󱄽 text-recognition

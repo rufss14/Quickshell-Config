@@ -68,12 +68,12 @@ Item {
 
     readonly property var usable: Hypr.usableSize(root.monitor)
 
-    // ── Which workspaces get a cell (2026-10-20) ──────────────────────────────
+    // ── Which workspaces get a cell ───────────────────────────────────────────
     // At rest: the busy ones, the one you're on and the pick's — the page's EMPTY ones get no
     // cell, and their room goes to the busy ones (five empty boxes with big numbers were half
-    // the grid; the strip of chips that stood for them went too, 2026-10-20, the user's call). While a window is HELD (dragged), the grid opens out to the whole page —
+    // the grid; no strip of chips stands for them either, the user's call). While a window is HELD (dragged), the grid opens out to the whole page —
     // all ten — so any of them can take the drop, and folds back to the busy ones when you
-    // let go (the user's call, the same day). The cells glide between the two layouts.
+    // let go (the user's call). The cells glide between the two layouts.
     readonly property var _busySlots: {
         const out = []
         const last = root.firstWorkspace + root.perPage - 1
@@ -115,7 +115,7 @@ Item {
                 out.push(ws)
         return out
     }
-    // The pill's pick (2026-10-24, the user: a chip SELECTS, it doesn't go): the "+ New" cell
+    // The pill's pick (the user's call: a chip SELECTS, it doesn't go): the "+ New" cell
     // then stands for that workspace — a click on the cell goes there, a drop on it sends there.
     // -1, or a pick that has stopped being free, is the cell's own (`newWs`). Forgotten on close.
     property int newChoice: -1
@@ -128,8 +128,8 @@ Item {
         return out
     }
     // Shift, tapped (Overview.steer), opens it out to the whole page — a toggle, tap again to fold
-    // it. That is how an empty one is reached; a drag no longer opens it (the user's call,
-    // 2026-10-24: the cells shifting under a held window was more noise than help).
+    // it. That is how an empty one is reached; a drag doesn't open it (the user's call:
+    // the cells shifting under a held window was more noise than help).
     property bool showAll: false
     // Ctrl, toggled on (Overview): a click on a window selects it, a drag swaps (OverviewWindow `ctrlMode`).
     property bool ctrlOn: false
@@ -167,7 +167,7 @@ Item {
     // the middle, notifications goes to the right"), so its room comes off BOTH sides.
     readonly property var _layNotes: root._fit(root._roomW - (root.notesW + root.gap * 2) * 2, root._roomH, Math.max(1, root.slots.length))
 
-    // ── The notification centre, beside the busy cells (2026-10-20) ───────────
+    // ── The notification centre, beside the busy cells ────────────────────────
     // The user: the notifications show in the collapsed grid, to the right of the busy
     // workspaces, "if there's space". There's space when the cells, sharing the room with it,
     // keep at least ~two thirds of the size they'd have alone — a busy workspace or two, as a
@@ -182,8 +182,8 @@ Item {
     // Both faces, so their headers line up across the grid.
     property real sideTop: 0
     property real sideBottom: 0
-    // The card's whole height, not just the cells' (the user, 2026-10-24: the face "leaves some space
-    // out" — it used to stop where the cells did, a strip above the Shift/Ctrl chips left empty).
+    // The card's whole height, not just the cells': stopping where the cells do leaves an empty
+    // strip above the Shift/Ctrl chips (the user: the face "leaves some space out").
     readonly property real sideY: root.sideTop
     readonly property real sideH: Math.max(0, root.boardH - root.sideBottom - root.sideTop)
     // …and as wide as the room beside the cells lets them (the user: the face "leaves some space out"):
@@ -209,7 +209,7 @@ Item {
     // moves; the block is centred in it (`originX`/`originY`, folded into cellX/cellY) with
     // the strip under it. A board that hugged the block re-centred whenever the layout
     // changed — and the window layer, with the window you're dragging in it, slid under the
-    // pointer as the grid opened out for a drag (2026-10-20, "not really smooth").
+    // pointer as the grid opened out for a drag (the user: "not really smooth").
     readonly property int cellsW: root.layCols * cellW + (root.layCols - 1) * gap
     readonly property int cellsH: root.layRows * cellH + (root.layRows - 1) * gap
     readonly property int boardW: root.maxWidth > 0 ? Math.floor(root.maxWidth) : root.cellsW
@@ -512,8 +512,8 @@ Item {
     // Hypr.moveWindowToWorkspace() so the window lands exactly where the ghost promised.
     property string anchorAddress: ""
     property string splitDir:      ""     // "l" | "r" | "u" | "d"
-    // Ctrl held on the dragged window: a drop on another window SWAPS the two (2026-10-20,
-    // the user's ask) — yours goes to its workspace, it comes to yours. The anchor is then the
+    // Ctrl held on the dragged window: a drop on another window SWAPS the two (the user's
+    // ask) — yours goes to its workspace, it comes to yours. The anchor is then the
     // window under the pointer (floating ones too), and the ghost outlines all of it.
     property bool swapMode: false
     onSwapModeChanged: if (root.ghosting && root.dropTarget > 0 && root.dropTarget !== root.dragSourceWs && root._lastDrop && root.slotOf(root.dropTarget) >= 0)
@@ -792,7 +792,7 @@ Item {
         // ══ Which is which ═════════════════════════════════════════════════════
         // A small number on every OTHER busy cell's top-left corner, where the focused one wears the cookie
         // below: the big faded number sits behind the windows, so a busy cell said nothing about which
-        // workspace it was until you hovered it (2026-11-03 review). Over the window layer, like the badge.
+        // workspace it was until you hovered it. Over the window layer, like the badge.
         Repeater {
             model: root.perPage
             delegate: Item {
@@ -830,8 +830,8 @@ Item {
 
         // ══ Where you are ══════════════════════════════════════════════════════
         // The focused workspace's number on a cookie that slowly winds, INSIDE its cell's
-        // top-left corner — over the windows, so a maximised one cannot hide it. (It used to
-        // poke out across the corner, and cut by the cell's border it read as a glitch.) ONE badge for the board, gliding (on a spring) to the new cell when the
+        // top-left corner — over the windows, so a maximised one cannot hide it, and inside the
+        // corner, since one poking across it, cut by the cell's border, reads as a glitch. ONE badge for the board, gliding (on a spring) to the new cell when the
         // workspace changes. The turn is a RotationAnimator: the render thread's, so it costs
         // the GUI thread nothing while the overview is open.
         Item {
@@ -886,7 +886,7 @@ Item {
                     from: 0; to: 360
                     duration: 24000
                     loops: Animation.Infinite
-                    running: hereBadge.visible && root.active && Config.motionEnabled
+                    running: hereBadge.visible && root.active && Motion.ambientOn
                 }
             }
             StyledText {
@@ -949,7 +949,7 @@ Item {
             Behavior on opacity { NumberAnimation { duration: peek.shown ? Motion.standard : Motion.fast } }
             Behavior on scale { NumberAnimation { duration: Motion.spatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spring } }
 
-            // The card (2026-10-20, the user asked for a better one): a cookie with the number
+            // The card: a cookie with the number
             // (or the label's icon) winding as it opens, the workspace's name — its biggest
             // labelled app's (WorkspaceLabels), else "Workspace N" — and what's in it; then each
             // window as its app's icon on a tile, the title over the app's name, today's time

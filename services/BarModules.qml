@@ -57,4 +57,21 @@ Singleton {
 
         return true
     }
+
+    // ── Why a module can't be placed on this machine, or "" ───────────────────
+    // The other question: not "has it anything to show right now" (visible, above)
+    // but "would placing it ever work here". A missing optional tool disables the
+    // control with a reason rather than failing on click (CLAUDE.md › Portability), so
+    // the module library and the inspector ask this and grey the module out with the
+    // answer. Each service owns its own probe and wording; this only routes to it.
+    function blocker(id) {
+        if (id === "colour")     return ColorPicker.blocker()
+        if (id === "lens")       return Lens.blocker()
+        if (id === "nightlight") return NightLight.blocker()
+        if (id === "clips")      return Clips.blocker()
+        if (id === "bluetooth")  return Bt.available ? "" : "No Bluetooth adapter on this machine"
+        if (id === "battery")
+            return (UPower.displayDevice?.isLaptopBattery ?? false) ? "" : "No battery on this machine"
+        return ""
+    }
 }

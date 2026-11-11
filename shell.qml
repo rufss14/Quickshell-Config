@@ -12,7 +12,7 @@
 // (QQmlVMEMetaObject::propertyAndMethodStorage, a weak value) during startup. Nothing
 // shows until a Connections first gets a target AFTER creation: then
 // connectSignalsToMethods() reads a null function and the shell segfaults. Measured
-// in five cores (2026-09-30, 2026-10-01 ×4): always MediaPosition's
+// in five cores: always MediaPosition's
 // `target: root.player` in the bar's MediaPanel, the moment Spotify's MPRIS player
 // turned up ~1.4s in, the storage slot null in every one. 0 = Qt's stop-the-world
 // collector (qv4mm.cpp GCStateMachine: a limit ≤ 0 runs each cycle to completion),
@@ -41,9 +41,8 @@ import "services" as Services
 // ── shell.qml ─────────────────────────────────────────────────────────────────
 // Entry point. Instantiates the shell's surfaces per screen, and nothing else.
 //
-// It used to also OWN `dockOpen` — declaring the property, passing it down into
-// every bar and taking a signal back up to toggle it. All shell-wide UI state now
-// lives in UiState, so this file is just a list of what exists per screen.
+// No UI state here: all shell-wide UI state (`dockOpen` and the rest) lives in
+// UiState, so this file is just a list of what exists per screen.
 //
 // The old dock's app list was folded into the overview as OverviewDock, then
 // promoted back out into a real, persistent, positionable dock — off by default
@@ -55,12 +54,11 @@ import "services" as Services
 ShellRoot {
     id: root
 
-    // A lazy singleton's timers don't exist until something references it, and
-    // nothing always-loaded referenced WallpaperEngine — so its "start with the
-    // shell" autostart could only ever fire if the settings page happened to be
-    // opened first. This reference is the fix: it instantiates the service at
-    // launch, and the service's own guarded timer does the rest.
-    readonly property var _wallpaperEngine: Services.WallpaperEngine
+    // WallpaperEngine's "start with the shell" autostart lives in a timer inside the
+    // service, so the service must exist from launch. A `Connections` forces it (see the
+    // Cursor note below for why the property form doesn't); WallpaperView references it
+    // on every screen too, so this changes nothing about WHEN it starts.
+    Connections { target: Services.WallpaperEngine }
 
     // These four each have to exist from launch with nothing on screen to reference
     // them, so they use `Connections` (see the Cursor note below for why not the
@@ -76,8 +74,8 @@ ShellRoot {
     //    target from shell start.
     //  - Reminders: posts a notification when due, when the clock panel is most likely
     //    closed; its minute check runs from launch.
-    // (2026-10-07, not yet cold-start verified: confirm with `qs ipc -c ~/.config/quicktest
-    // show` after a fresh launch — `albumscheme` and `osd` should list.)
+    // (To confirm after a fresh launch: `qs ipc -c ~/.config/quicktest show` lists
+    // `albumscheme` and `osd`.)
     Connections { target: Services.Clipboard }
     Connections { target: Services.AlbumScheme }
     Connections { target: Services.Osd }
@@ -97,13 +95,15 @@ ShellRoot {
     // Links between a colour scheme and a Material Wallpaper look load by themselves when the scheme
     // is applied, with no panel open.
     Connections { target: Services.MaterialPresets }
-    Connections { target: Services.Cursor }
-    Connections { target: Services.CursorEffects }
+    // Created only once their switch is on: off means the service never exists (their IPC
+    // targets are `status` only). The binding creates one the moment it is switched on.
+    Connections { target: Config.cursorTheme ? Services.Cursor : null }
+    Connections { target: Config.cursorEffects ? Services.CursorEffects : null }
     // The Discord theme follows Settings → Type & Shape; it pushes once at launch and on every change.
     Connections { target: Services.DiscordTheme }
     // Sound effects hear the panels open and close with nothing on screen, so it must
-    // exist from the start (inert while Config.sfxEnabled is off: no files, no player).
-    Connections { target: Services.Sfx }
+    // exist from the start. Created once Config.sfxEnabled is on.
+    Connections { target: Config.sfxEnabled ? Services.Sfx : null }
 
     // Bluetooth: the pairing agent must be registered BEFORE a pairing starts —
     // including one the phone starts with no panel open — and the connect OSD and
@@ -139,15 +139,17 @@ ShellRoot {
     Connections { target: Services.Switcher }
     // The magnifier hears its keys the same way (custom events), so it exists from launch.
     Connections { target: Services.Magnifier }
-    // Screen time counts from launch whether or not a view of it is open (inert while off).
-    Connections { target: Services.ScreenTime }
+    // Screen time counts from launch whether or not a view of it is open, once it is switched on.
+    Connections { target: Config.screenTime ? Services.ScreenTime : null }
+    // The call log tallies who you are in Discord calls with from launch, while Config.callLog is on.
+    Connections { target: Config.callLog ? Services.CallLog : null }
     // Workspaces with their own wallpaper wear its colours from launch (shell + apps).
     Connections { target: Services.WorkspaceTheme }
     // The inactivity rules run from launch (one idle monitor each; inert while the master switch is off).
     Connections { target: Services.Inactivity }
-    // The polkit agent registers from launch (inert while Config.polkitAgent is off) —
+    // The polkit agent registers from launch, once Config.polkitAgent is on —
     // a request can arrive before anything has looked at it.
-    Connections { target: Services.AuthAgent }
+    Connections { target: Config.polkitAgent ? Services.AuthAgent : null }
     // songrec's IPC target (`qs ipc call songrec toggle`) exists from launch, for a keybind.
     Connections { target: Services.SongRec }
     // The HUD's IPC target (`qs ipc call hud open` — the overview, a card tuned) exists from launch.

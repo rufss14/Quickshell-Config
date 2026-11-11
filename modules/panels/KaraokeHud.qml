@@ -144,7 +144,7 @@ Item {
             id: readyCol
             spacing: Tokens.spacingXs
             Text {
-                text: "GET READY"
+                text: Translation.tr("GET READY")
                 color: root.pal.primary
                 font.family: Tokens.fontFamily
                 font.bold: true
@@ -253,7 +253,7 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: Tokens.spacingMd + Tokens.spacingSm
         y: Tokens.spacingSm + Tokens.iconXl + Tokens.spacingMd + Tokens.spacingXs
-        text: "UNRANKED"
+        text: Translation.tr("UNRANKED")
         color: root.pal.warning
         font.family: Tokens.fontFamily
         font.bold: true

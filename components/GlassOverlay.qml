@@ -10,7 +10,7 @@ import "../config"
 // ── What this is NOT ──────────────────────────────────────────────────────────
 // It does not refract. Refraction needs a TEXTURE of what is behind the surface, and
 // only the desktop tiles have one — they sit on the layer-shell background, so the
-// wallpaper is genuinely all that is behind them, and `shaders/liquidglass.frag`
+// wallpaper is genuinely all that is behind them, and `shaders/liquidglass.src.frag`
 // samples it. The bar and the screen frame sit above windows: what is behind them is
 // whatever you happen to have open, which the shell cannot sample. For those, the
 // compositor's own blur supplies the diffuse body and this supplies the light.

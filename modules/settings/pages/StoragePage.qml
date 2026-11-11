@@ -970,7 +970,7 @@ Item {
             Layout.fillWidth: true
             secret: true
             icon: root.locked ? "lock" : "lock_open"
-            placeholder: "sudo password"
+            placeholder: Translation.tr("sudo password")
             seed: root.sudoPass
             onEdited: function (v) { if (v !== root.sudoPass) root.sudoPass = v }
         }

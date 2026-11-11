@@ -30,6 +30,12 @@ import "../../../services"
 Item {
     id: root
 
+    ArmLatch {
+        id: logLatch
+        onConfirmed: CallLog.clear()
+    }
+    readonly property int logCount: Object.keys(CallLog.people).length
+
     // Typed-but-unsaved values. Seeded from the service, then owned by the fields —
     // binding straight to `Discord.clientId` would fight anyone typing mid-save.
     property string draftId:       ""
@@ -209,10 +215,37 @@ Item {
             accent:   Colors.of(QsWindow.window).primary
             bodySpacing: Tokens.spacingSm
 
-            Step { n: 1; text: "discord.com/developers/applications → New Application (any name)." }
-            Step { n: 2; text: "General Information → copy the Application ID into Client ID." }
-            Step { n: 3; text: "OAuth2 → Reset Secret, copy it; add http://localhost under Redirects." }
-            Step { n: 4; text: "Save here, then approve Discord's prompt once." }
+            Step { n: 1; text: Translation.tr("discord.com/developers/applications → New Application (any name).") }
+            Step { n: 2; text: Translation.tr("General Information → copy the Application ID into Client ID.") }
+            Step { n: 3; text: Translation.tr("OAuth2 → Reset Secret, copy it; add http://localhost under Redirects.") }
+            Step { n: 4; text: Translation.tr("Save here, then approve Discord's prompt once.") }
+        }
+
+        // ── Call log ──────────────────────────────────────────────────────────
+        // The scoreboard on the voice panel's Board tab. Discord's RPC has no friends list, so it can only count
+        // who shared your call: hide anyone you don't want from the board there.
+        Section {
+            span:     1
+            glyph:    "󰋚"
+            title:    Translation.tr("Call log")
+            subtitle: root.logCount === 0 ? Translation.tr("Nobody yet")
+                      : root.logCount === 1 ? Translation.tr("1 person kept") : Translation.tr("%1 people kept").arg(root.logCount)
+            help:     Translation.tr("Keeps how long you have been in a call with each person, for the Board tab of the voice panel. Names and time only, on this computer, until you forget them — no server or channel names, no record of when each call was. Discord doesn't say who your friends are, so it counts everyone who joined; hide anyone from the board there.")
+            accent:   Colors.of(QsWindow.window).primary
+
+            actions: Toggle {
+                accent:  Colors.of(QsWindow.window).primary
+                checked: Config.callLog
+                onToggled: Config.callLog = !Config.callLog
+            }
+            PanelButton {
+                capsule: true
+                label: logLatch.armed ? Translation.tr("Sure?") : Translation.tr("Forget everyone")
+                variant: logLatch.armed ? "primary" : "ghost"
+                accent: Colors.of(QsWindow.window).danger
+                enabled: root.logCount > 0
+                onActivated: logLatch.trigger()
+            }
         }
 
         // ── Keybinds + injection readiness ────────────────────────────────────

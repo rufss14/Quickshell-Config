@@ -78,6 +78,16 @@ and reports `key=installed=pkg,pkg`; job `pack-<key>` runs `--pack <key>` elevat
 `install-dependencies.sh` (setup.sh) installs `DEFAULT_PACKS` so the CLI and the wizard agree.
 Built, tested (`node scripts/test-setupplan.js`), never loaded.
 
+## App themes (2026-11-11)
+
+"Theme your apps" is the system-wide ones only: GTK, Qt, Steam (`SYSTEM_THEMES`, jobs `theme-gtk` …, ticked in
+Recommended). Discord and Spotify patch somebody else's client, so each is its own opt-in step in the extras
+(`discordtheme`, `spotifytheme`, jobs `theme-discord` / `theme-spotify`, never ticked), run after the colours step so they
+land painted from the palette. States come from `theme-setup.sh status`: ready → done, todo → offered, blocked (Discord
+without Vencord) → blocked with the script's reason, absent or not yet probed → no step at all, so a machine without
+Discord is still "all done". Spotify's also needs the network unless Spicetify is already installed. They are listed on
+the Colours page and under Custom in Settings › Setup. `bun scripts/test-setupplan.js` covers them.
+
 ## Root, asked once
 
 `plan.root` says whether any step needs it. Then either:

@@ -146,7 +146,7 @@ Variants {
                 // is the only motion there is; on a loop it is what stops the loop
                 // point being the thing your eye locks onto.
                 SequentialAnimation on scale {
-                    running: Config.motionEnabled && surface.hasBackdrop
+                    running: Motion.ambientOn && surface.hasBackdrop
                     loops: Animation.Infinite
                     NumberAnimation { from: 1.0;  to: 1.08; duration: 45000; easing.type: Motion.ambient }
                     NumberAnimation { from: 1.08; to: 1.0;  duration: 45000; easing.type: Motion.ambient }
@@ -171,7 +171,7 @@ Variants {
                     source: "file://" + surface.backdrop
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
-                    playing: Config.motionEnabled
+                    playing: Motion.ambientOn
                     speed: 1.0
                 }
             }

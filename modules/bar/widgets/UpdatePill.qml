@@ -16,6 +16,8 @@ import "../../../state"
 IconButton {
     id: root
 
+    tipProvider: Config.barTooltips ? function () { return ModuleGlance.tip("update") } : null
+
     // NOTE: `accent` is inherited from IconButton (default: Colors.primary) and drives
     // both the state ladder and the glow ring below. Do not redeclare it here — that
     // shadows the property the ladder reads, so the ring would recolour and the fill

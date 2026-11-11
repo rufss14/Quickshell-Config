@@ -17,12 +17,27 @@ Item {
     implicitWidth:  Config.sidebarCell
     implicitHeight: Config.sidebarCell
 
+    readonly property var parts: {
+        const p = []
+        if (KeyLocks.submap !== "") p.push(KeyLocks.submap.toUpperCase())
+        if (KeyLocks.caps) p.push("CAPS")
+        if (KeyLocks.num)  p.push("NUM")
+        return p
+    }
+
     Component.onCompleted: KeyLocks.acquire()
     Component.onDestruction: KeyLocks.release()
 
     SideCell {
+
+        moduleId: "locks"
         anchors.fill: parent
-        glyph: KeyLocks.caps || KeyLocks.num ? "\u{F0A9B}" : "\u{F030C}"   // 󰪛 caps lock / 󰌌 keyboard
+        // The bar pill's words (LocksPill: "RESIZE · CAPS"), turned: the first on the
+        // cell, the next under it. Nothing on: a keyboard mark, where the bar hides the
+        // pill (a cell keeps its slot in the rail).
+        glyph: "\u{F030C}"                                               // 󰌌 keyboard
+        label: root.parts.length > 0 ? root.parts[0] : ""
+        caption: root.parts.length > 1 ? root.parts.slice(1).join(" · ") : ""
         tint: KeyLocks.submap !== "" ? Colors.of(QsWindow.window).warning
             : KeyLocks.any ? Colors.of(QsWindow.window).primary
             : Colors.of(QsWindow.window).stateIdleFg

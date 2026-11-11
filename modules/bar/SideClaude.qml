@@ -37,7 +37,7 @@ Item {
     readonly property bool none: ClaudeSessions.sessions.length === 0
     // The sidebar's hero (Config.sidebarHero; SideRegionPills draws its chip): the mark wears
     // the container's ink, and a live shape on it is filled `primary` so it doesn't vanish.
-    readonly property bool hero: Config.sidebarHero === "claude"
+    readonly property bool hero: Config.moduleHero("claude")
 
     implicitWidth:  Config.sidebarCell
     implicitHeight: Config.sidebarCell
@@ -98,7 +98,7 @@ Item {
         tint: root.needsYou ? Colors.of(QsWindow.window).warning
             : root.working ? (root.hero ? Colors.of(QsWindow.window).fgOnPrimary : Colors.of(QsWindow.window).fgOnPrimaryContainer)
             : root.hero ? Colors.of(QsWindow.window).fgOnPrimaryContainer
-            : mouse.containsMouse || root.open ? Colors.of(QsWindow.window).primary
+            : mouse.containsMouse || root.open ? Config.moduleAccent("claude", Colors.of(QsWindow.window).primary)
             : root.none ? Colors.of(QsWindow.window).fgDim
             : Colors.of(QsWindow.window).stateIdleFg
         scale: mouse.pressed ? 0.9 : 1

@@ -5,14 +5,13 @@ import Quickshell.Io
 import QtQuick
 import "../config"
 import "../state"
-import "sudolock.js" as Lock
 import "setupplan.js" as Plan
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 // The setup hub: what the machine still needs, and the jobs that provide it.
 //
-// ── A plan, not a pile of buttons (2026-10-18) ───────────────────────────────
-// The wizard used to be seven pages and about fifteen install buttons, one job at a time. Now `steps` is the
+// ── A plan, not a pile of buttons ────────────────────────────────────────────
+// Not seven pages of fifteen install buttons, one job at a time: `steps` is the
 // whole catalogue (services/setupplan.js, tested) with what the machine already has marked done, `selectedIds`
 // the ticked ones (the recommended set until you choose otherwise), and `startPlan()` runs them in order as one
 // queue: dependencies pulled in (an AUR step brings the AUR helper, which brings the base tools), a failed step
@@ -82,7 +81,7 @@ Singleton {
     property Process _probe: Process {
         running: true
         command: ["bash", "-c",
-              "d=" + JSON.stringify(root.hyprDir) + "; "
+              "d=" + root._shq(root.hyprDir) + "; "
             + "[ -d \"$d\" ] || { echo '0 0 0 absent absent'; exit 0; }; "
             // Commented-out lines (Lua `--`, hyprlang `#`) don't count: a disabled autostart or bind is not wired.
             + "live() { grep -rhvE '^[[:space:]]*(--|#)' \"$d\" 2>/dev/null; }; "
@@ -137,6 +136,8 @@ Singleton {
     // wallpaper and colour-scheme pipelines actually call, and without it they
     // both fail. -1 until checked.
     readonly property string _depScript: Quickshell.shellPath("scripts/install-dependencies.sh")
+    // One argument for a bash command string, single-quoted (a path with a quote in it stays one word).
+    function _shq(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
     property int  _missingCore: -1
     property bool _walOk:       false
     property bool _pkgProbed:   false
@@ -156,8 +157,8 @@ Singleton {
     property Process _pkgProbe: Process {
         running: true
         command: ["bash", "-c",
-              "m=$(for p in $('" + root._depScript + "' --official 2>/dev/null); do "
-            + "  pacman -Qq \"$p\" >/dev/null 2>&1 || pacman -Qg \"$p\" >/dev/null 2>&1 || echo x; "
+              "m=$(for p in $(" + root._shq(root._depScript) + " --official 2>/dev/null); do "
+            + "  pacman -T \"$p\" >/dev/null 2>&1 || pacman -Qg \"$p\" >/dev/null 2>&1 || echo x; "
             + "done | grep -c x || true); "
             // The text font is installed by --core but is not in --official (it must never be upgraded or
             // downgraded under a running shell), so it is counted here.
@@ -200,7 +201,7 @@ Singleton {
     property Process _optPkgProbe: Process {
         running: true
         command: ["bash", "-c",
-              "for kv in $('" + root._depScript + "' --optional); do "
+              "for kv in $(" + root._shq(root._depScript) + " --optional); do "
             + "  k=\"${kv%%=*}\"; p=\"${kv#*=}\"; "
             + "  pacman -Qq \"$p\" >/dev/null 2>&1 && i=1 || i=0; "
             + "  echo \"$k=$p=$i\"; "
@@ -233,7 +234,7 @@ Singleton {
     property Process _packProbe: Process {
         running: true
         command: ["bash", "-c",
-              "for kv in $('" + root._depScript + "' --packs); do "
+              "for kv in $(" + root._shq(root._depScript) + " --packs); do "
             + "  k=\"${kv%%=*}\"; p=\"${kv#*=}\"; "
             + "  pacman -Qq ${p//,/ } >/dev/null 2>&1 && i=1 || i=0; "
             + "  echo \"$k=$i=$p\"; "
@@ -538,19 +539,11 @@ Singleton {
     property string runningId: ""
     property string lastId:    ""
     property bool   lastOk:    false
-    property string _pendingPass: ""
-
     // ── When sudo says no ─────────────────────────────────────────────────────
-    // A wrong password costs MORE than one pam_faillock strike (`sudo -S` re-prompts
-    // and reads EOF off the one-line stdin; that counts too), and three strikes lock
-    // sudo for ten minutes — during which the RIGHT password fails as well. So:
-    // a run that failed on its password is said to have, the same password isn't
-    // sent again until it's retyped (compared by hash; the password is never kept),
-    // and nothing is sent while SudoLock says sudo is locked.
-    property string passwordNote: ""
+    // The guard against the ten-minute sudo lockout (a rejected password isn't sent
+    // twice, nothing is sent while sudo is locked) lives in SudoProcess.
+    readonly property string passwordNote: job.passwordNote
     signal passwordRejected()
-    property string _lastHash: ""
-    property string _rejectedHash: ""
 
     function needsPassword(id) {
         // A theme job asks only when its status said it installs a package or fixes
@@ -580,58 +573,22 @@ Singleton {
         // With polkit there is no password to ask for or guard: the system's dialog does both.
         const typed = root.needsPassword(id) && !root._polkit
         if (typed && !(password ?? "").length) return false
-        if (typed) {
-            if (SudoLock.locked) {
-                root.passwordNote = SudoLock.message
-                SudoLock.check()
-                return false
-            }
-            const h = Qt.md5(password)
-            if (h === root._rejectedHash) {
-                root.passwordNote = "That's the password sudo just rejected — retype it. "
-                    + "(Each wrong try counts toward a ten-minute sudo lockout.)"
-                return false
-            }
-            root._lastHash = h
-        } else {
-            root._lastHash = ""
-        }
-        root.passwordNote = ""
-        root.lastId       = ""
-        root.logLines     = []
-        root._pendingPass = password ?? ""
-        root.runningId    = id
-        job.command       = argv
-        // The theming script reads this to elevate through pkexec instead of reading a password.
-        job.environment   = root._polkit ? ({ "SETUP_ELEVATE": "pkexec" }) : ({})
-        // Re-armed EVERY run. `stdinEnabled: true` below is only the initial value;
-        // onStarted turns it off, and Quickshell closes stdin BEFORE starting a
-        // process whose stdinEnabled is false (process.cpp startProcessIfReady). So
-        // every job after the first got an empty stdin, `sudo -S` read EOF — "no
-        // password was provided" — and each such read counted against pam_faillock.
-        job.stdinEnabled  = true
-        job.running       = true
+        // The theming script reads SETUP_ELEVATE to elevate through pkexec instead of reading a password.
+        // The password goes in whenever one was given (a feature pack's job isn't in needsPassword but
+        // needs it); with polkit the callers give none.
+        if (!job.launch(argv, password ?? "", root._polkit ? ({ "SETUP_ELEVATE": "pkexec" }) : ({})))
+            return false
+        root.lastId    = ""
+        root.logLines  = []
+        root.runningId = id
         return true
     }
 
     function clearLog() { root.logLines = []; root.lastId = "" }
 
-    property Process _job: Process {
+    property SudoProcess _job: SudoProcess {
         id: job
-        running: false
-        stdinEnabled: true
-        environment: ({})
-
-        // The password sits in the pipe until `sudo -S` reads it — cmake's build
-        // step doesn't touch stdin, so it survives the wait. Then stdin closes,
-        // or anything downstream reading it waits forever for input.
-        onStarted: {
-            if (root._pendingPass !== "") {
-                job.write(root._pendingPass + "\n")
-                root._pendingPass = ""
-            }
-            job.stdinEnabled = false
-        }
+        onPasswordRejected: root.passwordRejected()
 
         stdout: SplitParser { onRead: line => root._append(line, false) }
         stderr: SplitParser { onRead: line => root._append(line, true) }
@@ -639,15 +596,7 @@ Singleton {
             root.lastId    = root.runningId
             root.lastOk    = code === 0
             root.runningId = ""
-            root._pendingPass = ""
-            if (root.lastOk) {
-                root._rejectedHash = ""
-            } else if (root.needsPassword(root.lastId) && Lock.rejected(root.logLines)) {
-                root._rejectedHash = root._lastHash
-                root.passwordNote = "Wrong password — sudo rejected it. Nothing was installed."
-                SudoLock.check()
-                root.passwordRejected()
-            }
+            job.judge(code, root.logLines)
             root.recheck()
             // Jobs that install something a DIFFERENT service probes for itself —
             // this runner only re-checks its own core/pywal probe above. Without
@@ -676,15 +625,15 @@ Singleton {
     function installCore(password) {
         if (root._polkit) return root._run("core", ["pkexec", "bash", root._depScript, "--core"], "")
         return root._run("core",
-            ["bash", "-c", "set -e\nsudo -S -p '' bash -c \"'" + root._depScript + "' --core\""],
+            ["bash", "-c", "set -e\nsudo -S -p '' bash " + root._shq(root._depScript) + " --core"],
             password)
     }
     // Builds as you; only `cmake --install` into the system Qt dir is elevated,
     // via --stdin-sudo (sudo -S). The password waits in stdin for that step.
     function buildBlob(password) {
         // No tty and no --stdin-sudo: the script's own rule picks pkexec for the install step.
-        if (root._polkit) return root._run("blob", ["bash", "-lc", "'" + root._blobScript + "'"], "")
-        return root._run("blob", ["bash", "-lc", "'" + root._blobScript + "' --stdin-sudo"], password)
+        if (root._polkit) return root._run("blob", ["bash", "-lc", root._shq(root._blobScript)], "")
+        return root._run("blob", ["bash", "-lc", root._shq(root._blobScript) + " --stdin-sudo"], password)
     }
     // One feature pack (install-dependencies.sh --pack <key>), elevated the way --core is.
     // The key goes into a command string, so it must be one the script printed.
@@ -693,22 +642,22 @@ Singleton {
         const id = "pack-" + key
         if (root._polkit) return root._run(id, ["pkexec", "bash", root._depScript, "--pack", key], "")
         return root._run(id,
-            ["bash", "-c", "set -e\nsudo -S -p '' bash -c \"'" + root._depScript + "' --pack " + key + "\""],
+            ["bash", "-c", "set -e\nsudo -S -p '' bash " + root._shq(root._depScript) + " --pack " + key],
             password)
     }
     readonly property string _aurHelperScript: Quickshell.shellPath("scripts/install-aur-helper.sh")
     // An AUR helper, built as you; only the final pacman -U is root.
     function installAurHelper(password) {
-        if (root._polkit) return root._run("aurhelper", ["bash", "-lc", "'" + root._aurHelperScript + "'"], "")
-        return root._run("aurhelper", ["bash", "-lc", "'" + root._aurHelperScript + "' --stdin-sudo"], password)
+        if (root._polkit) return root._run("aurhelper", ["bash", "-lc", root._shq(root._aurHelperScript)], "")
+        return root._run("aurhelper", ["bash", "-lc", root._shq(root._aurHelperScript) + " --stdin-sudo"], password)
     }
-    function installHypr()   { return root._run("hypr", ["bash", "-lc", "'" + root._hyprScript + "' --force"]) }
+    function installHypr()   { return root._run("hypr", ["bash", "-lc", root._shq(root._hyprScript) + " --force"]) }
     // No sudo — writes one file (quicktest.lua), never touches the rest of
     // ~/.config/hypr. See scripts/install-hypr-minimal.sh.
     function installHyprMinimal() {
-        return root._run("hyprMin", ["bash", "-lc", "'" + root._hyprMinScript + "' --force"])
+        return root._run("hyprMin", ["bash", "-lc", root._shq(root._hyprMinScript) + " --force"])
     }
-    function installAuto()   { return root._run("auto", ["bash", "-lc", "'" + root._autoScript + "'"]) }
+    function installAuto()   { return root._run("auto", ["bash", "-lc", root._shq(root._autoScript)]) }
 
     // ── Rebuild everything ──────────────────────────────────────────────────
     // Core packages, the blob plugin, the Hyprland config — in order, one job,
@@ -721,11 +670,11 @@ Singleton {
             'set -e\n'
           + 'PW="$(cat)"\n'
           + 'echo "== Core packages =="\n'
-          + 'printf "%s\\n" "$PW" | sudo -S -p "" bash -c "\'' + root._depScript + '\' --core"\n'
+          + 'printf "%s\\n" "$PW" | sudo -S -p "" bash ' + root._shq(root._depScript) + ' --core\n'
           + 'echo "== Blob plugin =="\n'
-          + 'printf "%s\\n" "$PW" | \'' + root._blobScript + '\' --stdin-sudo\n'
+          + 'printf "%s\\n" "$PW" | ' + root._shq(root._blobScript) + ' --stdin-sudo\n'
           + 'echo "== Hyprland config =="\n'
-          + '\'' + root._hyprScript + '\' --force\n'
+          + root._shq(root._hyprScript) + ' --force\n'
           + 'echo "== Rebuild complete — reload the shell =="\n'
         return root._run("all", ["bash", "-c", sh], password)
     }
@@ -736,8 +685,8 @@ Singleton {
     // doesn't. Kept apart rather than one combined job so a machine that already
     // has spicetify-cli (a normal case) only ever needs the second.
     //
-    // spicetify-cli is NOT in the official repos (AUR only), so the `pacman -S` this
-    // used to run failed for everyone. Spicetify's own recommended route is a user-level
+    // spicetify-cli is NOT in the official repos (AUR only), so a `pacman -S` fails
+    // for everyone. Spicetify's own recommended route is a user-level
     // install into ~/.spicetify — no root, any distro — which theme-setup.sh does.
     // `password` is unused; kept so callers needn't change.
     function installSpicetify(password) {
@@ -754,7 +703,7 @@ Singleton {
 
     // No sudo: copies the extension this repo ships at spicetify/Extensions/ into
     // Spicetify's own userdata dir, configures it, and applies — the three steps
-    // SetupPage's copy-paste fix commands used to leave to the user by hand.
+    // a user would otherwise do by hand from copy-paste commands.
     readonly property string _bridgeExtSrc:
         Quickshell.shellPath("spicetify/Extensions/quickshell-bridge.js")
     function enableSpotifyBridge() {
@@ -764,7 +713,7 @@ Singleton {
           + 'd="$(spicetify path userdata)"\n'
           + '[ -n "$d" ] || { echo "spicetify path userdata returned nothing" >&2; exit 1; }\n'
           + 'mkdir -p "$d/Extensions"\n'
-          + 'cp \'' + root._bridgeExtSrc + '\' "$d/Extensions/quickshell-bridge.js"\n'
+          + 'cp ' + root._shq(root._bridgeExtSrc) + ' "$d/Extensions/quickshell-bridge.js"\n'
           + 'spicetify config extensions quickshell-bridge.js\n'
           + 'spicetify apply\n'
         return root._run("bridge", ["bash", "-c", sh])
@@ -784,15 +733,16 @@ Singleton {
             ["bash", "-c",
                "set -e\n"
              + (root._polkit ? "" : "sudo -S -v -p ''\n")
-             + "exec " + h + " " + flags + " -S --needed --noconfirm '" + pkg + "'"],
+             + "exec " + h + " " + flags + " -S --needed --noconfirm " + root._shq(pkg)],
             password)
     }
 
     // ── AUR packages ────────────────────────────────────────────────────────
-    // quickshell itself and python-pywal16 (theming). No icon font: the icons are
+    // python-pywal16 (theming). No icon font: the icons are
     // bundled in assets/fonts/ (see Tokens).
+    // Mirrors install-dependencies.sh's AUR_PKGS (quickshell itself is in [extra] now).
     readonly property var _aurPkgs:
-        ["quickshell", "python-pywal16"]
+        ["python-pywal16"]
 
     // The copy-paste fallback, for when no helper is installed (it can't be
     // bootstrapped from here — yay/paru are themselves AUR builds).
@@ -812,7 +762,7 @@ Singleton {
         const flags = h === "paru"
             ? "--skipreview --sudoloop"
             : "--answerdiff None --answerclean None --answeredit None --sudoloop"
-        const pkgs = root._aurPkgs.map(p => "'" + p + "'").join(" ")
+        const pkgs = root._aurPkgs.map(root._shq).join(" ")
         const el = root._polkit ? "--sudo pkexec" : "--sudoloop"
         const fl = h === "paru" ? "--skipreview " + el
                                 : "--answerdiff None --answerclean None --answeredit None " + el

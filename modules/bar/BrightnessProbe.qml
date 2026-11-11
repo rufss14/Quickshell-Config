@@ -52,7 +52,7 @@ Item {
         opacity: 0
     }
 
-    // The beat: once a second, and soon after an event.
+    // The beat: every two seconds, and soon after an event.
     Timer {
         interval: 2000
         running: true

@@ -99,35 +99,19 @@ Singleton {
               keywords: "background picture slideshow wallpaper engine workshop scene parallax workspace per workspace shuffle gallery renderer monitor music effects audio visualizer cava beat glow blur zoom shake rumble shockwave shimmer pulse glitch bloom strobe breakdown adapt song sound map intensity sync bpm tempo latency delay kick snare clap hi-hat drums bass vocals" }
         ] },
 
-        { label: "Bar", glyph: "󰍜", icon: "dashboard", views: [
+        { label: "Bar & sidebar", glyph: "󰍜", icon: "dashboard", views: [
             { file: "BarPage.qml", label: "Modules", glyph: "󰮐", icon: "dashboard",
-              detail: "What's on the bar, and what isn't",
-              keywords: "panel taskbar topbar statusbar modules layout arrange drag group region pill widget" },
+              detail: "What's on the bar and the sidebar, and every module's settings",
+              keywords: "panel taskbar topbar statusbar sidebar side modules layout arrange drag group region pill widget library catalogue add remove hero accent inner pill spacing peek dock taskbar launcher pinned pins running apps previews thumbnails magnify magnification trash downloads stats system monitor cpu gpu ram memory network temperature alert" },
             { file: "BarStylePage.qml", label: "Style", glyph: "󰸌", icon: "layers",
-              detail: "Thickness, roundness, opacity, presets",
-              keywords: "bar size height thickness roundness corners opacity translucent inner pill preset square text icon scale anchor centre workspaces" },
+              detail: "How both look — the sidebar follows the bar unless unlinked",
+              keywords: "bar sidebar size height thickness roundness corners opacity translucent inner pill preset square text icon scale link unlink same as bar override islands music glow rim" },
+            { file: "SidebarPage.qml", label: "Behaviour", glyph: "\u{F06FD}", icon: "view_quilt",
+              detail: "The sidebar's edge, size and auto-hide; where the bar centres",
+              keywords: "sidebar side edge position left right bottom autohide auto-hide hide dodge reveal empty workspace reserve space exclusive icon size anchor centre workspaces" },
             { file: "BarPanelsPage.qml", label: "Panels", glyph: "\u{F0574}", icon: "view_quilt",
               detail: "Which side each panel opens on, and resizes",
               keywords: "panel side left right centre middle placement popup resize zoom size reset" }
-        ] },
-
-        // ── Views, like every other page ──────────────────────────────────────
-        // For a while these were GROUPS stacked on one composed scroll
-        // (SidebarDockPage). The rest of Settings kept its tab strip, and one page that
-        // scrolled where the others tabbed was the inconsistency, so they are views
-        // again. A remembered "SidebarDockPage.qml" lands on the first (`aliases`).
-        // Clips and Screen time left for Apps & tools: they are things the shell DOES, not
-        // an edge it draws.
-        { label: "Sidebar & dock", glyph: "\u{F06FD}", icon: "dock_to_bottom", views: [
-            { file: "SidebarPage.qml", label: "Sidebar", glyph: "\u{F06FD}", icon: "view_quilt",
-              detail: "Unified bar or separate pills, the edge, auto-hide",
-              keywords: "sidebar layout unified bar statusbar status bar merge single one strip taskbar separate pills edge position left right bottom autohide auto-hide hide dodge reserve space exclusive dock stats clips modules arrange drag shell tools launcher cheatsheet power voice mic notifications bell clipboard history timer stopwatch alarm colour color picker hyprpicker lens ocr tesseract claude code sessions screen time icon size" },
-            { file: "DockPage.qml", label: "Dock", glyph: "󰀻", icon: "dock_to_bottom",
-              detail: "Position, size, auto-hide, previews, pins, the frame weld",
-              keywords: "dock taskbar launcher start button pinned pins running apps position left right bottom autohide auto-hide hide reveal exclusive space clip grow overflow icon size previews thumbnails jump list blob weld frame melt dodge intellihide per monitor screen magnify magnification trash downloads badges volume keyboard workspace pin files folders jump list progress inner pill sidebar side peek aero glance workspace melt menu" },
-            { file: "SidebarStatsPage.qml", label: "Stats", glyph: "\u{F029A}", icon: "speed",
-              detail: "CPU, GPU, memory and network rings beside the dock",
-              keywords: "sidebar system stats monitor cpu gpu ram memory network traffic usage load gauge ring circle meter temperature temp arc vram swap disk activity battery device devices bluetooth mouse keyboard headset controller razer openrazer peripheral wireless charge bandwidth speed line mbit alert threshold side edge" }
         ] },
 
         { label: "Desktop", glyph: "󰕮", icon: "widgets", views: [
@@ -237,6 +221,10 @@ Singleton {
     // or a pin naming one still lands somewhere sensible.
     readonly property var aliases: ({
         "SidebarDockPage.qml": "SidebarPage.qml",
+        // The dock and the stats are modules like the rest since 2026-11-08: their
+        // settings are in Bar › Modules' inspector (UiState.openSettingsTo picks them).
+        "DockPage.qml": "BarPage.qml",
+        "SidebarStatsPage.qml": "BarPage.qml",
         "ShellPresetPage.qml": "SetupPage.qml",     // its card is Setup's last one now
         "WidgetStylePage.qml": "WidgetsPage.qml",  // the Style view was merged into Widgets
         "NetworkTrafficPage.qml": "NetworkPage.qml" // Traffic is gone; its speed test is on Network

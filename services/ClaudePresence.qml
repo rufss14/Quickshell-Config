@@ -98,8 +98,8 @@ Singleton {
     function refresh()        { root._send({ c: "refresh" }) }
 
     // ══ The daemon is NOT a child of this shell ═══════════════════════════════
-    // It used to be a plain `Process { running: enabled }`, and every reload dropped
-    // the presence off the profile until the shell came back — made worse by Discord's
+    // As a plain `Process { running: enabled }`, every reload would drop the presence
+    // off the profile until the shell came back — made worse by Discord's
     // rate limit, which meant the reconnect could not immediately re-publish. The
     // presence describes a TERMINAL, which is still sitting there while the bar is
     // being rebuilt; tying its lifetime to the shell's was simply wrong.
@@ -195,7 +195,7 @@ Singleton {
     // published repo. "claude-orange-on-black" is still in the library, and is the
     // daemon's own default until this speaks. Bump `?v=` after regenerating the GIF —
     // Discord caches the image per URL.
-    readonly property string assetKey: "https://raw.githubusercontent.com/rufss14/Quickshell-Config/main/quicktest/assets/logos/claude-presence.gif?v=1"
+    readonly property string assetKey: "https://raw.githubusercontent.com/rufss14/Quickshell-Config/main/assets/logos/claude-presence.gif?v=1"
 
     // The bold first line. Sent explicitly rather than left to default, because it
     // otherwise falls back to the Discord APPLICATION's name — and the portal refuses
