@@ -43,8 +43,13 @@ import "voice"
 // until Discord's answer catches up (otherwise the handle snaps back to the old level
 // for a beat).
 //
+// ── On an island (`island`, set by IslandCard; 2026-11-15) ─────────────────────
+// No title row or strip: the loud card stands upright on the left (voice/VoiceIslandHero: the call, how it is
+// doing, how long, the faces, your controls, Leave on a layer) over a SourceRail of the three faces; the faces
+// fill the right (`body` moves there). Out of a call the island shows the Board, which is worth reading anyway.
+//
 // The panel recipe: PanelHeader + ActionGroup, tokens throughout, shared widgets
-// (Avatar, ValueSlider, PanelButton, ArmLatch, TabStrip, Toggle, Meter). Everything
+// (Avatar, ThickSlider, PanelButton, ArmLatch, TabStrip, Toggle, Meter). Everything
 // real is services/Discord (scripts/discord-rpc.py); this shows it and calls it.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
@@ -52,17 +57,24 @@ Item {
 
     // The room the slot has (SidePanelDock sets it); the bodies scroll past it.
     property real maxHeight: Infinity
+    // On an island: the layout below (IslandCard sets it; the card gives the size).
+    property bool island: false
+    // Out of the way so a keystroke or a window lands where it should: the side slot, or this island.
+    function stepAside() {
+        UiState.closeSidePanel()
+        if (root.island) UiState.closePanel("voice")
+    }
 
     readonly property int pad: Tokens.spacingXl
     implicitWidth: Tokens.sideCardUnit * 7
     implicitHeight: Math.min(root.maxHeight, col.implicitHeight + root.pad * 2)
 
-    readonly property real bodyRoom: Math.max(Tokens.sideCardUnit * 2, Math.min(Tokens.sideCardUnit * 10,
+    readonly property real bodyRoom: root.island ? islandRight.height - Tokens.spacingMd * 2 : Math.max(Tokens.sideCardUnit * 2, Math.min(Tokens.sideCardUnit * 10,
         root.maxHeight - root.pad * 2 - head.implicitHeight - strip.implicitHeight
         - tabs.implicitHeight - col.spacing * 3))
 
     // ── Which face ────────────────────────────────────────────────────────────
-    property string tab: "people"
+    property string tab: root.island && !Discord.inCall ? "board" : "people"
     readonly property int tabIndex: ["people", "audio", "board"].indexOf(root.tab)
     // Held for one surface beat after a switch: the only time the body's height eases.
     property bool switching: false
@@ -91,11 +103,18 @@ Item {
         target: Discord
         function onInCallChanged() {
             if (!Discord.inCall && UiState.sidePanel === "voice") UiState.closeSidePanel()
+            // On an island the page stays, on the board.
+            if (!Discord.inCall && root.island) root.show("board")
         }
     }
 
-    // The call's duration counts seconds, only while this is open.
-    Component.onCompleted: Clock.acquireSeconds()
+    // The call's duration counts seconds, only while this is open. On an island it may open on a face
+    // (`qs ipc call island part voice audio`: people | audio | board).
+    Component.onCompleted: {
+        Clock.acquireSeconds()
+        const part = UiState.islandPartFor("voice")
+        if (root.island && ["people", "audio", "board"].indexOf(part) >= 0 && (Discord.inCall || part === "board")) root.tab = part
+    }
     Component.onDestruction: Clock.releaseSeconds()
 
     ArmLatch {
@@ -114,7 +133,7 @@ Item {
 
     // A keystroke into Discord: out of the way first, so it has the keyboard.
     function press(spec) {
-        UiState.closeSidePanel()
+        root.stepAside()
         Discord.pressInDiscord(spec)
     }
 
@@ -129,6 +148,7 @@ Item {
 
     ColumnLayout {
         id: col
+        visible: !root.island
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -295,8 +315,12 @@ Item {
         // ── The two faces, crossfading ────────────────────────────────────────
         Item {
             id: body
+            // On an island it fills the right side (islandRight) instead.
+            parent: root.island ? islandRight : col
+            anchors.fill: root.island ? parent : undefined
+            anchors.margins: root.island ? Tokens.spacingMd : 0
             Layout.fillWidth: true
-            visible: Discord.inCall
+            visible: Discord.inCall || root.island
             readonly property real target: root.tab === "people" ? people.height : root.tab === "audio" ? audio.height : board.height
             Layout.preferredHeight: body.target
             Behavior on Layout.preferredHeight {
@@ -315,7 +339,8 @@ Item {
                 spacing: Tokens.spacingXs
                 boundsBehavior: Flickable.StopAtBounds
 
-                opacity: root.tab === "people" ? 1 : 0
+                // On an island the People face is the tile grid below instead.
+                opacity: root.tab === "people" && !root.island ? 1 : 0
                 visible: people.opacity > 0.01
                 Behavior on opacity { NumberAnimation { duration: Motion.standard; easing.type: Motion.enter } }
                 transform: Translate {
@@ -591,6 +616,17 @@ Item {
                 }
             }
 
+            // ══ People on an island: tiles ═════════════════════════════════════
+            Loader {
+                width: body.width
+                height: body.height
+                active: root.island
+                opacity: root.island && root.tab === "people" ? 1 : 0
+                visible: opacity > 0.01
+                Behavior on opacity { NumberAnimation { duration: Motion.standard; easing.type: Motion.enter } }
+                sourceComponent: VoicePeopleGrid { panel: root }
+            }
+
             // ══ Board ════════════════════════════════════════════════════════
             // Who you have been in calls with the most (services/CallLog).
             VoiceBoardView {
@@ -773,9 +809,11 @@ Item {
 
         Timer { id: settle; interval: 800 }
 
-        ValueSlider {
+        // The media page's thick, rounded bar (2026-11-15).
+        ThickSlider {
             id: slider
             Layout.fillWidth: true
+            Layout.preferredHeight: implicitHeight
             maximum: level.maximum
             notchAt: level.notchAt
             enabled: level.enabled
@@ -941,6 +979,51 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    // ══ On an island ══════════════════════════════════════════════════════════
+    readonly property int sideW: Tokens.spacingXl * 14 + Tokens.spacingSm
+    RowLayout {
+        anchors.fill: parent
+        visible: root.island
+        spacing: Tokens.spacingMd
+
+        ColumnLayout {
+            Layout.fillWidth: false
+            Layout.preferredWidth: root.sideW
+            Layout.minimumWidth: root.sideW
+            Layout.fillHeight: true
+            spacing: Tokens.spacingMd
+
+            VoiceIslandHero {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                panel: root
+            }
+            SourceRail {
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+                visible: Discord.inCall
+                Layout.preferredHeight: 3 * (Tokens.iconXl + Tokens.spacingMd) + Tokens.spacingSm * 2 + Tokens.spacingXs * 2
+                current: root.tab
+                model: [
+                    { value: "people", label: Translation.tr("People"),     icon: "headphones", shape: "cookie9",
+                      figure: String(Discord.users.length) },
+                    { value: "audio",  label: Translation.tr("Your audio"), icon: "mic",        shape: "clover",
+                      figure: Discord.mute ? Translation.tr("Muted") : Translation.tr("On"), big: false },
+                    { value: "board",  label: Translation.tr("Board"),      icon: "star",       shape: "sunny" }
+                ]
+                onPicked: v => root.show(v)
+            }
+        }
+        // The faces stand on a plate, so a short list reads as a card and not as rows on the island's face.
+        Rectangle {
+            id: islandRight
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            radius: Tokens.radiusXl
+            color: Colors.of(QsWindow.window).section
         }
     }
 }

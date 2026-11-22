@@ -40,7 +40,8 @@ Read before editing `modules/`, `components/` or `shell.qml`. Moved out of CLAUD
       `components/SpectrumPicker.qml`, and NightLightPage's kelvin swatch
       (`services/kelvin.js`). These are the gamut you pick FROM, not themed
       chrome; theming them would make the picker unable to show colours it doesn't
-      already wear. (The text ON the swatch is `Colors.shadow`, the palette's
+      already wear. Same reason, same exception: the eight hue swatches in the wallpaper gallery's
+      search (`Qt.hsla` of `wallpaperlib.js colorList()`), which you press to search a colour. (The text ON the swatch is `Colors.shadow`, the palette's
       constant black — not a fifth exception.)
 - **Text contrast is guarded, not just authored.** `fgMuted` and `fgDim` are an alpha of the palette's text colour, so
   their contrast follows the wallpaper. `PaletteRoles` treats the authored alphas (0.72, 0.66 / 0.68 light) as FLOORS and
@@ -85,6 +86,9 @@ Read before editing `modules/`, `components/` or `shell.qml`. Moved out of CLAUD
     so `BarPanelDock` grows and shrinks the surface with the panel. The wallpaper
     gallery is the exception — it's a fixed pin (620×394) because a thumbnail grid
     self-sizing to content read worse.
+  - A bar panel is a PAGE on one of the three islands' rails, or opens alone (`config/islands.js`: `ISLANDS`,
+    `OFF_RAIL`, `META`). A page rebuilt for an island is a bento of `IslandPlate`s (one `hero`), fills the
+    size it declares (`body`), and has no header of its own: the rail says where you are.
   - Reuse the shared widgets (below), never a bespoke slider/meter/field.
   - All real work in the service; the panel shows things and calls functions.
 

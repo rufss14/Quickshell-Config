@@ -66,7 +66,7 @@ Flickable {
                 Layout.topMargin: Tokens.spacingLg
                 Layout.preferredWidth: Tokens.iconXl * 2
                 Layout.preferredHeight: Tokens.iconXl * 2
-                MorphShape { anchors.fill: parent; shape: "cookie9"; fillColor: Colors.of(QsWindow.window).surfaceHigh }
+                MorphShape { anchors.fill: parent; shape: "cookie9"; fillColor: Colors.of(QsWindow.window).plate }
                 MaterialIcon {
                     anchors.centerIn: parent
                     name: "group"
@@ -251,7 +251,7 @@ Flickable {
                                 anchors.fill: parent
                                 shape: !row.dim && row.rank <= 3 ? "hexagon" : "circle"
                                 fillColor: !row.dim && row.rank <= 3 ? Colors.of(QsWindow.window).alpha(view.accent, 0.35)
-                                                         : Colors.of(QsWindow.window).surfaceHigh
+                                                         : Colors.of(QsWindow.window).plate
                             }
                             StyledText {
                                 anchors.centerIn: parent

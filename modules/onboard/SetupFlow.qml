@@ -183,7 +183,7 @@ Item {
                 Layout.preferredWidth: 0
                 visible: root.versionWarnings.length > 0
                 text: root.versionWarnings.map(c => c.label + " " + c.have + " (tested on " + c.want + ")").join("  ·  ")
-                      + " — newer versions very likely work; if something looks off, this is the first thing to check."
+                      + ". Newer versions very likely work; if something looks off, this is the first thing to check."
                 variant: "caption"; color: Colors.of(QsWindow.window).warning; wrapMode: Text.WordWrap
             }
 

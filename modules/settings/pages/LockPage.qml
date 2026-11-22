@@ -19,16 +19,10 @@ import "../../../services"
 // "a password box that can never accept a password". So the page reports what the
 // system says (Lock.pamState, probed by the service) rather than what we hoped.
 //
-// ── Each switch says where its block lands ────────────────────────────────────
-// Eight switches used to be eight words. You flipped them and found out what you had
-// done the next time you locked the machine — which is the worst moment to discover
-// that the calendar is in the corner you wanted the notifications in.
-//
-// There was a drawn schematic of the lock here for a while. It came out: a picture of
-// rectangles is a lot of machinery to answer a question that fits in two words, and
-// the two words sit in the row you are already reading. Every switch carries its
-// POSITION ("bottom centre", "right edge", "across the bottom"), taken from where
-// modules/lock/LockScreen.qml actually anchors that block.
+// ── Each block says where it lands ────────────────────────────────────────────
+// There is no drawn schematic of the lock: a picture of rectangles is a second implementation that
+// starts lying at the first change. Each chip carries its POSITION ("bottom centre", "right edge",
+// "across the bottom") as its tip, taken from where modules/lock/LockScreen.qml actually anchors that block.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
@@ -75,16 +69,16 @@ Item {
     SettingsPage {
         anchors.fill: parent
 
-        bento:     true
+        grouped:   true
         glyph:     "󰌾"
         title:     Translation.tr("Lock")
         titleTail: "screen"
         accent:    Colors.of(QsWindow.window).primary
         subtitle:  (Config.lockIdleEnabled
-                        ? "Locks itself after " + Config.lockIdleMinutes + " minutes idle"
-                        : Lock.sleepArmed ? "Locks before sleep, or when you ask"
-                        : "Locks only when you ask it to")
-                   + "  ·  " + root.shownCount + " of 8 blocks shown"
+                        ? Translation.tr("Locks itself after %1 minutes idle").arg(Config.lockIdleMinutes)
+                        : Lock.sleepArmed ? Translation.tr("Locks before sleep, or when you ask")
+                        : Translation.tr("Locks only when you ask it to"))
+                   + "  ·  " + Translation.tr("%1 of 8 blocks shown").arg(root.shownCount)
 
         // Hold, not click: a single press that locks the machine is one stray click
         // away from annoying. In the header because it is the page's one action, and a
@@ -95,21 +89,22 @@ Item {
             busyLabel: Translation.tr("Locking…")
             glyph:     "󰌾"
             accent:    Colors.of(QsWindow.window).warning
+            // The warning tint and the sweep say what it is; an outline on top would be a second voice.
+            borderWidth: 0
             enabled:   Lock.pamState !== "missing" && !Lock.locked
             onConfirmed: Lock.lock()
         }
 
         // ══ What it shows ══════════════════════════════════════════════════════
-        // A set of yes/no's, so chips: eight switch rows with a position each was the
-        // tallest card on the page. Where each block sits on the lock screen is its
-        // chip's tip (taken from where LockScreen.qml anchors it).
+        // A set of yes/no's, so chips in one segment: eight switch rows with a position each was the
+        // tallest group on the page. Where each block sits on the lock screen is its chip's tip
+        // (taken from where LockScreen.qml anchors it).
         Section {
-            span:     3
-            glyph:    "󰨝"
+            grouped:  true
+            symbol:   "visibility"
             title:    Translation.tr("What it shows")
-            subtitle: ""
+            subtitle: Translation.tr("%1 of 8 blocks on").arg(root.shownCount)
             help:     Translation.tr("Everything on the lock screen is readable by whoever is standing at the machine.")
-            accent:   Colors.of(QsWindow.window).primary
 
             Flow {
                 Layout.fillWidth: true
@@ -122,19 +117,10 @@ Item {
                     active: Config.lockShowMedia
                     onToggled: Config.lockShowMedia = !Config.lockShowMedia
                 }
-                // A sub-option of the one before it, so it only exists while that is on.
-                ToggleChip {
-                    visible: Config.lockShowMedia
-                    symbol: "lyrics"
-                    label:  Translation.tr("Lyrics on YouTube")
-                    hint: Translation.tr("Show lyrics under Now playing for YouTube videos too, not only music players.")
-                    active: Config.lockLyricsOnYouTube
-                    onToggled: Config.lockLyricsOnYouTube = !Config.lockLyricsOnYouTube
-                }
                 ToggleChip {
                     symbol: "notifications"
                     label:  Translation.tr("Notifications")
-                    hint: Translation.tr("Right edge — with their full text, to anyone at the screen.")
+                    hint: Translation.tr("Right edge, with their full text, to anyone at the screen.")
                     active: Config.lockShowNotifications
                     onToggled: Config.lockShowNotifications = !Config.lockShowNotifications
                 }
@@ -162,7 +148,7 @@ Item {
                 ToggleChip {
                     symbol: "power_settings_new"
                     label:  Translation.tr("Session actions")
-                    hint: Translation.tr("Left edge: suspend, restart, log out — log out discards unsaved work.")
+                    hint: Translation.tr("Left edge: suspend, restart, log out. Log out discards unsaved work.")
                     active: Config.lockShowPower
                     onToggled: Config.lockShowPower = !Config.lockShowPower
                 }
@@ -181,6 +167,24 @@ Item {
                 }
             }
 
+            // Not a chip: it is not a block of its own but a setting of Now playing, so it is a row
+            // that exists only while that block is on, and the chips stay "N of 8".
+            SettingRow {
+                visible: Config.lockShowMedia
+                rowTap:  true
+                label:   Translation.tr("Lyrics on YouTube")
+                detail:  Config.lockLyricsOnYouTube ? Translation.tr("Shown for videos as well as music")
+                                                    : Translation.tr("Music players only")
+                help:    Translation.tr("Show lyrics under Now playing for YouTube videos too, not only music players.")
+                onTapped: Config.lockLyricsOnYouTube = !Config.lockLyricsOnYouTube
+
+                Toggle {
+                    accent: Colors.of(QsWindow.window).primary
+                    checked: Config.lockLyricsOnYouTube
+                    onToggled: Config.lockLyricsOnYouTube = !Config.lockLyricsOnYouTube
+                }
+            }
+
             // Only when there is something to warn about. Notifications show what they
             // SAY, not just how many; logging out discards unsaved work in every window
             // behind the lock.
@@ -189,35 +193,135 @@ Item {
                 Layout.preferredWidth: 0
                 visible: Config.lockShowNotifications || Config.lockShowPower
                 text: Config.lockShowNotifications && Config.lockShowPower
-                        ? "Notifications show their full text, and log out discards unsaved work."
+                        ? Translation.tr("Notifications show their full text, and log out discards unsaved work.")
                     : Config.lockShowNotifications
-                        ? "Notifications show their full text to anyone at the screen."
-                        : "Session actions include log out, which discards unsaved work."
+                        ? Translation.tr("Notifications show their full text to anyone at the screen.")
+                        : Translation.tr("Session actions include log out, which discards unsaved work.")
                 variant:  "caption"
                 color:    Colors.of(QsWindow.window).warning
                 wrapMode: Text.WordWrap
             }
         }
 
-        // ══ Background ════════════════════════════════════════════════════════
-        // No explanatory paragraph any more: the mock above repaints as you pick, which
-        // is what those three sentences were trying to describe.
+        // ══ Authentication ════════════════════════════════════════════════════
+        // The group that can lock you out of your own machine, so its badge wears the warning colour:
+        // the field and its verdict, then the way back in.
         Section {
-            span:     1
-            glyph:    "󰥶"
+            grouped:  true
+            symbol:   "key"
+            title:    Translation.tr("Authentication")
+            subtitle: Translation.tr("PAM: %1").arg(Config.lockPamConfig)
+            help:     Translation.tr("Which PAM stack the password box asks. \"login\" exists everywhere. If the lock ever refuses a correct password: Ctrl+Alt+F2, log in, and run loginctl unlock-session.")
+            accent:   Colors.of(QsWindow.window).warning
+
+            // A text field rather than a list of /etc/pam.d: fifty entries, a
+            // handful of login stacks — a long list of wrong answers with the
+            // right one buried.
+            SettingRow {
+                label:  Translation.tr("PAM service")
+                detail: Translation.tr("Press Enter to set it")
+
+                RowLayout {
+                    Layout.fillHeight: false
+                    spacing: Tokens.spacingSm
+
+                    InputField {
+                        cornerRadius: implicitHeight / 2
+                        id: pamField
+                        Layout.preferredWidth: Tokens.fieldHeight * 6
+                        placeholder: "login"
+                        seed: Config.lockPamConfig
+                        invalid: Lock.pamState === "missing"
+                        // Enter only, never per keystroke or on focus loss: typing
+                        // "login" passes through "l", "lo"… and each would point the
+                        // lock at a service that doesn't exist.
+                        onAccepted: function (v) {
+                            const t = v.trim()
+                            if (t !== "") Config.lockPamConfig = t
+                        }
+                    }
+                    PanelButton {
+                        capsule: true
+                        variant: "normal"
+                        label:   Translation.tr("Set")
+                        enabled: pamField.text.trim() !== "" && pamField.text.trim() !== Config.lockPamConfig
+                        onActivated: Config.lockPamConfig = pamField.text.trim()
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+                spacing: Tokens.spacingSm
+
+                MaterialIcon {
+                    glyph: Lock.pamState === "ok"      ? "󰄬"
+                        : Lock.pamState === "missing" ? "󰀦"
+                        :                               "󰇉"
+                    variant: "label"
+                    color: Lock.pamState === "ok"      ? Colors.of(QsWindow.window).success
+                         : Lock.pamState === "missing" ? Colors.of(QsWindow.window).danger
+                         :                               Colors.of(QsWindow.window).fgDim
+                }
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 0
+                    text: Lock.pamState === "ok"
+                            ? Translation.tr("/etc/pam.d/%1 exists.").arg(Config.lockPamConfig)
+                        : Lock.pamState === "missing"
+                            ? Translation.tr("/etc/pam.d/%1 doesn't exist, so the lock couldn't authenticate.").arg(Config.lockPamConfig)
+                            : Translation.tr("Checking…")
+                    variant: "caption"
+                    color: Lock.pamState === "missing" ? Colors.of(QsWindow.window).danger : Colors.of(QsWindow.window).fgMuted
+                    wrapMode: Text.WordWrap
+                }
+            }
+
+            // Only when something went wrong.
+            StyledText {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 0
+                visible: Lock.lastError !== ""
+                text: Translation.tr("Last problem: %1").arg(Lock.lastError)
+                variant: "caption"
+                color: Colors.of(QsWindow.window).danger
+                wrapMode: Text.WordWrap
+            }
+
+            // ext-session-lock-v1 keeps the session locked if the locker dies
+            // without unlocking. A broken lock isn't "no lockscreen", it's "locked
+            // out" — and that's the worst moment to be searching for these lines.
+            StyledText {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 0
+                text: Translation.tr("Locked out? Ctrl+Alt+F2, log in, run  loginctl unlock-session")
+                variant: "caption"
+                font.family: Tokens.fontMono
+                emphasis: "dim"
+                wrapMode: Text.WordWrap
+            }
+        }
+
+        // ══ Background ════════════════════════════════════════════════════════
+        Section {
+            grouped:  true
+            symbol:   "wallpaper"
             title:    Translation.tr("Background")
-            accent:   Colors.of(QsWindow.window).primary
-            help:     Translation.tr("What sits behind the clock. A running Wallpaper Engine scene shows as its blurred preview — the renderer publishes no still of the live frame.")
+            subtitle: Config.lockBackdrop === "image" ? Translation.tr("Wallpaper")
+                    : Config.lockBackdrop === "none"  ? Translation.tr("Colour")
+                    :                                   Translation.tr("Desktop")
+            help:     Translation.tr("What sits behind the clock. A running Wallpaper Engine scene shows as its blurred preview: the renderer publishes no still of the live frame.")
 
             TabStrip {
                 Layout.fillWidth: true
-                accent: Colors.of(QsWindow.window).primary
+                connected: true
                 // Every name here has an icons.js fallback, so a machine without the
                 // Material Symbols font gets a glyph rather than a "?".
                 model: [
-                    { value: "auto",  label: "Desktop",   icon: "monitor" },
-                    { value: "image", label: "Wallpaper", icon: "wallpaper" },
-                    { value: "none",  label: "Colour",    icon: "palette" }
+                    { value: "auto",  label: Translation.tr("Desktop"),   icon: "monitor" },
+                    { value: "image", label: Translation.tr("Wallpaper"), icon: "wallpaper" },
+                    { value: "none",  label: Translation.tr("Colour"),    icon: "palette" }
                 ]
                 current: Config.lockBackdrop
                 onPicked: function (v) { Config.lockBackdrop = v }
@@ -225,35 +329,41 @@ Item {
 
             SettingRow {
                 visible: Config.lockBackdrop === "auto"
+                rowTap: true
                 label:  Translation.tr("Animate the scene")
-                detail: Config.lockSceneAnimate ? "Its preview loops" : "Holds one frame"
-                help:   Translation.tr("Off holds one frame of the scene's preview — the only real cure for its short loop.")
+                detail: Config.lockSceneAnimate ? Translation.tr("Its preview loops") : Translation.tr("Holds one frame")
+                help:   Translation.tr("Off holds one frame of the scene's preview, the only real cure for its short loop.")
+                onTapped: Config.lockSceneAnimate = !Config.lockSceneAnimate
+
                 Toggle {
                     accent: Colors.of(QsWindow.window).primary
                     checked: Config.lockSceneAnimate
                     onToggled: Config.lockSceneAnimate = !Config.lockSceneAnimate
                 }
             }
-
         }
 
         // ══ When it locks ═════════════════════════════════════════════════════
         Section {
-            span:     1
-            glyph:    "󰥿"
+            grouped:  true
+            symbol:   "lock_clock"
             title:    Translation.tr("Automatic locking")
-            accent:   Colors.of(QsWindow.window).primary
             subtitle: Config.lockIdleEnabled
-                      ? "After " + Config.lockIdleMinutes + " minutes with no input"
-                      : Lock.sleepArmed ? "Before sleep, and when you ask"
-                      : "Only when you ask it to"
+                      ? Translation.tr("After %1 minutes with no input").arg(Config.lockIdleMinutes)
+                      : Lock.sleepArmed ? Translation.tr("Before sleep, and when you ask")
+                      : Translation.tr("Only when you ask it to")
 
             // Disabled with the reason when systemd-inhibit or gdbus is missing (Lock.sleepBlocker).
             SettingRow {
                 enabled: Lock.sleepBlocker === ""
+                opacity: enabled ? 1 : 0.4
+                rowTap:  true
                 label:   Translation.tr("Lock before sleep")
-                detail:  Lock.sleepBlocker
+                detail:  Lock.sleepBlocker !== "" ? Lock.sleepBlocker
+                         : Config.lockOnSleep ? Translation.tr("Wakes to the lock screen") : Translation.tr("Wakes to your session")
                 help:    Translation.tr("Locks as the machine suspends or hibernates, so it wakes to the lock screen.")
+                onTapped: Config.lockOnSleep = !Config.lockOnSleep
+
                 Toggle {
                     accent: Colors.of(QsWindow.window).primary
                     checked: Config.lockOnSleep
@@ -262,8 +372,12 @@ Item {
             }
 
             SettingRow {
+                rowTap: true
                 label:  Translation.tr("Lock when idle")
+                detail: Config.lockIdleEnabled ? Translation.tr("After %1 minutes").arg(Config.lockIdleMinutes) : Translation.tr("Never locks by itself")
                 help:   Translation.tr("Leave this off until you've tested unlocking. The bar's idle pill and gamemode hold it off.")
+                onTapped: Config.lockIdleEnabled = !Config.lockIdleEnabled
+
                 Toggle {
                     accent: Colors.of(QsWindow.window).primary
                     checked: Config.lockIdleEnabled
@@ -274,6 +388,7 @@ Item {
             // SliderRow: whole minutes are a number you land on.
             SliderRow {
                 enabled: Config.lockIdleEnabled
+                opacity: enabled ? 1 : 0.4
                 label:   Translation.tr("After")
                 from:    1
                 to:      120
@@ -287,17 +402,18 @@ Item {
 
         // ══ Profile picture ═══════════════════════════════════════════════════
         Section {
-            span:     1
-            glyph:    "󰭕"
+            grouped:  true
+            symbol:   "account_circle"
             title:    Translation.tr("Profile picture")
-            accent:   Colors.of(QsWindow.window).primary
-            help:     Translation.tr("Lock screen only — nothing is written to ~/.face.")
+            subtitle: Config.lockAvatar === "" ? Translation.tr("Default") : Translation.tr("Your own")
+            help:     Translation.tr("Lock screen only. Nothing is written to ~/.face.")
 
             RowLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
                 spacing: Tokens.spacingLg
 
+                // The picture sits on a hairline canvas: the one place an outline is allowed.
                 Item {
                     Layout.preferredWidth:  root.avatarSize
                     Layout.preferredHeight: root.avatarSize
@@ -370,9 +486,9 @@ Item {
                     StyledText {
                         Layout.fillWidth: true
                         text: Config.lockAvatar === ""
-                                ? "Using ~/.face or AccountsService — your initial if neither exists"
+                                ? Translation.tr("Using ~/.face or AccountsService, or your initial if neither exists")
                             : Lock.avatarState === "missing"
-                                ? "That file is gone — the lock will show your initial"
+                                ? Translation.tr("That file is gone. The lock shows your initial instead.")
                                 : Config.lockAvatar
                         variant: "caption"
                         color: Lock.avatarState === "missing" ? Colors.of(QsWindow.window).danger : Colors.of(QsWindow.window).fgMuted
@@ -397,127 +513,6 @@ Item {
                             enabled: Config.lockAvatar !== ""
                             onActivated: Config.lockAvatar = ""
                         }
-                    }
-                }
-            }
-        }
-
-        // ══ Authentication ════════════════════════════════════════════════════
-        // Beside Profile picture: the field and its verdict, then the way back in.
-        // Side by side once the card is wide enough (fullscreen), stacked otherwise.
-        Section {
-            span:     1
-            glyph:    "󰯅"
-            title:    Translation.tr("Authentication")
-            subtitle: "PAM: " + Config.lockPamConfig
-            help:     "Which PAM stack the password box asks. \"login\" exists everywhere. If the lock ever refuses a correct password: Ctrl+Alt+F2, log in, and run loginctl unlock-session."
-            // The card that can lock you out of your own machine.
-            accent:     Colors.of(QsWindow.window).warning
-            cardBorder: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).warning, 0.45)
-
-            GridLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-                columns: width >= 640 ? 2 : 1
-                columnSpacing: Tokens.spacingXxl
-                rowSpacing: Tokens.spacingSm
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 0
-                    Layout.fillHeight: false
-                    spacing: Tokens.spacingSm
-
-                    // A text field rather than a list of /etc/pam.d: fifty entries, a
-                    // handful of login stacks — a long list of wrong answers with the
-                    // right one buried.
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: false
-                        spacing: Tokens.spacingSm
-
-                        InputField {
-                            cornerRadius: implicitHeight / 2
-                            id: pamField
-                            Layout.fillWidth: true
-                            placeholder: "login"
-                            seed: Config.lockPamConfig
-                            invalid: Lock.pamState === "missing"
-                            // Enter only, never per keystroke or on focus loss: typing
-                            // "login" passes through "l", "lo"… and each would point the
-                            // lock at a service that doesn't exist.
-                            onAccepted: function (v) {
-                                const t = v.trim()
-                                if (t !== "") Config.lockPamConfig = t
-                            }
-                        }
-                        PanelButton {
-                            capsule: true
-                            variant: "normal"
-                            label:   Translation.tr("Set")
-                            enabled: pamField.text.trim() !== "" && pamField.text.trim() !== Config.lockPamConfig
-                            onActivated: Config.lockPamConfig = pamField.text.trim()
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: false
-                        spacing: Tokens.spacingSm
-
-                        MaterialIcon {
-                            glyph: Lock.pamState === "ok"      ? "󰄬"
-                                : Lock.pamState === "missing" ? "󰀦"
-                                :                               "󰇉"
-                            variant: "label"
-                            color: Lock.pamState === "ok"      ? Colors.of(QsWindow.window).success
-                                 : Lock.pamState === "missing" ? Colors.of(QsWindow.window).danger
-                                 :                               Colors.of(QsWindow.window).fgDim
-                        }
-                        StyledText {
-                            Layout.fillWidth: true
-                            Layout.preferredWidth: 0
-                            text: Lock.pamState === "ok"
-                                    ? "/etc/pam.d/" + Config.lockPamConfig + " exists."
-                                : Lock.pamState === "missing"
-                                    ? "/etc/pam.d/" + Config.lockPamConfig + " doesn't exist — the lock couldn't authenticate."
-                                    : "Checking…"
-                            variant: "caption"
-                            color: Lock.pamState === "missing" ? Colors.of(QsWindow.window).danger : Colors.of(QsWindow.window).fgMuted
-                            wrapMode: Text.WordWrap
-                        }
-                    }
-
-                    // Only when something went wrong. It used to be its own card.
-                    StyledText {
-                        Layout.fillWidth: true
-                        Layout.preferredWidth: 0
-                        visible: Lock.lastError !== ""
-                        text: "Last problem: " + Lock.lastError
-                        variant: "caption"
-                        color: Colors.of(QsWindow.window).danger
-                        wrapMode: Text.WordWrap
-                    }
-                }
-
-                // ext-session-lock-v1 keeps the session locked if the locker dies
-                // without unlocking. A broken lock isn't "no lockscreen", it's "locked
-                // out" — and that's the worst moment to be searching for these lines.
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 0
-                    Layout.fillHeight: false
-                    Layout.alignment: Qt.AlignTop
-                    spacing: Tokens.spacingXs
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        Layout.preferredWidth: 0
-                        text: Translation.tr("Locked out? Ctrl+Alt+F2, log in, run  loginctl unlock-session")
-                        variant: "caption"
-                        font.family: Tokens.fontMono
-                        emphasis: "dim"
-                        wrapMode: Text.WordWrap
                     }
                 }
             }

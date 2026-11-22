@@ -5,8 +5,7 @@ import "../../components"
 import "../../services"
 
 // ── OverviewModifiers ─────────────────────────────────────────────────────────
-// Shift and Ctrl on screen, top right of the workspaces' card (in the watermark's row; it was the
-// bottom left until 2026-10-24, when the user gave that strip to the left face's pages): two chips that are lit while
+// Shift and Ctrl on screen, in the footer of the workspaces' card: two chips that are lit while
 // the key is on, and ONE "?" after them that explains both in a card, opened by a click
 // (OverviewHelpDot) — the chips say nothing themselves, so a lit one is not a sentence on the board. Both are TOGGLES
 // (a tap of the key, or a click here — Overview owns the state, this only draws it and says
@@ -19,50 +18,40 @@ import "../../services"
 ChipTray {
     id: root
 
+    // A plate on the card, not a pill with a hairline.
+    border.width: 0
+    color: Colors.of(QsWindow.window).surfaceHigh
+
     property bool shiftOn: false
     property bool ctrlOn: false
     signal shiftClicked()
     signal ctrlClicked()
 
-    // Over the grid it sits beside, so a help card opens over the cells instead of under them.
+    // Over the grid, so the help card opens over the cells.
     z: 10
 
     property alias helpOpen: help.open
 
-    // The overview's extra panels, folded away until asked for (Config.overviewMore).
-    ChipButton {
-        symbol: "dashboard"
-        label: Config.overviewMore ? Translation.tr("Less") : Translation.tr("More")
-        on: Config.overviewMore
-        onActivated: Config.overviewMore = !Config.overviewMore
-        HoverTip {
-            below: true
-            text: Config.overviewMore
-                ? Translation.tr("Hide the extra panels: replay clips, voice chat, performance, key display, Ask / News and notifications. (Ctrl+M)")
-                : Translation.tr("Show the extra panels: replay clips, voice chat, performance, key display, Ask / News and notifications. (Ctrl+M)")
-        }
-    }
     // Named for what they DO; the key is in the "?" card (and still works held down).
     ChipButton {
         symbol: "arrow_upward"
         label: Translation.tr("All spaces")
         on: root.shiftOn
         onActivated: root.shiftClicked()
-        HoverTip { below: true; text: Translation.tr("Show every workspace, and send a window to one with a click. (Shift)") }
+        HoverTip { text: Translation.tr("Show every workspace, and send a window to one with a click. (Shift)") }
     }
     ChipButton {
         symbol: "checklist"
         label: Translation.tr("Select")
         on: root.ctrlOn
         onActivated: root.ctrlClicked()
-        HoverTip { below: true; text: Translation.tr("Click windows to select several, drag one onto another to swap their workspaces. (Ctrl)") }
+        HoverTip { text: Translation.tr("Click windows to select several, drag one onto another to swap their workspaces. (Ctrl)") }
     }
     // One "?" for both (the user, 2026-10-24), opened by a click.
     OverviewHelpDot {
         id: help
         anchors.verticalCenter: parent.verticalCenter
-        // Top right of the card: the card opens downward, toward the cells.
-        below: true
+        // Bottom left of the card: the card opens upward, over the cells.
         title: Translation.tr("Two keys, two modes")
         sections: [
             { title: "Shift — show all workspaces", lines: [

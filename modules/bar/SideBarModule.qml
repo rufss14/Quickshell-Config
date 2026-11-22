@@ -29,7 +29,7 @@ Item {
 
     readonly property bool ownsPanel: UiState.sidePanelScreen
         ? UiState.sidePanelScreen === root.screen : root.screen === Quickshell.screens[0]
-    function sideOpen(key) { return UiState.sidePanel === key && root.ownsPanel }
+    function sideOpen(key) { return UiState.sideShows(key, root.screen) }
     function toggleSide(key) { UiState.toggleSidePanel(key, root.moduleId, root.screen) }
     function toggleBar(key) { UiState.activeScreen = root.screen; UiState.togglePanel(key) }
 

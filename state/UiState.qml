@@ -5,6 +5,7 @@ import Quickshell.Hyprland
 import QtQuick
 import "../config"
 import "../services"
+import "../config/islands.js" as Islands
 
 // ── UiState ───────────────────────────────────────────────────────────────────
 // The single answer to "what is the shell currently showing".
@@ -41,14 +42,53 @@ Singleton {
     property string rightKey:  ""
     property string centerKey: ""
 
+    // ── …or a page on an island's rail ────────────────────────────────────────
+    // With the islands on (Config.island), a panel that is on a rail (config/islands.js) opens as
+    // that island's page instead of in a column: `_rail` names the island, "" for a panel that
+    // still opens alone in its column (and for every panel while the islands are off or arranging).
+    readonly property bool islandsOn: Config.island && !root.arrange
+    // Where every page is (config/islands.js layoutOf): each island's rail in order, the panels that open alone
+    // per column, the own pages taken off. The board on Settings › Bar & islands › Islands edits it.
+    readonly property var islandLayout: Islands.layoutOf(Config.islandRails, Config.panelPlacement, Config.islandPages)
+    // An island's option (config/islands.js OPTIONS): its override (Config.islandOverrides) or the shared one.
+    readonly property var islandShared: ({
+        openBy: Config.islandOpenBy, delay: Config.islandDelay, linger: Config.islandLinger,
+        handle: Config.islandHandle, scale: Config.islandScale, effects: Config.islandEffects
+    })
+    function islandOpt(side, name) { return Islands.optionOf(side, name, root.islandShared, Config.islandOverrides) }
+    // The effects switch of the island opened last, for the pages (they don't know which island holds them).
+    // With two islands open that differ on it, a page on the older one follows the newer one's switch.
+    readonly property bool islandEffectsOn: root.islandOpt(root.islandLast, "effects")
+    // The page a panel's button opens on an island ("" = it opens alone in its column): the panel itself, or
+    // the page that does its job (config/islands.js ALIAS: Stats is Performance, To-do / Clipboard / Idle are
+    // Desk; Now Playing is the Media page, which has the same id). `_rail` names that page's island.
+    function _railPage(name) { return root.islandsOn ? Islands.pageFor(name, root.islandLayout) : "" }
+    function _rail(name) {
+        const page = root._railPage(name)
+        return page === "" ? "" : Islands.railOf(page, root.islandLayout)
+    }
+    // Opened from a button: on that button's screen, on that page, and it stays (pinned) until it is
+    // closed, since the pointer is on the bar and not on the island.
+    function _showIsland(side, page, screenName) {
+        root.openIsland(side, { screen: screenName ?? (root.activeScreen?.name ?? ""), page: page, pinned: true })
+    }
+
     // Is this panel open, wherever it's configured to be.
     function isOpen(name) {
+        const rail = root._rail(name)
+        if (rail !== "") return root.islandIsOpen(rail) && root.islandWanted(rail) === root._railPage(name)
         return root.leftKey === name || root.rightKey === name || root.centerKey === name
     }
 
     // Opens (or, if already open, closes) a panel in whichever column
     // Config.panelSide says it belongs to.
     function togglePanel(name) {
+        const rail = root._rail(name)
+        if (rail !== "") {
+            if (root.isOpen(name)) root.closeIsland(rail)
+            else root._showIsland(rail, root._railPage(name))
+            return
+        }
         const side = Config.panelSide(name)
         const key  = side === "right" ? "rightKey" : side === "center" ? "centerKey" : "leftKey"
         root[key] = (root[key] === name) ? "" : name
@@ -57,9 +97,40 @@ Singleton {
     // Opens a panel, never closes it — for something that needs the panel on screen
     // (a Bluetooth pairing prompt), where a toggle would shut an already-open one.
     function openPanel(name) {
+        const rail = root._rail(name)
+        if (rail !== "") { root._showIsland(rail, root._railPage(name)); return }
         const side = Config.panelSide(name)
         const key  = side === "right" ? "rightKey" : side === "center" ? "centerKey" : "leftKey"
         root[key] = name
+    }
+
+    // ── A setting that lives outside the settings app ─────────────────────────
+    // What a settings search result for a panel or island setting opens (SettingsIndex
+    // `elsewhere`): `o` is { page, part } for an island page (on a part, pinned, on the
+    // focused screen; off a rail, its panel the usual way), { panel } for a bar panel itself
+    // in its column (Now Playing: the island's Media page is the player, the settings are
+    // on the panel), or { overview: true }. The settings window stays open beside it; the
+    // docked settings card (Config.settingsPanel) closes, since it shares the frame the
+    // panel or island opens from.
+    function openElsewhere(o) {
+        if (!o) return
+        if (o.overview) root.overviewOpen = true
+        else if (o.page) {
+            const rail = root.islandsOn ? Islands.railOf(o.page, root.islandLayout) : ""
+            if (rail !== "") root.openIsland(rail, { screen: "", page: o.page, part: o.part ?? "", pinned: true })
+            else root.openPanel(o.page)
+        } else if (o.panel) {
+            const side = Config.panelSide(o.panel)
+            root[side === "right" ? "rightKey" : side === "center" ? "centerKey" : "leftKey"] = o.panel
+        } else return
+        if (Config.settingsPanel) root.settingsWindowOpen = false
+    }
+    // Where openElsewhere(o) would open it: "island", "panel" or "overview" — how a result
+    // says where the setting lives.
+    function elsewhereKind(o) {
+        if (!o) return "panel"
+        if (o.overview) return "overview"
+        return o.page && root.islandsOn && Islands.railOf(o.page, root.islandLayout) !== "" ? "island" : "panel"
     }
 
     // Closes one named panel, wherever it currently is — for a panel's own "close
@@ -67,6 +138,7 @@ Singleton {
     // a panel can open from the bar or the sidebar (modules.js), so the sidebar's
     // slot counts too.
     function closePanel(name) {
+        if (root._rail(name) !== "" && root.isOpen(name)) root.closeIsland(root._rail(name))
         if (root.sidePanel === name) root.sidePanel = ""
         if (root.leftKey   === name) root.leftKey   = ""
         if (root.rightKey  === name) root.rightKey  = ""
@@ -109,6 +181,254 @@ Singleton {
     // and a cheatsheet restored across a reload would be a cheatsheet in the way.
     property bool cheatsheetOpen: false
     function toggleCheatsheet() { root.cheatsheetOpen = !root.cheatsheetOpen }
+
+    // ── Hot corner ────────────────────────────────────────────────────────────
+    // The corner panel (modules/panels/HotCorner). Transient like the cheatsheet: a panel
+    // restored across a reload would be one in the way. `hotCornerByKey` is true when a key
+    // opened it (no pointer in the corner), which gives the pointer a moment to arrive.
+    property bool hotCornerOpen: false
+    property bool hotCornerByKey: false
+    // The screen whose corner was touched; "" = the focused one (a key carries no screen).
+    property string hotCornerScreen: ""
+    // Pinned: it stays until closed, whatever the pointer does.
+    property bool hotCornerPinned: false
+
+    property var _hotCornerIpc: IpcHandler {
+        target: "hotcorner"
+
+        function toggle(): void {
+            root.hotCornerByKey = true
+            root.hotCornerScreen = ""
+            root.hotCornerOpen = !root.hotCornerOpen
+        }
+        function open(): void {
+            root.hotCornerByKey = true
+            root.hotCornerScreen = ""
+            root.hotCornerOpen = true
+        }
+        function close(): void { root.hotCornerOpen = false }
+    }
+
+    // ── Islands ───────────────────────────────────────────────────────────────
+    // Six islands (config/islands.js SIDES, modules/island/IslandDock): three hang from the bar (left, center,
+    // right), three stand on the screen's bottom edge (bottomLeft, bottomCenter, bottomRight), where the
+    // sidebar's buttons open theirs. Each has its own state in `islandSet`: { id: { pinned, screen, page, part } },
+    // and an id in it is open. Transient.
+    //   screen  the screen it opened on ("" = the focused one, for a key)
+    //   pinned  it stays until closed, whatever the pointer does
+    //   page    the page this opening lands on instead of the remembered one (the live handle's song opens Media,
+    //           a button opens its own page); "" or a page that island does not have = the remembered one
+    //   part    a part WITHIN that page (the wallpaper page's source, the colour page's tab), read once by
+    //           the page as it is built; "" for wherever the page starts
+    // Who may be open together (the user's rule, 2026-11-15): in a row, the two sides may be open at once, the
+    // middle only alone (it would cover both). Two sides whose cards would meet (a narrow screen) are one or
+    // the other too (`islandSpans`, reported by the docks). The rows are independent: a card is fitted into
+    // its half of the screen while the other row has pages (IslandDock.fitScale), so the two never meet.
+    property var    islandSet: ({})
+    // The island opened last: whose effects switch the pages follow, and where a Dashboard tile hands over from.
+    property string islandLast: "center"
+    readonly property bool islandOpen: Object.keys(root.islandSet).length > 0
+    // Anything hanging from the bar is open: an island, or a panel in one of the plain columns. The
+    // notification deck hangs from the same edge and would collide with it (Notifications.glance).
+    readonly property bool barSurfaceOpen: root.islandOpen || root.leftKey !== "" || root.rightKey !== ""
+                                           || root.centerKey !== "" || root.launcherOpen || root.updateOpen
+
+    function islandIsOpen(id) { return root.islandSet[id] !== undefined }
+    function islandIsPinned(id) { return root.islandSet[id]?.pinned === true }
+    function islandScreenOf(id) { return root.islandSet[id]?.screen ?? "" }
+    function islandPageOf(id) { return root.islandSet[id]?.page ?? "" }
+    function islandPartOf(id) { return root.islandSet[id]?.part ?? "" }
+    // The island showing a page (its rail's), for a page that needs its own island's screen or part.
+    function islandOfPage(page) { return Islands.railOf(page, root.islandLayout) }
+    function islandPartFor(page) { return root.islandPartOf(root.islandOfPage(page)) }
+    function islandScreenFor(page) { return root.islandScreenOf(root.islandOfPage(page)) }
+
+    // Where each island's card stands along its edge when open, per screen: { "id@screen": { x0, x1 } }. Docks
+    // report it as their card's width becomes known; only the side-by-side check reads it, never a binding.
+    property var _islandSpans: ({})
+    function islandSpan(id, screenName, x0, x1) {
+        const k = id + "@" + screenName
+        const old = root._islandSpans[k]
+        if (old && old.x0 === x0 && old.x1 === x1) return
+        root._islandSpans[k] = { x0: x0, x1: x1 }
+    }
+    function _spanOf(id, screenName) {
+        const own = root._islandSpans[id + "@" + screenName]
+        if (own) return own
+        for (const k in root._islandSpans) if (k.startsWith(id + "@")) return root._islandSpans[k]
+        return null
+    }
+    // Would islands `a` and `b` cover each other, both open (a on `screenA`, b where it is)?
+    function _islandsClash(a, b, screenA) {
+        if (a === b || Islands.rowOf(a) !== Islands.rowOf(b)) return false
+        const sa = screenA ?? "", sb = root.islandScreenOf(b)
+        if (sa !== "" && sb !== "" && sa !== sb) return false
+        if (Islands.hOf(a) === "center" || Islands.hOf(b) === "center") return true
+        const scr = sa !== "" ? sa : sb
+        const pa = root._spanOf(a, scr), pb = root._spanOf(b, scr)
+        return !!pa && !!pb && pa.x0 < pb.x1 && pb.x0 < pa.x1
+    }
+    // The bar's plain columns an island of the top row covers: the middle covers all three, a side its own
+    // column and the middle one (the launcher, an update, a placed panel). The bottom row covers none.
+    function _islandColumns(id) {
+        if (Islands.rowOf(id) !== "top") return []
+        const h = Islands.hOf(id)
+        return h === "center" ? ["left", "right", "center"] : [h, "center"]
+    }
+    function _columnOpen(col) {
+        return col === "left" ? root.leftKey !== "" : col === "right" ? root.rightKey !== ""
+             : root.centerKey !== "" || root.launcherOpen || root.updateOpen
+    }
+    function _closeColumn(col) {
+        if (col === "left") { if (root.leftKey !== "") root.leftKey = ""; return }
+        if (col === "right") { if (root.rightKey !== "") root.rightKey = ""; return }
+        if (root.centerKey !== "") root.centerKey = ""
+        if (root.launcherOpen) root.launcherOpen = false
+        // Only the view goes: the run is the Updates service's and the update pill shows it again.
+        if (root.updateOpen) root.updateOpen = false
+    }
+    // Opening this island by the pointer would close something kept on purpose: a pinned island it covers, or
+    // a plain column. A rest on its handle on the way past must not do that; a click still does.
+    function islandBlocked(id, screenName) {
+        for (const k in root.islandSet)
+            if (root.islandSet[k].pinned && root._islandsClash(id, k, screenName)) return true
+        return root._islandColumns(id).some(c => root._columnOpen(c))
+    }
+
+    // Opens island `id` (`o`: { screen, page, pinned, part }), closing what it would cover.
+    function openIsland(id, o) {
+        if (!Islands.SIDES.includes(id)) return
+        const opt = o ?? {}
+        const scr = opt.screen ?? ""
+        const old = root.islandSet[id]
+        const next = {}
+        for (const k in root.islandSet)
+            if (k !== id && !root._islandsClash(id, k, scr)) next[k] = root.islandSet[k]
+        next[id] = {
+            pinned: opt.pinned === true || (old?.pinned === true && (old?.screen ?? "") === scr),
+            screen: scr,
+            page: opt.page ?? "",
+            part: opt.part ?? ""
+        }
+        root.islandLast = id
+        root.islandSet = next
+        for (const c of root._islandColumns(id)) root._closeColumn(c)
+    }
+    function closeIsland(id) {
+        if (root.islandSet[id] === undefined) return
+        const next = Object.assign({}, root.islandSet)
+        delete next[id]
+        root.islandSet = next
+    }
+    function closeIslands() { if (root.islandOpen) root.islandSet = ({}) }
+    function _closeIslandsWhere(test) {
+        const next = {}
+        let changed = false
+        for (const k in root.islandSet) { if (test(k)) changed = true; else next[k] = root.islandSet[k] }
+        if (changed) root.islandSet = next
+    }
+    function setIslandPinned(id, pinned) {
+        const cur = root.islandSet[id]
+        if (!cur || cur.pinned === pinned) return
+        const next = Object.assign({}, root.islandSet)
+        next[id] = Object.assign({}, cur, { pinned: pinned })
+        root.islandSet = next
+    }
+    // Forgets an opening's one-off page, so the island shows the remembered one from now on.
+    function _clearIslandPage(id) {
+        const cur = root.islandSet[id]
+        if (!cur || cur.page === "") return
+        const next = Object.assign({}, root.islandSet)
+        next[id] = Object.assign({}, cur, { page: "" })
+        root.islandSet = next
+    }
+
+    // An island's pages, in rail order (islandLayout). An island with none has no handle.
+    function islandPagesOf(side) { return root.islandLayout.rails[side] || [] }
+    // Whether a row has an island with pages: the other row's cards are then fitted into half the screen.
+    function islandRowPresent(row) {
+        return Config.island && Islands.SIDES.some(s => Islands.rowOf(s) === row && root.islandPagesOf(s).length > 0)
+    }
+    // The page each island but the middle was last on, this session ({ id: page }); the middle's is Config.islandTab.
+    property var islandTabs: ({})
+    // The page an island shows: the one asked for, else the one it was on, else its first.
+    function islandWanted(side) {
+        const pages = root.islandPagesOf(side)
+        const asked = root.islandPageOf(side)
+        if (pages.indexOf(asked) >= 0) return asked
+        const kept = side === "center" ? Config.islandTab : (root.islandTabs[side] || "")
+        return pages.indexOf(kept) >= 0 ? kept : (pages[0] || "")
+    }
+    // A Dashboard tile's jump to another page: on the island it was pressed on when that rail has it, else the
+    // island that does (the card hands over: the one it came from closes); a page on no rail goes nowhere.
+    function islandGo(page) {
+        const rail = Islands.railOf(page, root.islandLayout)
+        if (rail === "") return
+        const from = root.islandLast
+        if (rail === from && root.islandIsOpen(from)) { root.islandPick(rail, page); return }
+        const cur = root.islandSet[from]
+        root.openIsland(rail, { screen: cur?.screen ?? "", page: page, pinned: cur?.pinned === true })
+        if (from !== rail) root.closeIsland(from)
+    }
+    function islandPick(side, page) {
+        root._clearIslandPage(side)
+        if (side === "center") { Config.islandTab = page; return }
+        const next = Object.assign({}, root.islandTabs)
+        next[side] = page
+        root.islandTabs = next
+    }
+
+    // `qs ipc -c ~/.config/quicktest call island toggle`      … call island show media
+    property var _islandIpc: IpcHandler {
+        target: "island"
+
+        // The middle island (the others open from their handles, their buttons, or `show`).
+        function toggle(): void {
+            if (root.islandIsOpen("center")) root.closeIsland("center")
+            else root.openIsland("center", {})
+        }
+        function open(): void { root.openIsland("center", {}) }
+        // Every island.
+        function close(): void { root.closeIslands() }
+        // Open on a page (today | media | system | weather, wifi, bluetooth, clock, desk, timer…) on whichever
+        // island's rail has it. One on no rail opens the middle island on the page it was on.
+        function show(page: string): void {
+            const rail = Islands.railOf(page, root.islandLayout)
+            root.openIsland(rail !== "" ? rail : "center", { page: page })
+        }
+        // …and on a part of it, pinned: `part wallpaper engine` (images | engine | material),
+        // `part colorScheme library` (edit | slots | library | album), `part equalizer devices` (apps | devices | mic | options).
+        function part(page: string, sub: string): void {
+            const rail = Islands.railOf(page, root.islandLayout)
+            root.openIsland(rail !== "" ? rail : "center", { page: page, part: sub, pinned: true })
+        }
+    }
+
+    // ── Desktop menu ──────────────────────────────────────────────────────────
+    // Right-click the desktop (modules/desktop/DeskMenu). Transient. Opens on the screen that was
+    // clicked at the pointer; a key (-1, -1) opens it in the middle of the focused one.
+    property bool   deskMenuOpen: false
+    property string deskMenuScreen: ""
+    property real   deskMenuX: -1
+    property real   deskMenuY: -1
+    function openDeskMenu(screenName, x, y) {
+        root.deskMenuScreen = screenName
+        root.deskMenuX = x
+        root.deskMenuY = y
+        root.deskMenuOpen = true
+    }
+
+    // `qs ipc -c ~/.config/quicktest call deskmenu toggle`
+    property var _deskMenuIpc: IpcHandler {
+        target: "deskmenu"
+
+        function toggle(): void {
+            if (root.deskMenuOpen) root.deskMenuOpen = false
+            else root.openDeskMenu("", -1, -1)
+        }
+        function open(): void { root.openDeskMenu("", -1, -1) }
+        function close(): void { root.deskMenuOpen = false }
+    }
 
     // ── Power menu ────────────────────────────────────────────────────────────
     // The session menu (modules/bar/PowerDock, the edge column), opened
@@ -213,6 +533,7 @@ Singleton {
         root.centerKey = ""
         root.sidePanel = ""
         root.updateOpen = false
+        root.closeIslands()
     }
     Connections {
         target: root
@@ -305,6 +626,18 @@ Singleton {
         return name === "" ? null : (Quickshell.screens.find(s => s.name === name) ?? null)
     }
     function openSidePanel(key, from, screen, arg) {
+        // A page on an island's rail opens there instead (2026-11-15): the sidebar's own on the bottom row, one
+        // that lives on a top rail up there. Beside the button only for what is on no rail (the voice panel,
+        // the hover cards, the clips' target and peek).
+        const rail = root._rail(key)
+        if (rail !== "") {
+            const scr = screen ?? root._hereScreen()
+            if (root.sidePanel === key) root.sidePanel = ""
+            // What it opened on (the voice page: the person right-clicked) still counts on an island.
+            root.sidePanelArg = arg ?? ""
+            root._showIsland(rail, root._railPage(key), scr?.name ?? "")
+            return
+        }
         // Where and whose BEFORE which, so the dock never sees the new key with the
         // old button's place.
         root.sidePanelScreen = screen ?? root._hereScreen()
@@ -317,12 +650,30 @@ Singleton {
     // The same button asking again closes it; anything else opens that instead.
     // (Open on something else — another person — and it switches to that instead.)
     function toggleSidePanel(key, from, screen, arg) {
+        if (root._rail(key) !== "") {
+            if (root.sideShows(key, screen ?? root._hereScreen())) root.closeIsland(root._rail(key))
+            else root.openSidePanel(key, from, screen, arg)
+            return
+        }
         if (root.sidePanel === key && root.sidePanelFrom === from
             && root.sidePanelScreen === (screen ?? root._hereScreen()) && root.sidePanelArg === (arg ?? ""))
             root.closeSidePanel()
         else root.openSidePanel(key, from, screen, arg)
     }
     function closeSidePanel() { root.sidePanel = "" }
+    // Whether a sidebar button's panel is showing for the sidebar on `screen`: beside it, or as its island's page
+    // on that screen (an island opened by a key, with no screen, counts for the first one).
+    function sideShows(key, screen) {
+        const rail = root._rail(key)
+        const first = screen === Quickshell.screens[0]
+        if (rail !== "") {
+            if (!root.isOpen(key)) return false
+            const at = root.islandScreenOf(rail)
+            return at !== "" ? at === (screen?.name ?? "") : first
+        }
+        const owns = root.sidePanelScreen ? root.sidePanelScreen === screen : first
+        return root.sidePanel === key && owns
+    }
     onLeftKeyChanged:  if (root.leftKey  !== "" && Config.dockPosition === "left")  root.sidePanel = ""
     onRightKeyChanged: if (root.rightKey !== "" && Config.dockPosition === "right") root.sidePanel = ""
     // Sunk into the frame, the sidebar takes its panel with it.
@@ -435,8 +786,8 @@ Singleton {
     // Bluetooth) want the page ABOUT them, not whichever page you were last on.
     //
     // Why a request pair and not just `Config.settingsPage = file`: SettingsCard
-    // binds `currentFile` to Config.settingsPage but its own showPage() ASSIGNS to
-    // currentFile, which destroys that binding the first time you click the rail.
+    // binds `currentKey` to Config.settingsPage but its own showPage() ASSIGNS to
+    // currentKey, which destroys that binding the first time you click the rail.
     // A Config write would therefore work until you'd navigated settings once and
     // then silently stop — the same failure SettingsCard's own header comment
     // documents about the restore. Bumping a counter is immune to that: the card
@@ -447,12 +798,18 @@ Singleton {
     // didn't change wouldn't fire.
     property string settingsPageRequest: ""
     property int    settingsPageNav:     0
-    // Which GROUP of a composed settings page to scroll to — the member file a deep
-    // link named ("DockPage.qml" → the Dock group of Sidebar & dock). Set by the card
-    // when the request was for a member, cleared by the page once it has scrolled; so
-    // a page that loads after the request (a fresh card) and one already open both see
-    // it. See SettingsIndex.memberPages.
-    property string settingsGroup: ""
+    // The anchor of the settings page on show ("" when its key has none). A page key is
+    // `file` or `file#anchor` (SettingsIndex.keyOf); a file holding several rail rows reads
+    // this to show the right part, and moving between them never reloads it. Written only
+    // by SettingsCard.
+    property string settingsAnchor: ""
+    // A deep link INTO a page: the card or row a search result named ({ section, title,
+    // kind }), and a counter so asking for the same target twice still fires. SettingsCard
+    // sets it as it navigates (search results, an aliasPlate link) and clears it on any
+    // other move; SettingsPage.reveal() scrolls to it, flashes it and clears it. null means
+    // nothing to reveal. Set BEFORE the page loads, so the card can skip the cascade for it.
+    property var settingsTarget: null
+    property int settingsTargetNav: 0
 
     // True only while SettingsCard is loading a page it changed TO (not the one a window opens on):
     // Section and QuickToggleTile made in that window rise in one after another. Cleared again
@@ -477,12 +834,13 @@ Singleton {
         if (root.tipSource === source) root.tipSource = null
     }
 
-    // Pages that became a module in Bar › Modules (2026-11-08): opening one opens that
+    // Pages that are a module in Bar › Modules now: opening one opens that
     // page with the module picked, so the dock's "Settings" and the stats button's
     // right-click still land on the dock's and the stats' settings.
     readonly property var _moduleOfPage: ({ "DockPage.qml": "dock", "SidebarStatsPage.qml": "stats" })
     function openSettingsTo(file) {
-        const m = root._moduleOfPage[file]
+        // Keyed on the bare file: a `#anchor` names a part of a page, not a module.
+        const m = root._moduleOfPage[String(file).split("#")[0]]
         if (m !== undefined) { root.inspectBarModule(m); file = "BarPage.qml" }
         root.settingsPageRequest = file
         root.settingsPageNav++
@@ -516,6 +874,35 @@ Singleton {
     function closeLeft()   { root.leftKey   = "" }
     function closeRight()  { root.rightKey  = "" }
     function closeCenter() { root.centerKey = "" }
+
+    // ── What under the bar may be open together ───────────────────────────────
+    // The bar's plain columns keep their old rule among themselves: one at a time, the middle column's own three
+    // (a placed panel, the launcher, an update run) in the order BarPanelDock's centre Accordion gives them.
+    // Against the islands they follow the islands' rule (2026-11-15): a column closes the top-row islands that
+    // would cover it (its own side's and the middle one; the middle column all three), and an island closes the
+    // columns it covers (openIsland). The bottom row stands clear of the columns.
+    // The sidebar's panel is not part of this: it has its own rule beside the two keys above.
+    readonly property bool anyBarIsland: root.leftKey !== "" || root.rightKey !== "" || root.centerKey !== ""
+                                         || root.launcherOpen || root.updateOpen
+    function _soleIsland(keep) {
+        for (const c of ["left", "right", "center"]) if (c !== keep) root._closeColumn(c)
+        root._closeIslandsWhere(id => root._islandColumns(id).includes(keep))
+    }
+    Connections {
+        target: root
+        function onLeftKeyChanged()         { if (root.leftKey   !== "") root._soleIsland("left") }
+        function onRightKeyChanged()        { if (root.rightKey  !== "") root._soleIsland("right") }
+        function onCenterKeyChanged()       { if (root.centerKey !== "") root._soleIsland("center") }
+        function onLauncherOpenChanged()    { if (root.launcherOpen)     root._soleIsland("center") }
+        // System update on a rail is an island page: its request opens that island, and it is not the middle
+        // column (which would close the island it stands on).
+        function onUpdateOpenChanged()      { if (root.updateOpen && root._rail("update") === "") root._soleIsland("center") }
+        function onUpdateRequestIdChanged() {
+            const rail = root._rail("update")
+            if (rail !== "") { if (!root.isOpen("update")) root._showIsland(rail, "update") }
+            else root._soleIsland("center")
+        }
+    }
 
     // ══ Almost nothing here persists ══════════════════════════════════════════
     // Panel state is transient by design — a reload should not reopen whatever you
@@ -604,6 +991,21 @@ Singleton {
 
     // `qs ipc -c ~/.config/quicktest call dock toggle` — the auto-hide reveal
     // latch's keybind path (see dockRevealed above). Same shape as `overview`.
+    // The status bar out of the way (Config.barHidden owns the flag; barExtent follows it). Panels and
+    // islands that hang from the bar close with it, so none is left standing under nothing.
+    function setBarHidden(hide) {
+        if (hide) root.closeAllPanels()
+        Config.barHidden = hide
+    }
+    // `qs ipc -c ~/.config/quicktest call statusbar toggle|show|hide`
+    property var _statusbarIpc: IpcHandler {
+        target: "statusbar"
+
+        function toggle(): void { root.setBarHidden(!Config.barHidden) }
+        function show(): void   { root.setBarHidden(false) }
+        function hide(): void   { root.setBarHidden(true) }
+    }
+
     // `qs ipc -c ~/.config/quicktest call sidebar toggle` — SUPER+SHIFT+D.
     property var _sidebarIpc: IpcHandler {
         id: sidebarIpc

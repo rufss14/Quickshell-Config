@@ -12,11 +12,11 @@ import "../../../../services"
 import "../../../../services/wallfx.js" as FX
 import "../.."
 
-// WallpaperPropertiesView — part of WallpaperPage.qml, moved into its own file (2026-11-08). Reads and writes the
-// page's state through `page` (was `root`).
-// ── PROPERTIES ──────────────────────────────────────────────────
+// WallpaperPropertiesView — a scene's Properties, a sub-view of WallpaperPage.qml (`tuning`). Reads and
+// writes the page's state through `page`.
 // Author-defined sliders/colours/checkboxes/combos for one scene —
-// opened from a tile's "Tune" hover action. Reads
+// opened from a gallery tile's "Tune" hover action. Back uncovers the view
+// that opened it (the page closes this on any move to another rail page). Reads
 // WallpaperEngine.propertySchema (the scene's declared defaults) and
 // overrideFor() (what's actually saved) side by side; each row falls
 // back to the schema's own default when nothing is overridden.
@@ -29,9 +29,9 @@ Flickable {
     contentHeight: propCol.implicitHeight
     clip: true
     boundsBehavior: Flickable.StopAtBounds
-    interactive: page.view === "properties"
+    interactive: page.tuning
 
-    opacity: page.view === "properties" ? 1 : 0
+    opacity: page.tuning ? 1 : 0
     visible: opacity > 0.01
     Behavior on opacity { NumberAnimation { duration: Motion.standard } }
 
@@ -49,7 +49,7 @@ Flickable {
                 variant: "ghost"
                 symbol: "arrow_left"
                 label: Translation.tr("Back")
-                onActivated: page.view = "engine"
+                onActivated: page.tuning = false
             }
             StyledText {
                 Layout.fillWidth: true

@@ -79,7 +79,7 @@ Rectangle {
         ? Colors.of(QsWindow.window).alpha(root.accent, hover.containsMouse ? 0.92 : 0.78)
         : root.isGhost
             ? (hover.containsMouse ? Colors.of(QsWindow.window).alpha(root.accent, 0.18) : "transparent")
-            : (hover.containsMouse ? Colors.of(QsWindow.window).stateHoverBg : Colors.of(QsWindow.window).surfaceContainer)
+            : (hover.containsMouse ? Colors.of(QsWindow.window).stateHoverBg : Colors.of(QsWindow.window).plateLow)
 
     border.width: (root.isPrimary || root.isGhost) ? 0 : Tokens.borderWidth
     border.color: root.capsule ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)

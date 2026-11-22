@@ -259,8 +259,10 @@ fi
 # commit — under the wave's curtain, which is when an open GTK4 app should repaint — so here
 # it is normally a byte-compare that finds nothing to do. It stays as the fallback for a run
 # with no commit of its own (a hand-run, the legacy path).
+# gtk.css is written whole, so the gradient block goes back in after it (scripts/app-gradient.py).
+gtk4_theme() { write_gtk4_css "$1" && python3 "$SHELL_DIR/scripts/app-gradient.py" gtk4; }
 if [[ -f "$WAL_CACHE/colors.sh" ]]; then
-    step gtk4 "Theming GTK4/libadwaita apps" -- write_gtk4_css "$WAL_CACHE/colors.sh"
+    step gtk4 "Theming GTK4/libadwaita apps" -- gtk4_theme "$WAL_CACHE/colors.sh"
 else
     skip gtk4 "palette not readable"
 fi
@@ -324,6 +326,7 @@ fi
 # it missed or that opened since. Re-reading the same colours changes nothing.
 kitty_reload() {
     if cp "$WAL_CACHE/colors-kitty.conf" "$KITTY_DIR/current-theme.conf" 2>>"$LOG"; then
+        python3 "$SHELL_DIR/scripts/app-gradient.py" kitty 2>>"$LOG" || true
         pkill -USR1 kitty 2>/dev/null
         echo "STEP=kitty|ok|Recolouring terminals"
     else

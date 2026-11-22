@@ -9,7 +9,7 @@ import { fileURLToPath } from "url";
 const here = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(here, "..", "services", "updatelog.js"), "utf8")
     .replace(/^\s*\.pragma\s+library\s*$/m, "");
-const L = new Function(src + "\nreturn { formatBytes, parseSizeText, signedBytes, parseSizes, flatpakSize, validName, validVersion, downgradeCmd, snapshotCommand, snapshotTool, parseHistory, recentChanges, parsePacmanInfo, splitInfo, officialLines, aurLines, flatpakLines, failureHint };")();
+const L = new Function(src + "\nreturn { formatBytes, parseSizeText, signedBytes, parseSizes, flatpakSize, validName, validVersion, downgradeCmd, snapshotCommand, snapshotTool, parseHistory, recentChanges, parsePacmanInfo, splitInfo, officialLines, aurLines, flatpakLines, failureHint, parseNewsFeed };")();
 
 let pass = 0, fail = 0;
 function eq(name, got, want) {
@@ -139,6 +139,18 @@ eq("hint: db lock", /db\.lck/.test(L.failureHint(["error: failed to init transac
 eq("hint: signature", /keyring/.test(L.failureHint(["error: foo: signature from \"X\" is unknown trust", ":: File /var/cache/pacman/pkg/foo is corrupted (invalid or corrupted package (PGP signature))."])), true);
 eq("hint: 404 beats generic download", /out of sync/.test(L.failureHint(["error: failed retrieving file 'a' from m : Connection timed out", ...M404])), true);
 eq("hint: unrecognised, empty, missing", [L.failureHint(["error: target not found: foo"]), L.failureHint([]), L.failureHint(undefined)], ["", "", ""]);
+
+// ── news feed ─────────────────────────────────────────────────────────────────
+// The first is the real shape of archlinux.org/feeds/news/ (RSS 2.0), cut down.
+const RSS = '<?xml version="1.0"?><rss version="2.0"><channel><title>Arch Linux: Recent news updates</title><link>https://archlinux.org/news/</link>'
+    + '<item><title>Update to php &#8805; 8.5.12 &amp; friends</title><link>https://archlinux.org/news/update-to-php/</link>'
+    + '<description>&lt;p&gt;x&lt;/p&gt;</description><pubDate>Wed, 21 Oct 2026 12:00:00 +0000</pubDate></item>'
+    + '<item><title>Older</title><link>https://archlinux.org/news/older/</link><pubDate>Mon, 01 Sep 2026 12:00:00 +0000</pubDate></item></channel></rss>';
+eq("news: rss, first item not the channel", L.parseNewsFeed(RSS), { title: "Update to php \u2265 8.5.12 & friends", url: "https://archlinux.org/news/update-to-php/", date: "2026-10-21" });
+const ATOM = '<feed><title>x</title><entry><title type="html">Atom post</title><link href="https://archlinux.org/news/a/"/><updated>2026-11-02T10:00:00Z</updated></entry></feed>';
+eq("news: atom", L.parseNewsFeed(ATOM), { title: "Atom post", url: "https://archlinux.org/news/a/", date: "2026-11-02" });
+eq("news: a non-https link is dropped", L.parseNewsFeed('<rss><item><title>t</title><link>javascript:alert(1)</link></item></rss>').url, "");
+eq("news: empty, html, missing", [L.parseNewsFeed(""), L.parseNewsFeed("<html>503</html>"), L.parseNewsFeed(undefined)], [null, null, null]);
 
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

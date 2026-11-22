@@ -54,6 +54,41 @@ speech model.** The project rules in CLAUDE.md still apply.
 - It is never persisted and never started by anything but a click or IPC: the microphone is not
   something a saved preference should open.
 
+## The Discord call (2026-11-14)
+
+Asked for: "listen for discord so my friends can also sing". While Karaoke is on AND `Discord.inCall` (and
+`Config.karaokeDiscord`, default on, Media > Settings > "Hear the Discord call"), a SECOND `karaoke.py` helper runs
+against the call's playback stream — the friends' voices, mixed into one stream by Discord — exactly as the first runs
+against the mic. It never runs outside a call, and nothing in it opens the mic.
+
+- **Which stream:** `KJ.callStreamIndex` over `Audio.streams`: a `WEBRTC VoiceEngine` / `playStream` stream whose
+  process binary starts with one of `Discord.windowClasses` (Vesktop, Legcord… — never a literal), else a lone voice
+  engine of any binary (an Electron build), else none (two of them, say a browser meeting beside the call, is
+  ambiguous). Targeted by `object.serial`, which `pw-record --target` takes for a stream node (measured with
+  `pw-dump`: Quickshell's Peak Detect streams are linked to Discord's `playStream` that way).
+- **Shared score:** the room sings as one. Each source has its OWN voice gate (`_callGate`) and its OWN matcher cursor
+  (`_callMatcher`; two singers are at different words, and a matcher's `took`/`prev` belong to one recogniser's
+  stream), but they light the same words (`_cur`/`_next`/pendings flags), so there is one combo, one accuracy, one
+  rank. `voiced` (the timing signal) is the mic OR the call. A word from a source counts while THAT source was
+  voicing within `voiceHoldMs`.
+- **No per-friend scoring:** Discord mixes everyone into one stream, so the audio cannot say who sang. (The RPC's
+  speaking flags could attribute a line to a person; not built.)
+- **Headphones rule** is still about the mic: the call is the other end and never hears the song.
+- **Unverified:** nothing here has run against a real call. `qs ipc -c ~/.config/quicktest call karaoke status` shows
+  `call=listening` / `call=wanted(stream=…)` / `callError=`. Things to check first: that the helper starts against the
+  stream, the gate on Discord's noise-suppressed audio (calibrated on a mic and on speech, not on this), and the join
+  chime (periodic, so it may flick the gate).
+
+## More forgiving word tracking (2026-11-14)
+
+The user asked for a more forgiving tracker. Changed, all in `karaoke.js` unless said: `SAME_WORD_BAR` 0.66 -> 0.6;
+`LOOKAHEAD` 5 -> 7 and `LOOKBACK` 4 -> 6; the gap-fill assumes up to `GAP_WEAK` 3 small words (was 2) plus
+`GAP_STRONG` 1 content word between two heard words (was none); `OPEN_LEAD` / `openLead` 0.8 -> 1.2 s;
+`Karaoke.voiceHoldMs` 800 -> 1200. Scoring is untouched (`wordFull` 0.7, the curve, the grades), and so is Hard Rock's
+strict spelling. Not measured against real singing: the numbers are reasoned. If it now lights words you did not sing,
+`SAME_WORD_BAR` and `GAP_STRONG` are the first to pull back; if it is still stingy, next is `wordFull` and a tolerance
+in the combo for one missed word.
+
 ## What "a match" means
 
 The song has no pitch track to compare a voice with, so there are exactly two signals:

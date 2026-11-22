@@ -23,9 +23,7 @@ modules/panels/wallpaper/WallpaperRendererSettings.qml 7
 modules/panels/wallpaper/WallpaperSceneProps.qml 1
 modules/panels/WifiPanel.qml 1
 modules/settings/pages/AboutPage.qml 1
-modules/settings/pages/HyprlandPage.qml 2
 modules/settings/pages/SoundPage.qml 3
 modules/settings/pages/UpdatesPage.qml 13
-modules/settings/pages/wallpaper/WallpaperEngineView.qml 2
 modules/settings/pages/wallpaper/WallpaperGalleryView.qml 3
 modules/settings/pages/wallpaper/WallpaperPropertiesView.qml 2

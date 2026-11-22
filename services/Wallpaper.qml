@@ -780,6 +780,86 @@ Singleton {
         onExited: function(code) { root.rescan() }
     }
 
+    // ── Pasting (Ctrl+V on the page) ───────────────────────────────────────────
+    // The page already takes pictures dropped on it; this is the same for the clipboard. What it offers
+    // decides (Lib.pasteKinds): files copied in a file manager go through the drop's own filter (`dropPaths`)
+    // and `addPaths`; a picture's data (a screenshot, "Copy image" in a browser) is saved into the library
+    // as `Pasted <date>.<ext>`, never over an existing file. `pasteNote` says what happened, for a few
+    // seconds: the page's status line shows it. `quiet`: the caller is a text field, where a clipboard of
+    // plain text is an ordinary paste and not a failure to say anything about.
+    property string pasteNote: ""
+    property bool   _pasteQuiet: false
+    property var    _pasteKinds: ({})
+    readonly property bool pasting: typesProc.running || uriProc.running || imgProc.running
+
+    Timer { id: pasteNoteTimer; interval: 3500; onTriggered: root.pasteNote = "" }
+    function _say(text) {
+        root.pasteNote = text
+        if (text !== "") pasteNoteTimer.restart()
+    }
+
+    function pasteFromClipboard(quiet) {
+        if (root.pasting || root.importing) return
+        root._pasteQuiet = quiet === true
+        typesProc._types = []
+        typesProc.running = true
+    }
+
+    Process {
+        id: typesProc
+        property var _types: []
+        command: ["wl-paste", "--list-types"]
+        stdout: SplitParser { onRead: function (line) { typesProc._types.push(line) } }
+        onExited: function (code) {
+            root._pasteKinds = Lib.pasteKinds(typesProc._types)
+            if (root._pasteKinds.files) { uriProc._lines = []; uriProc.running = true }
+            else root._pasteImage()
+        }
+    }
+    Process {
+        id: uriProc
+        property var _lines: []
+        command: ["wl-paste", "--no-newline", "--type", "text/uri-list"]
+        stdout: SplitParser { onRead: function (line) { uriProc._lines.push(line.trim()) } }
+        onExited: function (code) {
+            const paths = Lib.dropPaths(uriProc._lines.filter(l => l !== "" && l[0] !== "#"))
+            if (paths.length > 0) {
+                root.addPaths(paths)
+                root._say(paths.length === 1 ? Translation.tr("Added 1 picture") : Translation.tr("Added %1 pictures").arg(paths.length))
+            } else root._pasteImage()
+        }
+    }
+
+    // A picture's own data, when no files were copied.
+    function _pasteImage() {
+        const k = root._pasteKinds
+        if (!k.image) {
+            // Text or nothing: said only when the caller is not a text field.
+            if (!root._pasteQuiet) root._say(Translation.tr("Nothing to paste: copy a picture or a file first"))
+            return
+        }
+        const name = "Pasted " + Qt.formatDateTime(new Date(), "yyyy-MM-dd HHmmss") + "." + k.ext
+        const dest = root.wallpaperDir + "/" + name
+        // Read into a .part file, kept only when it holds something, then moved into place without
+        // overwriting: a failed or empty read leaves no half picture in the library.
+        imgProc.command = ["sh", "-c",
+            'set -e; out="$2.part"; '
+            + 'if [ "$3" = convert ]; then wl-paste --no-newline --type "$1" | magick - "png:$out"; '
+            + 'else wl-paste --no-newline --type "$1" > "$out"; fi; '
+            + 'if [ -s "$out" ]; then mv -n "$out" "$2"; else rm -f "$out"; exit 1; fi',
+            "sh", k.image, dest, k.convert ? "convert" : "copy"]
+        imgProc._name = name
+        imgProc.running = true
+    }
+    Process {
+        id: imgProc
+        property string _name: ""
+        onExited: function (code) {
+            if (code === 0) { root._say(Translation.tr("Pasted %1").arg(imgProc._name)); root.rescan() }
+            else root._say(Translation.tr("Could not paste the picture"))
+        }
+    }
+
     // ── Deleting an image ─────────────────────────────────────────────────────
     // `gio trash`, not rm: these are the user's own files, and the Storage page's
     // whole philosophy is that user files get recoverable treatment. The

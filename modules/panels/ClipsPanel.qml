@@ -9,6 +9,7 @@ import "../../services"
 import "../../state"
 import "../../services/clips.js" as ClipsJs
 import "../../services/clockfmt.js" as ClockFmt
+import "clips"
 
 // ── ClipsPanel ────────────────────────────────────────────────────────────────
 // Clip it and record it, beside the sidebar's clips button (SidePanelDock).
@@ -37,6 +38,15 @@ Item {
 
     // The room the slot has (SidePanelDock sets it); the latest clips give way.
     property real maxHeight: Infinity
+    // On an island (IslandCard sets it; the card gives the size): the layout is clips/ClipsIsland, which reads
+    // everything below. The keys, the clocks and the latest list stay here.
+    property bool island: false
+    // Out of the way so what was asked for can be seen (a clip playing, the editor, a region to drag): the side
+    // slot, or the island this page is on.
+    function stepAside() {
+        UiState.closeSidePanel()
+        if (root.island) UiState.closePanel("clips")
+    }
 
     readonly property var pal: Colors.of(QsWindow.window)
     readonly property int pad: Tokens.spacingXl
@@ -54,7 +64,9 @@ Item {
     readonly property bool noteIsWarning: root.issue !== null && root.issue.level === "warn"
     readonly property color noteColor: root.noteIsWarning ? root.pal.warning : root.pal.danger
     function openTargets() {
-        if (UiState.sidePanel === "clips")
+        // On an island: the picker opens beside the sidebar's Clips button, where it always has.
+        if (root.island) UiState.openSidePanel("clipsTarget", "clips", null)
+        else if (UiState.sidePanel === "clips")
             UiState.openSidePanel("clipsTarget", UiState.sidePanelFrom, UiState.sidePanelScreen)
         else UiState.openSettingsTo("ClipsPage.qml")
     }
@@ -63,7 +75,7 @@ Item {
         else if (fix === "folder") UiState.openSettingsTo("ClipsPage.qml")
         else Clips.applyFix(fix)
     }
-    function openLibrary() { UiState.closeSidePanel(); Clips.openGallery() }
+    function openLibrary() { root.stepAside(); Clips.openGallery() }
 
     // The ways to keep recording after a clip, cycled by one chip.
     readonly property var aheadSteps: [0, 10, 20, 30]
@@ -150,7 +162,7 @@ Item {
     // ── The latest row ────────────────────────────────────────────────────────
     // How many there is room for, and the list it shows — replaced only when the entries it draws
     // differ (listSig), so a refresh that changes nothing visible rebuilds nothing.
-    readonly property int latestCount: root.maxHeight < Tokens.sideCardUnit * 8 ? 3 : 6
+    readonly property int latestCount: root.island ? 9 : root.maxHeight < Tokens.sideCardUnit * 8 ? 3 : 6
     property var latestList: []
     property string _latestSig: "\u0000"
     function _syncLatest() {
@@ -171,8 +183,15 @@ Item {
         onConfirmed: Clips.prune()
     }
 
+    Loader {
+        anchors.fill: parent
+        active: root.island
+        sourceComponent: ClipsIsland { panel: root }
+    }
+
     ColumnLayout {
         id: col
+        visible: !root.island
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -575,7 +594,7 @@ Item {
                             Layout.fillWidth: true
                             Layout.preferredHeight: Tokens.iconXl
                             radius: height / 2
-                            color: root.pal.surfaceContainer
+                            color: root.pal.plateLow
                             RowLayout {
                                 id: pillRow
                                 anchors.fill: parent

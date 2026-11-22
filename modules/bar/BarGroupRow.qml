@@ -36,6 +36,10 @@ Repeater {
 
     property var componentFor:  null
     property var moduleVisible: null
+    // Told when a module's slot appears (id, slot) and goes (id, slot), so the bar can keep
+    // a map of them: the spacer reads the width of the module it follows from it.
+    property var slotSeen: null
+    property var slotGone: null
 
     // ── Preview mode ──────────────────────────────────────────────────────────
     // On: each slot's widget is DISABLED and an overlay above it reports clicks
@@ -115,6 +119,9 @@ Repeater {
                 anchors.verticalCenter: parent ? parent.verticalCenter : undefined
 
                 visible: root.moduleVisible ? root.moduleVisible(slot.modelData) : true
+
+                Component.onCompleted: if (root.slotSeen) root.slotSeen(slot.modelData, slot)
+                Component.onDestruction: if (root.slotGone) root.slotGone(slot.modelData, slot)
 
                 // ── Gap before this slot ────────────────────────────────────────
                 // contentRow's own spacing is 0 now (BarGroup.qml) — every gap is

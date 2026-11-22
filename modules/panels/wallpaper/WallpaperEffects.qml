@@ -6,8 +6,10 @@ import "../../../components"
 import "../../../services"
 import "../../../services/wallfx.js" as FX
 
-// The wallpaper moved by the music, at panel width (Settings' Effects tab has the same controls on a
-// bigger page; the sound rows are the one shared component, WallFxSoundRow). Everything the effects
+// What moves the wallpaper, at panel width: parallax (a picture drifts with the workspace and the pointer,
+// a scene follows the pointer in its own renderer, so two switches) and then the music (Settings' Effects tab
+// has the same controls on a bigger page; the sound rows are the one shared component, WallFxSoundRow).
+// A scene relaunches by itself, through the fade, when its switch changes. Everything the effects
 // need to run is said before the controls: they draw through the shell's own renderer, so they are
 // disabled with a reason when that is off. Switches apply live, as there is nothing to restart.
 Item {
@@ -32,6 +34,24 @@ Item {
             width: pane.width
             spacing: Tokens.spacingSm
 
+            StyledText { text: Translation.tr("Parallax"); variant: "label"; emphasis: "dim" }
+            WallpaperOptionRow {
+                label: Translation.tr("Pictures")
+                detail: Translation.tr("Drift with the workspace and the pointer")
+                checked: Config.wallParallax
+                onToggled: Config.wallParallax = !Config.wallParallax
+            }
+            WallpaperOptionRow {
+                label: Translation.tr("Scenes")
+                detail: WallpaperEngine.blocker() !== "" ? WallpaperEngine.blocker() : Translation.tr("Drift with the pointer")
+                enabled: WallpaperEngine.blocker() === ""
+                checked: Config.wpeParallax
+                onToggled: Config.wpeParallax = !Config.wpeParallax
+            }
+
+            Divider {}
+
+            StyledText { text: Translation.tr("Music"); variant: "label"; emphasis: "dim" }
             WallpaperOptionRow {
                 label: Translation.tr("Music effects")
                 detail: !Config.wallShellRender ? Translation.tr("Needs the shell to draw the wallpaper")

@@ -94,6 +94,9 @@ Singleton {
         { type: "sysmon",    label: "System",      glyph: "󰍛",
           detail: "CPU, memory and temperature",  sizes: ["small", "medium", "large"],
           category: "Info" },
+        { type: "gauge",     label: "Gauge",       glyph: "󰍛",
+          detail: "One reading as a glass that fills with water", sizes: ["small", "medium"],
+          category: "Info" },
         { type: "visualizer", label: "Visualizer", glyph: "󰄨",
           detail: "A spectrum of whatever is playing",
           sizes: ["small", "medium", "large"], category: "Media" },
@@ -489,6 +492,7 @@ Singleton {
         if (type === "timer")     return { stopwatch: false }
         if (type === "photo")     return { seconds: 30, source: "library", shape: "rect" }
         if (type === "disk")      return { mount: "/" }
+        if (type === "gauge")     return { metric: "cpu", style: "water", shape: "pentagon" }
         if (type === "countdown") return { date: "", label: "" }
         if (type === "habits")    return { habits: [] }
         // Eight, so large has a full 2×4; small and medium show the first four.

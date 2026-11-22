@@ -22,9 +22,10 @@ ColumnLayout {
 
     // Arch news — a manual-intervention post the --noconfirm run can't cope
     // with. Newer than your last upgrade → you haven't seen it.
+    // (On the island the news card under the buttons says it instead, always.)
     UpdateNewsLine {
         Layout.fillWidth: true
-        visible: Updates.newsUnread
+        visible: Updates.newsUnread && !panel.island
     }
 
     // Kernel / graphics module in the list → you'll want to reboot after.
@@ -264,14 +265,10 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: false
             spacing: Tokens.spacingSm
-            InputField {
+            // The password as a card of shapes, one per character (UpdatePasswordField), not a pill.
+            UpdatePasswordField {
                 id: passField
                 Layout.fillWidth: true
-                implicitHeight: panel._fieldH
-                cornerRadius: implicitHeight / 2
-                icon: "lock"
-                secret: true
-                placeholder: Translation.tr("sudo password…")
                 onAccepted: panel.selectedCount > 0 ? panel._confirmSelected() : panel._confirmSysUpdate()
                 onKeyPressed: (event) => { if (event.key === Qt.Key_Escape) { panel._escClose(); event.accepted = true } }
             }
@@ -302,5 +299,13 @@ ColumnLayout {
             disabled: passField.text.length === 0
             clickHandler: function() { panel._confirmVencord(passField.text) }
         }
+    }
+
+    // ══ ISLAND ONLY — the room under the buttons (UpdateIslandPlates) ═════════
+    UpdateIslandPlates {
+        Layout.topMargin: Tokens.spacingXs
+        panel: mainCol.panel
+        shown: mainCol.panel.mainOn
+        delay: mainCol.panel.lead + Motion.respond * 2
     }
 }

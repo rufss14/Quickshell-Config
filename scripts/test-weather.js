@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 const here = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(here, "..", "services", "weather.js"), "utf8")
     .replace(/^\s*\.pragma\s+library\s*$/m, "");
-const W = new Function(src + "\nreturn { nowcast, bars, isWet, dryWindow, rainSpans, goldenHour, intensity, compass, uvLevel, aqiLevel, aqiRatio, duration, pollen };")();
+const W = new Function(src + "\nreturn { nowcast, bars, isWet, dryWindow, rainSpans, goldenHour, intensity, compass, uvLevel, aqiLevel, aqiRatio, duration, pollen, sunArc, dayHours, chanceBars, middayOf, aqiRole, blend, blendCode, median, MODELS, sameCity, cityList, withCity, withoutCity };")();
 
 let pass = 0, fail = 0;
 function eq(name, got, want) {
@@ -110,6 +110,98 @@ eq("pollen present sorted", W.pollen({ grass_pollen: 3, birch_pollen: 12, alder_
    { covered: true, items: [{ name: "Birch", grains: 12 }, { name: "Grass", grains: 3 }] });
 eq("pollen outside Europe", W.pollen({ grass_pollen: null }), { covered: false, items: [] });
 eq("pollen covered but none", W.pollen({ grass_pollen: 0 }), { covered: true, items: [] });
+
+// ── The island's page ─────────────────────────────────────────────────────────
+{
+    const rise = "2026-11-14T07:18", set = "2026-11-14T17:02", at = (h, m) => new Date(2026, 10, 14, h, m).getTime();
+    eq("sun before", [W.sunArc(rise, set, at(6, 0)).state, W.sunArc(rise, set, at(6, 0)).frac], ["before", 0]);
+    eq("sun after", [W.sunArc(rise, set, at(18, 0)).state, W.sunArc(rise, set, at(18, 0)).frac, W.sunArc(rise, set, at(18, 0)).leftS], ["after", 1, 0]);
+    eq("sun midday", Math.round(W.sunArc(rise, set, at(12, 10)).frac * 100), 50);
+    eq("sun length", W.duration(W.sunArc(rise, set, at(12, 10)).lengthS), "9h 44m");
+    eq("sun left", Math.round(W.sunArc(rise, set, at(16, 2)).leftS / 60), 60);
+    eq("sun without times", [W.sunArc("", set, 0), W.sunArc(set, rise, 0), W.sunArc("x", "y", 0)], [null, null, null]);
+}
+{
+    const mk = (d, h) => ({ date: d, hour: h, precip: h * 4 });
+    const all = [];
+    for (let h = 0; h < 24; h++) all.push(mk("2026-11-14", h));
+    for (let h = 0; h < 24; h++) all.push(mk("2026-11-15", h));
+    eq("today runs on from the current hour", [W.dayHours(all, 10, "2026-11-14", "2026-11-14").length, W.dayHours(all, 10, "2026-11-14", "2026-11-14")[0].hour], [24, 10]);
+    eq("today near the end of data", W.dayHours(all, 40, "2026-11-14", "2026-11-14").length, 8);
+    eq("another day is its own hours", [W.dayHours(all, 10, "2026-11-15", "2026-11-14").length, W.dayHours(all, 10, "2026-11-15", "2026-11-14")[0].date], [24, "2026-11-15"]);
+    eq("no hours", W.dayHours(null, 0, "2026-11-14", "2026-11-14"), []);
+    eq("midday hour", W.middayOf(W.dayHours(all, 0, "2026-11-15", "2026-11-14")).hour, 12);
+    eq("midday of a short day", W.middayOf([mk("d", 20), mk("d", 21), mk("d", 22)]).hour, 21);
+    eq("midday of nothing", W.middayOf([]), null);
+    eq("chance bars clamp", W.chanceBars([{ precip: 150 }, { precip: -5 }, {}, { precip: 40 }]).map(b => b.v), [1, 0, 0, 0.4]);
+    eq("aqi roles", [-1, 10, 40, 41, 60, 61].map(W.aqiRole), ["fgDim", "success", "success", "warning", "warning", "danger"]);
+}
+
+// ── Blending models ───────────────────────────────────────────────────────────
+{
+    eq("median odd", W.median([3, 1, 2]), 2);
+    eq("median even", W.median([1, 2, 3, 10]), 2.5);
+    eq("median skips nulls", W.median([null, 4, undefined, 6]), 5);
+    eq("median of nothing", W.median([null]), null);
+    // The afternoon that was wrong: one model calls a storm, the rest are dry and grey.
+    eq("one storm is outvoted", W.blendCode([95, 3, 3, 51, 2], 0.1, 77, 0.2), 3);
+    eq("most say storm", W.blendCode([95, 96, 99, 3, 2], 0.1, 77, 0.2), 95);
+    eq("wet picks the commonest rain", W.blendCode([61, 61, 63, 3, 80], 0.6, 90, 0.2), 61);
+    eq("dry by cloud", [10, 30, 60, 90].map(c => W.blendCode([3, 3, 0], 0, c, 0.2)), [0, 1, 2, 3]);
+    eq("a day, no cloud figure", W.blendCode([3, 3, 1, 51], 0.2, null, 1), 3);
+    eq("fog by majority", W.blendCode([45, 45, 3], 0, 100, 0.2), 45);
+    eq("no codes", W.blendCode([], 0, 0, 0.2), 0);
+
+    const M = W.MODELS.slice(0, 3);
+    const at = (h, m) => new Date(2026, 10, 14, h, m).getTime();
+    const iso = h => "2026-11-14T" + (h < 10 ? "0" : "") + h + ":00";
+    const hourly = { time: [iso(14), iso(15), iso(16)] };
+    const temps = { [M[0]]: [16, 16, 15], [M[1]]: [18, 17, 16], [M[2]]: [22, 21, 20] };
+    const codes = { [M[0]]: [3, 3, 3], [M[1]]: [3, 51, 3], [M[2]]: [95, 95, 95] };
+    M.forEach(m => {
+        hourly["temperature_2m_" + m] = temps[m];
+        hourly["weather_code_" + m] = codes[m];
+        hourly["cloud_cover_" + m] = [80, 90, 70];
+        hourly["precipitation_" + m] = [0, 0.1, 0];
+        hourly["is_day_" + m] = [1, 1, 1];
+        hourly["wind_direction_10m_" + m] = m === M[0] ? [350, 350, 350] : [10, 10, 10];
+        hourly["wind_speed_10m_" + m] = [10, 10, 10];
+    });
+    const daily = { time: ["2026-11-14"] };
+    M.forEach(m => { daily["temperature_2m_max_" + m] = [m === M[2] ? 25 : 18]; daily["weather_code_" + m] = [3]; daily["sunrise_" + m] = ["2026-11-14T07:19"]; daily["precipitation_sum_" + m] = [0]; });
+    const r = W.blend({ hourly, daily }, at(15, 30));
+    eq("blended hourly is plain and the middle", r.hourly.temperature_2m, [18, 17, 16]);
+    eq("a hot outlier does not drag the middle", r.daily.temperature_2m_max, [18]);
+    eq("daily time text kept", r.daily.sunrise, ["2026-11-14T07:19"]);
+    eq("the storm model is outvoted", r.hourly.weather_code, [3, 3, 2]);
+    eq("directions average round north", r.hourly.wind_direction_10m[0], 3);
+    eq("now is read between the hours", r.current.temperature_2m, 16.5);
+    eq("now sky is the nearer hour's", r.current.weather_code, 2);
+    eq("now has a time", r.current.time, "2026-11-14T15:30");
+    eq("single model passes through", W.blend({ hourly: { time: ["x"], temperature_2m: [1] }, current: { a: 1 } }, 0).current, { a: 1 });
+    eq("no hourly passes through", W.blend({ current: { a: 1 } }, 0).current, { a: 1 });
+    eq("null passes through", W.blend(null, 0), null);
+}
+
+// ── Places to switch between ──────────────────────────────────────────────────
+{
+    const A = { name: "Porto", lat: 41.15, lon: -8.61, countryCode: "PT" };
+    const B = { name: "Lisbon", lat: 38.72, lon: -9.14, countryCode: "PT" };
+    const C = { name: "Salreu", lat: 40.74, lon: -8.56, countryCode: "PT" };
+    eq("same place by position", W.sameCity(A, { name: "Oporto", lat: 41.151, lon: -8.609 }), true);
+    eq("different place", W.sameCity(A, B), false);
+    eq("nothing is not a place", [W.sameCity(null, A), W.sameCity(A, undefined)], [false, false]);
+    eq("the current place is offered last", W.cityList([A, B], C).map(c => c.name), ["Porto", "Lisbon", "Salreu"]);
+    eq("not twice", W.cityList([A, B], B).map(c => c.name), ["Porto", "Lisbon"]);
+    eq("junk dropped", W.cityList([A, { name: "", lat: 1, lon: 1 }, { name: "X", lat: 0, lon: 0 }, null, "x", { name: "Y", lat: "1", lon: 2 }], null).map(c => c.name), ["Porto"]);
+    eq("no list, no place", W.cityList(undefined, null), []);
+    eq("an unset place is not offered", W.cityList([], { name: "", lat: 0, lon: 0 }), []);
+    eq("add keeps order", W.withCity([A, B], C, 8).map(c => c.name), ["Porto", "Lisbon", "Salreu"]);
+    eq("add what is there", W.withCity([A, B], A, 8).map(c => c.name), ["Porto", "Lisbon"]);
+    eq("the oldest goes", W.withCity([A, B], C, 2).map(c => c.name), ["Lisbon", "Salreu"]);
+    eq("add junk", W.withCity([A], { name: "", lat: 5, lon: 5 }, 8).map(c => c.name), ["Porto"]);
+    eq("remove", W.withoutCity([A, B, C], B).map(c => c.name), ["Porto", "Salreu"]);
+}
 
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

@@ -10,6 +10,7 @@ import "../../../config"
 import "../../../components"
 import "../../../services"
 import "../../../services/wallfx.js" as FX
+import "../../../state"
 import ".."
 import "wallpaper"
 
@@ -20,22 +21,37 @@ import "wallpaper"
 //
 // ── The bar panel's recipe, at page scale ────────────────────────────────────
 // This is the settings-app sibling of modules/panels/WallpaperPanel.qml: the same
-// PanelHeader, the same one-accent identity (Colors.info), the same "show one
-// thing at a time and switch" shape. Not shared code — the panel is a 620px dock
-// tile and this is a 1000px page with the renderer's full option set — but the
-// same design language, so flipping between the two reads as one tool.
+// PanelHeader, the same "show one thing at a time and switch" shape. Not shared
+// code — the panel is a dock tile and this is a page with the renderer's full
+// option set — but the same design language, so flipping between the two reads as
+// one tool.
 //
-// ── Three views, one at a time ───────────────────────────────────────────────
-//   Gallery      pick a wallpaper. Hero (what's on screen + its palette), the
+// ── Four rail pages, one file ────────────────────────────────────────────────
+// The rail lists this file four times (SettingsIndex: `WallpaperPage.qml`, `#placement`,
+// `#scenes`, `#music`) and `view` follows UiState.settingsAnchor. Moving between them never
+// reloads the file, so a pick that crosses pages (below) keeps its state here.
+//   gallery      pick a wallpaper. Hero (what's on screen + its palette), the
 //                image/scene switch, search, and the sliding gallery, whose first
 //                tile is the one "get more wallpapers" action (as in the bar
-//                panel). `browse` is a sub-mode that swaps the gallery for an
-//                in-page file browser.
-//   Appearance   what applying a wallpaper does: theming + Light/Dark, the
-//                static-image parallax, shuffle, the album-cover link, and which
-//                monitor images land on.
-//   Engine       the renderer itself: every linux-wallpaperengine launch option,
-//                the render target, and where the library lives.
+//                panel). Two in-page sub-views with Back: `browsing` (Add images,
+//                a file browser) and `tuning` (a scene's Properties, from a tile's
+//                Tune action).
+//   placement    what the picture does on the desktop: who draws it, Material,
+//                parallax, the depth clock, shuffle, which monitor images land on,
+//                and a wallpaper per workspace. Theming lives in Look & feel › Theme.
+//   scenes       the renderer itself: every linux-wallpaperengine launch option,
+//                the monitors, and where the image library lives.
+//   music        the wallpaper moved by the music, and the desktop visualiser.
+// The three settings views are grouped-row SettingsPages with their own header; the
+// gallery keeps its own layout and header (a tool, not a form).
+//
+// ── A pick that crosses pages goes through the settings shell ────────────────
+// Scenes' "Choose…" (one monitor, or a span) and a Placement workspace cell both end with
+// a click in the gallery. beginPick() records where the pick came from and asks the card
+// for the gallery's key; endPick() (the pick done, or Cancel) asks for that key back. The
+// request is UiState.settingsPageRequest + settingsPageNav, which SettingsCard applies
+// without touching the window (openSettingsTo would also raise it). Leaving the gallery
+// any other way abandons the pick.
 //
 // ── The gallery SLIDES, it never shows the whole library ─────────────────────
 // Nine tiles a page, and the pages physically slide sideways — wheel, drag, or
@@ -55,8 +71,36 @@ Item {
     readonly property Item galleryPager: galleryView.pager
     // The gallery's pager, for WallpaperPageTile (its own file can't see the gallery's ids).
 
-    // ── View state ───────────────────────────────────────────────────────────
-    property string view: "gallery"        // "gallery" | "appearance" | "engine" | "effects"
+    // ── Which rail page is on show ───────────────────────────────────────────
+    // "gallery" | "placement" | "scenes" | "music", from UiState.settingsAnchor. Set
+    // imperatively, not bound: "" is also the anchor of every OTHER page, so a move to
+    // one of those would flip this file to its gallery while it slides out. Our own named
+    // anchors land at once; "" lands a beat later, and only if this page is still the one
+    // taking input (SettingsCard disables a slot that is leaving).
+    property string view: "gallery"
+    readonly property var _anchors: ["placement", "scenes", "music"]
+    function _takeAnchor() {
+        const a = UiState.settingsAnchor
+        if (root._anchors.indexOf(a) !== -1) root.view = a
+        else if (a === "") Qt.callLater(root._takeGallery)
+    }
+    function _takeGallery() {
+        if (root.enabled && UiState.settingsAnchor === "") root.view = "gallery"
+    }
+    Connections {
+        target: UiState
+        function onSettingsAnchorChanged() { root._takeAnchor() }
+    }
+    // The views crossfade only once the page is up: the anchor can land just after the
+    // file loads, and the page it opened on must not fade out of the gallery.
+    property bool viewMotion: false
+
+    // Asks the settings card for a page of its rail (a `file` or `file#anchor` key). Not
+    // UiState.openSettingsTo(): that also raises the window, and the page is already in it.
+    function openKey(key) {
+        UiState.settingsPageRequest = key
+        UiState.settingsPageNav++
+    }
 
     // ── The depth clock's preview ─────────────────────────────────────────────
     // The picture on the first screen's workspace, in that screen's shape — what the desktop frames.
@@ -72,7 +116,7 @@ Item {
             if (Math.abs(root.depthSpots[k][0] - p[0]) < 0.006 && Math.abs(root.depthSpots[k][1] - p[1]) < 0.006) return k
         return ""
     }
-    property bool   browsing: false        // gallery sub-mode: the file browser
+    property bool   browsing: false        // gallery sub-view: the file browser
 
     // "images" | "engine"
     property string source: "images"
@@ -85,21 +129,21 @@ Item {
     property string choosingPic: ""
     onChoosingChanged: if (root.choosing) { root.choosingPic = Wallpaper.pending; Qt.callLater(() => chooser.forceActiveFocus()) }
 
+    // Any move to another rail page closes the gallery's sub-views, and abandons a pick:
+    // a picking state that survived would silently reattach to whatever the user clicks
+    // next. endPick() clears the pick BEFORE it asks for the way back, so its own move
+    // finds nothing to abandon.
     onViewChanged: {
-        if (root.view !== "gallery") { root.browsing = false; root.pickingWs = 0 }
-        // Leaving the gallery any other way than completing a pick abandons it —
-        // a picking state that survived a tab switch would silently reattach to
-        // whatever the user clicks next.
-        if (root.view !== "gallery" && root.pickingActive) {
-            root.pickingForScreen = ""
-            root.pickingScreens = []
-        }
+        if (root.view === "gallery") return
+        root.browsing = false
+        root.tuning = false
+        root.dropPick()
     }
 
     // ── Assigning a scene to one (or several, spanned) monitors ───────────────
-    // "Choose…" in the Monitors section sets one of these and jumps to the
-    // gallery; a tile's click then calls WallpaperEngine.assignMonitor()/
-    // spanMonitors() instead of the normal apply() — see WallTile.doApply().
+    // "Choose…" in Scenes › Monitors sets one of these and goes to the gallery; a
+    // tile's click then calls WallpaperEngine.assignMonitor()/spanMonitors() instead
+    // of the normal apply() — see WallpaperPageTile.doApply().
     property string pickingForScreen: ""   // a screen name, or ""
     property var    pickingScreens:   []   // 2+ names when spanning; else []
     property bool   monitorSpanMode:  false
@@ -107,48 +151,60 @@ Item {
         root.pickingForScreen !== "" || root.pickingScreens.length > 0
 
     // ── Choosing a wallpaper for ONE workspace ────────────────────────────────
-    // A cell in the workspace strip sets this; the next gallery click assigns that
-    // wallpaper to the workspace (Wallpaper.assign) instead of applying it everywhere.
-    // The monitor picking above is the same shape, for scenes and screens.
+    // A cell in Placement's workspace strip sets this; the next gallery click assigns
+    // that wallpaper to the workspace (Wallpaper.assign) instead of applying it
+    // everywhere. The monitor picking above is the same shape, for scenes and screens.
     property int pickingWs: 0
     readonly property bool anyPicking: root.pickingActive || root.pickingWs > 0
-    function cancelPicking() {
+
+    // The page key a pick returns to ("WallpaperPage.qml#scenes"), or "" for a pick
+    // started in the gallery itself.
+    property string pickReturn: ""
+    // The picking state is set first (the caller's), then the gallery is asked for.
+    function beginPick(fromKey) {
+        root.pickReturn = fromKey
+        if (root.view !== "gallery") root.openKey("WallpaperPage.qml")
+    }
+    // The pick is done or cancelled: back to the page it came from.
+    function endPick() {
+        const back = root.pickReturn
+        root.dropPick()
+        if (back !== "") root.openKey(back)
+    }
+    // Forgets the pick, staying where it is.
+    function dropPick() {
         root.pickingForScreen = ""
         root.pickingScreens = []
         root.pickingWs = 0
+        root.pickReturn = ""
     }
+    function cancelPicking() { root.endPick() }
 
-    // The tile column count the Appearance and Engine grids use, from their width:
-    // SettingsPage's rule (a tile narrower than minTile starts eliding its text).
-    readonly property int minTile: 300
-    function colsFor(w) {
-        return Math.max(1, Math.min(3, Math.floor((w + Tokens.spacingLg) / (root.minTile + Tokens.spacingLg))))
-    }
-
-    // ── Custom scene properties (view: "properties") ──────────────────────────
-    // Entered from a scene tile's "Tune" hover action. The schema and any saved
-    // overrides are (re)loaded on open — the service caches per-id, so
-    // reopening the same scene is instant.
+    // ── Custom scene properties (sub-view: `tuning`) ──────────────────────────
+    // Entered from a scene tile's "Tune" hover action, over the view that opened it.
+    // A layer of that view rather than a view of its own, so Back simply uncovers where
+    // it was opened from, and any move to another rail page closes it (onViewChanged).
+    // The schema and any saved overrides are (re)loaded on open — the service caches
+    // per-id, so reopening the same scene is instant.
     property string propertiesForId: ""
+    property bool   tuning: false
 
     function openProperties(id) {
         if (!id) return
         root.propertiesForId = id
-        root.view = "properties"
+        root.browsing = false
+        root.tuning = true
         WallpaperEngine.loadPropertySchema(id)
         WallpaperEngine.loadOverridesFor(id)
     }
 
     // ONE handler for both jobs — a second `onBrowsingChanged` in this scope is
     // "Property value set multiple times", a hard load failure of the whole page.
-    // Opening the browser cancels a pending screen pick; closing it drops the
-    // import selection (see `picked` below).
+    // Opening the browser drops a pending pick (the action tile is inert while one is
+    // up, so this is the belt to that brace); closing it drops the import selection
+    // (see `picked` below).
     onBrowsingChanged: {
-        if (root.browsing) root.pickingWs = 0
-        if (root.browsing && root.pickingActive) {
-            root.pickingForScreen = ""
-            root.pickingScreens = []
-        }
+        if (root.browsing) root.dropPick()
         if (!root.browsing) root.picked = []
     }
 
@@ -161,7 +217,11 @@ Item {
         root._held = root.visible
     }
     onVisibleChanged: root._sync()
-    Component.onCompleted: root._sync()
+    Component.onCompleted: {
+        root._sync()
+        root._takeAnchor()
+        Qt.callLater(() => { root.viewMotion = true })
+    }
     Component.onDestruction: {
         if (root._held) WallpaperEngine.release()
         if (Wallpaper.pending !== "") Wallpaper.cancelPick()     // closed mid-choice: nothing chosen
@@ -201,8 +261,13 @@ Item {
 
     readonly property string heroName: root.sceneOnScreen
         ? WallpaperEngine.titleFor(WallpaperEngine.current)
-        : root.materialOnScreen ? "Material Wallpaper"
+        : root.materialOnScreen ? Translation.tr("Material wallpaper")
         : (Wallpaper.current !== "" ? Wallpaper.current : "")
+
+    // The name as a person reads it: a picture without its file extension (the gallery's tag
+    // already says the format). A scene's title and the Material name are left alone.
+    readonly property string heroTitle: (root.sceneOnScreen || root.materialOnScreen)
+        ? root.heroName : root.heroName.replace(/\.[A-Za-z0-9]{2,5}$/, "")
 
     readonly property string heroSource: {
         if (root.sceneOnScreen) {
@@ -309,22 +374,21 @@ Item {
         return WallpaperEngine.running ? "Renderer running" : "Renderer stopped"
     }
 
-    // ── Header subtitle — one line, priority order ───────────────────────────
+    // ── The gallery header's subtitle — one line, priority order ─────────────
+    // The three settings views say their own state in their own header.
     readonly property string headerNote: {
+        if (root.tuning)              return WallpaperEngine.titleFor(root.propertiesForId)
         if (root.browsing)            return "Pick pictures to copy in"
         if (root.pickingWs > 0)       return "Pick a wallpaper for workspace " + root.pickingWs
         if (root.blocked !== "")      return root.blocked
-        if (root.view === "appearance") return "Motion, shuffle and which screens"
-        if (root.view === "engine")   return root.engineStatus
-        if (root.view === "effects")
-            return !Config.wallShellRender ? "Needs the shell to draw the wallpaper"
-                 : Config.wallFx ? "Moving with the music" : "Off — the wallpaper stays still"
         if (root.sceneOnScreen)
             return root.isImages
-                ? "A scene is covering these — applying one stops it"
+                ? Translation.tr("A scene is covering these. Applying one stops it")
                 : "Playing " + WallpaperEngine.titleFor(WallpaperEngine.current)
         if (Config.wallMaterial)
-            return "Material is on your desktop — applying " + (root.isImages ? "a picture" : "a scene") + " replaces it"
+            return root.isImages
+                ? Translation.tr("Material is on your desktop. Applying a picture replaces it")
+                : Translation.tr("Material is on your desktop. Applying a scene replaces it")
         if (root.scanning) return "Scanning…"
         return root.query !== ""
             ? root.shownCount + " of " + (root.isImages
@@ -359,144 +423,119 @@ Item {
     }
 
     // ══ Layout ═══════════════════════════════════════════════════════════════
-    ColumnLayout {
+    // ── GALLERY: its own header and a body that fills the page ───────────────
+    Item {
+        id: galleryPage
         anchors.fill: parent
-        spacing: Tokens.spacingLg
-
-        // ── View switch ──────────────────────────────────────────────────────
-        // The same strip every rail page wears above its content (SettingsCard draws it for
-        // pages with several views; this is one view with three modes, so it draws its own, in
-        // the same place). One wash that SLIDES between segments. Hidden while the file browser
-        // has the body.
-        TabStrip {
-            Layout.fillWidth: true
-            visible: !root.browsing && root.view !== "properties"
-            accent: Colors.of(QsWindow.window).primary
-            model: [
-                { value: "gallery",    label: "Gallery",    icon: "wallpaper" },
-                { value: "appearance", label: "Appearance", icon: "palette" },
-                { value: "engine",     label: "Engine",     icon: "movie" },
-                { value: "effects",    label: "Effects",    icon: "music_note" }
-            ]
-            current: root.view
-            onPicked: function (v) { root.view = v }
+        enabled: root.view === "gallery"
+        opacity: root.view === "gallery" ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity {
+            enabled: root.viewMotion
+            NumberAnimation { duration: Motion.standard; easing.type: Motion.travel }
         }
 
-        // ── Header ───────────────────────────────────────────────────────────
-        // The engine tab wears Wallpaper Engine's own MARK out of Steam's cache;
-        // `iconClip` takes the mark alone out of a mark-plus-wordmark file, and
-        // `glyph` is the fallback for a machine without the app.
-        PanelHeader {
-            // The same header every Settings page wears (SettingsPage): a morphing badge, a headline.
-            morph:     "clover"
-            chipSize:  Tokens.iconXl + Tokens.spacingLg
-            titleVariant: "headline"
-            subtitleVariant: "label"
-            Layout.fillHeight: false
-            icon:      root.isImages && root.view === "gallery"
-                       ? Icons.asset("wallpaper")
-                       : (!root.isImages && root.view === "gallery"
-                          ? "file://" + root.weLogo : "")
-            glyph:     "󰸉"
-            iconClip:  (!root.isImages && root.view === "gallery")
-                       ? Qt.rect(0, 7, 177, 177) : Qt.rect(0, 0, 0, 0)
-            iconSize:  Qt.size(20, 20)
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: Tokens.spacingLg
 
-            title:     Translation.tr("Wallpaper")
-            titleTail: root.view === "appearance" ? "Appearance"
-                     : root.view === "engine"     ? "Engine"
-                     : root.view === "effects"    ? "Effects"
-                     : root.isImages              ? "Gallery" : "Scenes"
-            accent:    Colors.of(QsWindow.window).primary
-            subtitle:  root.headerNote
+            // ── Header ───────────────────────────────────────────────────────
+            // The scenes side wears Wallpaper Engine's own MARK out of Steam's cache;
+            // `iconClip` takes the mark alone out of a mark-plus-wordmark file, and
+            // `glyph` is the fallback for a machine without the app.
+            PanelHeader {
+                // The same header every Settings page wears (SettingsPage): a morphing badge, a headline.
+                morph:     "clover"
+                chipSize:  Tokens.iconXl + Tokens.spacingLg
+                titleVariant: "headline"
+                subtitleVariant: "label"
+                Layout.fillHeight: false
+                icon:      root.isImages ? Icons.asset("wallpaper") : "file://" + root.weLogo
+                glyph:     "󰸉"
+                iconClip:  !root.isImages ? Qt.rect(0, 7, 177, 177) : Qt.rect(0, 0, 0, 0)
+                iconSize:  Qt.size(20, 20)
 
-            BusyDot {
-                Layout.alignment: Qt.AlignVCenter
-                running: root.applyBusy
-                tint: Colors.of(QsWindow.window).primary
-            }
+                title:     Translation.tr("Wallpaper")
+                titleTail: root.tuning ? "Properties" : root.browsing ? "Add images" : "Gallery"
+                accent:    Colors.of(QsWindow.window).primary
+                subtitle:  root.headerNote
 
-            // Gallery-only: acts on the current wallpaper + the library.
-            ChipTray {
-                groupShown: root.view === "gallery" && !root.browsing
-
-                ChipButton {
-                    visible: root.sceneOnScreen
-                    symbol:  "stop"
-                    tint:    Colors.of(QsWindow.window).primary
-                    enabled: !WallpaperEngine.busy
-                    onActivated: WallpaperEngine.stop()
+                BusyDot {
+                    Layout.alignment: Qt.AlignVCenter
+                    running: root.applyBusy
+                    tint: Colors.of(QsWindow.window).primary
                 }
-                ChipButton {
-                    visible: !root.sceneOnScreen && Wallpaper.wallpapers.length > 1
-                    symbol:  "shuffle"
-                    tint:    Colors.of(QsWindow.window).primary
-                    enabled: !Wallpaper.applying
-                    onActivated: Wallpaper.shuffleNow(true)
-                }
-                ChipButton {
-                    symbol:  "refresh"
-                    tint:    Colors.of(QsWindow.window).primary
-                    enabled: !root.scanning
-                    iconAngle: root._rescanSpinning ? root._rescanPhase : 0
-                    onActivated: root.doRescan()
+
+                // Acts on the library. The renderer's Stop and Refresh live in Scenes › Renderer.
+                ChipTray {
+                    groupShown: !root.browsing && !root.tuning
+
+                    ChipButton {
+                        visible: !root.sceneOnScreen && Wallpaper.wallpapers.length > 1
+                        symbol:  "shuffle"
+                        tint:    Colors.of(QsWindow.window).primary
+                        enabled: !Wallpaper.applying
+                        onActivated: Wallpaper.shuffleNow(true)
+                    }
+                    ChipButton {
+                        symbol:  "refresh"
+                        tint:    Colors.of(QsWindow.window).primary
+                        enabled: !root.scanning
+                        iconAngle: root._rescanSpinning ? root._rescanPhase : 0
+                        onActivated: root.doRescan()
+                    }
                 }
             }
-        }
 
-        // ══ Body ═════════════════════════════════════════════════════════════
-        Item {
-            id: body
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+            // ══ Body ═════════════════════════════════════════════════════════
+            Item {
+                id: body
+                Layout.fillWidth: true
+                Layout.fillHeight: true
 
-            // ── GALLERY ──────────────────────────────────────────────────────
-            // ── Choosing workspaces: the gallery crossfades into the picker ──
-            // (components/WorkspacePicker — the panel folds into the same one.)
-            FocusScope {
-                id: chooseView
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                height: chooser.implicitHeight
-                opacity: root.choosing ? 1 : 0
-                visible: opacity > 0.01
-                Behavior on opacity { NumberAnimation { duration: Motion.standard } }
-
-                WorkspacePicker {
-                    id: chooser
+                // ── Choosing workspaces: the gallery crossfades into the picker ──
+                // (components/WorkspacePicker — the panel folds into the same one.)
+                FocusScope {
+                    id: chooseView
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    shown: root.choosing
-                    picture: root.choosingPic
-                    onApplied: list => Wallpaper.assign(root.choosingPic, list)
-                    onCancelled: Wallpaper.cancelPick()
+                    anchors.top: parent.top
+                    height: chooser.implicitHeight
+                    opacity: root.choosing ? 1 : 0
+                    visible: opacity > 0.01
+                    Behavior on opacity { NumberAnimation { duration: Motion.standard } }
+
+                    WorkspacePicker {
+                        id: chooser
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        shown: root.choosing
+                        picture: root.choosingPic
+                        onApplied: list => Wallpaper.assign(root.choosingPic, list)
+                        onCancelled: Wallpaper.cancelPick()
+                    }
                 }
+
+                // ── WallpaperGalleryView.qml
+                WallpaperGalleryView { id: galleryView; page: root }
+
+                // ── WallpaperBrowseView.qml (sub-view: Add images)
+                WallpaperBrowseView { id: browserView; page: root }
+
+                // ── WallpaperPropertiesView.qml (sub-view: a scene's Properties)
+                WallpaperPropertiesView { id: propFlick; page: root }
+                Scrollbar { flickable: propFlick }
             }
-
-            // ── WallpaperGalleryView.qml
-            WallpaperGalleryView { id: galleryView; page: root }
-
-            // ── WallpaperBrowseView.qml
-            WallpaperBrowseView { id: browserView; page: root }
-
-            // ── WallpaperAppearanceView.qml
-            WallpaperAppearanceView { id: appFlick; page: root }
-            Scrollbar { flickable: appFlick }
-
-            // ── WallpaperEffectsView.qml
-            WallpaperEffectsView { id: fxFlick; page: root }
-            Scrollbar { flickable: fxFlick }
-
-            // ── WallpaperEngineView.qml
-            WallpaperEngineView { id: engFlick; page: root }
-            Scrollbar { flickable: engFlick }
-
-            // ── WallpaperPropertiesView.qml
-            WallpaperPropertiesView { id: propFlick; page: root }
-            Scrollbar { flickable: propFlick }
         }
     }
+
+    // ── The three settings views: grouped-row SettingsPages ──────────────────
+    // WallpaperAppearanceView.qml (Placement & motion)
+    WallpaperAppearanceView { page: root }
+    // WallpaperEngineView.qml (Scenes)
+    WallpaperEngineView { page: root }
+    // WallpaperEffectsView.qml (Music on the desktop)
+    WallpaperEffectsView { page: root }
 
     // ── Wheel = turn the page, anywhere over the gallery ─────────────────────
     // Declared AFTER the content so it sits on top; NoButton keeps it transparent
@@ -505,7 +544,7 @@ Item {
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.NoButton
-        enabled: root.view === "gallery" && !root.browsing && root.pageCount > 1
+        enabled: root.view === "gallery" && !root.browsing && !root.tuning && root.pageCount > 1
 
         property real acc: 0
         onWheel: function(ev) {
@@ -515,6 +554,4 @@ Item {
             ev.accepted = true
         }
     }
-
-
 }

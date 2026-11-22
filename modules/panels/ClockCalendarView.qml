@@ -93,8 +93,9 @@ Item {
 
                 readonly property int span: 24
                 readonly property date base: { Clock.dayStamp; return new Date() }
-                readonly property int cell: Tokens.iconXl + Tokens.spacingXs
-                readonly property int gap: Tokens.spacingXs
+                // An island's page is bigger than the bar panel: a larger day, a little more air.
+                readonly property int cell: Tokens.iconXl + (panel.island ? Tokens.spacingMd : Tokens.spacingXs)
+                readonly property int gap: panel.island ? Tokens.spacingSm : Tokens.spacingXs
                 readonly property int gridW: monthPager.cell * 7 + monthPager.gap * 6
                 // The month's name sits level with the arrows, so a page is as tall as the tray.
                 readonly property int head: Tokens.iconXl + Tokens.spacingMd
@@ -116,6 +117,7 @@ Item {
                 function scrollTo(i) {
                     if (!months.placed) return
                     monthPager.target = Math.max(0, Math.min(monthPager.span * 2, i))
+                    months.resting = monthPager.target
                     const y = monthPager.target * months.height
                     if (!Config.motionEnabled) {
                         scroll.stop()
@@ -160,13 +162,25 @@ Item {
 
                     // Land on this month once there are pages and a height to land with.
                     property bool placed: false
+                    // The page at rest. A page is `height` tall and contentY counts in pixels, so a card that
+                    // is still growing when this lands (an island opens on a spring) would leave contentY
+                    // pointing at some other month (it showed November two years back): a resize puts the
+                    // resting page back.
+                    property int resting: monthPager.span
                     function place() {
-                        if (months.placed || months.height <= 0 || months.count === 0) return
-                        months.positionViewAtIndex(monthPager.span, ListView.Beginning)
-                        months.placed = true
+                        if (months.height <= 0 || months.count === 0) return
+                        if (!months.placed) {
+                            months.positionViewAtIndex(monthPager.span, ListView.Beginning)
+                            months.placed = true
+                        } else if (!months.moving && !scroll.running) {
+                            months.positionViewAtIndex(months.resting, ListView.Beginning)
+                        } else if (scroll.running) {
+                            scroll.to = monthPager.target * months.height
+                        }
                     }
                     onHeightChanged: months.place()
                     onCountChanged: months.place()
+                    onMovementEnded: months.resting = monthPager.index
 
                     delegate: Item {
                         id: page
@@ -199,14 +213,14 @@ Item {
                                 StyledText {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: Qt.locale().standaloneMonthName(page.first.getMonth())
-                                    variant: "title"
+                                    variant: panel.island ? "headline" : "title"
                                     font.weight: Font.DemiBold
                                     color: page.isThisMonth ? panel.accent : Colors.of(QsWindow.window).fg
                                 }
                                 StyledText {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: page.first.getFullYear()
-                                    variant: "title"
+                                    variant: panel.island ? "headline" : "title"
                                     emphasis: "dim"
                                 }
                             }
@@ -307,25 +321,42 @@ Item {
                     ViewEnter { target: agendaCol; active: monthView.shown && !monthView.editing; delay: panel.lead + Motion.respond; rise: Tokens.spacingSm }
 
                     // ── The time, the date, add ───────────────────
-                    RowLayout {
+                    // On an island this is the card's loud plate (the accent container, as the other pages'
+                    // heroes are), with the time larger and the add button a pill.
+                    Rectangle {
+                        id: heroPlate
                         Layout.fillWidth: true
                         Layout.fillHeight: false
+                        implicitHeight: headRow.implicitHeight + (panel.island ? Tokens.spacingMd * 2 : 0)
+                        radius: Tokens.radiusXl
+                        color: panel.island ? Colors.of(QsWindow.window).primaryContainer : "transparent"
+
+                    RowLayout {
+                        id: headRow
+                        anchors.fill: parent
+                        anchors.margins: panel.island ? Tokens.spacingMd : 0
+                        anchors.leftMargin: panel.island ? Tokens.spacingLg : 0
                         spacing: Tokens.spacingMd
 
                         ColumnLayout {
+                            id: timeCol
                             Layout.fillWidth: true
                             Layout.fillHeight: false
                             spacing: 0
 
-                            FontMetrics { id: calBigMetrics;   font.family: Tokens.fontBlock; font.pixelSize: Tokens.fontDisplay; font.weight: Font.Bold }
+                            readonly property int bigPx: panel.island ? Math.round(Tokens.fontDisplay * 1.4) : Tokens.fontDisplay
+                            readonly property color ink: panel.island ? Colors.of(QsWindow.window).fgOnPrimaryContainer : Colors.of(QsWindow.window).fg
+                            readonly property color inkDim: panel.island ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fgOnPrimaryContainer, 0.72) : Colors.of(QsWindow.window).fgDim
+                            FontMetrics { id: calBigMetrics;   font.family: Tokens.fontBlock; font.pixelSize: timeCol.bigPx; font.weight: Font.Bold }
                             FontMetrics { id: calSmallMetrics; font.family: Tokens.fontBlock; font.pixelSize: Tokens.fontTitle }
 
                             Row {
                                 RollText {
                                     text: Qt.formatDateTime(panel.now, "HH:mm")
                                     family:    Tokens.fontBlock
-                                    pixelSize: Tokens.fontDisplay
+                                    pixelSize: timeCol.bigPx
                                     weight:    Font.Bold
+                                    color:     timeCol.ink
                                 }
                                 RollText {
                                     // Shares the big digits' baseline.
@@ -333,7 +364,7 @@ Item {
                                     text: ":" + Qt.formatDateTime(panel.now, "ss")
                                     family:    Tokens.fontBlock
                                     pixelSize: Tokens.fontTitle
-                                    color:     panel.accent
+                                    color:     panel.island ? timeCol.inkDim : panel.accent
                                 }
                             }
                             // The date, the ISO week, and the moon — what the two facts rows
@@ -344,7 +375,7 @@ Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: Qt.formatDate(panel.now, "ddd, d MMM") + "  ·  Week " + panel.dayFacts.week
                                     variant: "caption"
-                                    emphasis: "dim"
+                                    color: timeCol.inkDim
                                 }
                                 ClockMoon {
                                     anchors.verticalCenter: parent.verticalCenter
@@ -357,12 +388,13 @@ Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: Math.round(panel.dayFacts.moon.illumination * 100) + "%"
                                     variant: "caption"
-                                    emphasis: "dim"
+                                    color: timeCol.inkDim
                                 }
                             }
                         }
 
                         ChipTray {
+                            visible: !panel.island
                             Layout.alignment: Qt.AlignTop
                             ChipButton {
                                 symbol:  "add"
@@ -371,6 +403,17 @@ Item {
                                 onActivated: panel.openEditor("", panel.agendaFrom)
                             }
                         }
+                        ChipButton {
+                            visible: panel.island
+                            Layout.alignment: Qt.AlignVCenter
+                            symbol:  "add"
+                            label:   Translation.tr("New")
+                            on:      true
+                            tint:    Colors.of(QsWindow.window).primary
+                            enabled: Calendar.localWritable
+                            onActivated: panel.openEditor("", panel.agendaFrom)
+                        }
+                    }
                     }
 
                     // ── The day, on a strip ───────────────────────────────

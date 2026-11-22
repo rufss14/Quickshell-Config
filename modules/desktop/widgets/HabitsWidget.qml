@@ -203,7 +203,7 @@ Item {
             Layout.fillHeight: false
             implicitHeight: addRow.implicitHeight + Tokens.spacingSm * 2
             radius: Tokens.corner(Config.barShape, Tokens.radiusSm)
-            color: Colors.of(QsWindow.window).surfaceHigh
+            color: Colors.of(QsWindow.window).plate
             border.width: Tokens.borderWidth
             border.color: entry.activeFocus ? Colors.of(QsWindow.window).outlineFocus : "transparent"
             Behavior on border.color { ColorAnimation { duration: Motion.respond } }

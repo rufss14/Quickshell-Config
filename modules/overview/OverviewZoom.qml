@@ -6,6 +6,7 @@ import Quickshell.Widgets
 import Quickshell.Wayland
 import "../../config"
 import "../../components"
+import "../../services"
 
 // ── OverviewZoom ──────────────────────────────────────────────────────────────
 // The overview's way in and out of a workspace (2026-10-20, the user's pick of "zoom into
@@ -227,6 +228,12 @@ Item {
                 visible: shot.hasContent
                 captureSource: flyer.modelData.wayland
                 live: true
+            }
+            // Stream mode: the capture keeps running (`ready` waits on it) but a tile covers it.
+            Rectangle {
+                anchors.fill: parent
+                visible: StreamMode.active
+                color: Colors.of(QsWindow.window).primaryContainer
             }
         }
     }

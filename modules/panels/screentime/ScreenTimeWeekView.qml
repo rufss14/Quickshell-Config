@@ -340,9 +340,9 @@ ColumnLayout {
                     Rectangle {
                         anchors.fill: parent
                         radius: width / 2
-                        color: Colors.of(QsWindow.window).surfaceHigh
+                        color: Colors.of(QsWindow.window).plate
                         border.width: Tokens.borderWidth * 2
-                        border.color: Colors.of(QsWindow.window).surfaceContainer
+                        border.color: Colors.of(QsWindow.window).plateLow
                     }
                     Image {
                         anchors.centerIn: parent

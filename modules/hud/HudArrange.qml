@@ -235,6 +235,12 @@ Item {
                     tint: root.accent
                     onActivated: Hud.pin(tag.modelData, !tag.entry.pinned)
                 }
+                // Its options (the island's HUD page: size, opacity, the key layout) are set with the overview's stage back.
+                ChipButton {
+                    symbol: "tune"
+                    tint: root.accent
+                    onActivated: { Hud.arrange(false); Hud.inspect(tag.modelData) }
+                }
             }
         }
     }

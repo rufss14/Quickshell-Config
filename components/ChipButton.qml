@@ -50,6 +50,9 @@ Item {
     property int    labelWeight: Font.Medium
     property bool   on:     false
     property bool   solid:  false
+    // A quiet plate of its own while off, for a chip that stands in a grid of them with no tray
+    // behind it (an island page's switches): the hover wash, always there.
+    property bool   tonal:  false
     // Whether the icon fills in (the FILL axis) when the chip is on. Most do; a glyph whose filled
     // form turns to a blob — the `palette` one loses its paint dots — keeps its outline.
     property bool   fillIcon: true
@@ -99,9 +102,10 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: height / 2
-        color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.08)
-        opacity: !root._filled && root._hot ? 1 : 0
+        color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, root.tonal && root._hot ? 0.14 : 0.08)
+        opacity: !root._filled && (root._hot || root.tonal) ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Motion.respond } }
+        Behavior on color { ColorAnimation { duration: Motion.respond } }
     }
 
     // The disc (the whole pill, with a label). It grows from the middle rather than fading,

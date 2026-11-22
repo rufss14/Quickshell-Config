@@ -20,11 +20,11 @@ import "../../state"
 //   ╰──────────╯
 //   send ▸ 1 2 3 4 5 6 7 8 9 10     snap ▸ ▮▯ ▯▮ ▮ ◰ ◳ ◱ ◲  ⌖           12% CPU · 800 MB   ⋯
 //
-// Regrouped 2026-11-03 (the user: "improve layout, structure and features"): the state toggles (float, pin,
-// fullscreen) are the one thing on the first row; PLACING it — a one-line map of the page's workspaces (what is
+// The state toggles (float, pin, fullscreen; InspectorActions, shared with BulkInspector) are the one thing on the
+// first row; PLACING it — a one-line map of the page's workspaces (what is
 // on each, where it is) and the snap zones — is the second; everything rarer (its sound, a picture, record, the
 // other screens, force quit, its workspace's page) is behind the ⋯ page, which replaces the row the way the
-// workspace page does. It used to be two rows of everything, 830 px wide, squeezing the corner cards.
+// workspace page does.
 //
 // It shows `win` — a Switcher record (Alt+Tab, the search, ←/→, or a right-click on a window
 // in the grid) — and keeps its own copy (`held`) so the island can fade out showing the window
@@ -88,11 +88,11 @@ Item {
 
     readonly property int previewH: 96
     implicitHeight: col.implicitHeight
-    // One width for every page: the placing row is the widest, so the ⋯ page and the workspace page keep its width and
-    // the corner cards beside the island (flankW follows it) do not move when a page is turned.
+    // One width for every page: the placing row is the widest, so the ⋯ page and the workspace page keep its width
+    // and the island does not change width when a page is turned.
     implicitWidth: Math.max(col.implicitWidth, tools.implicitWidth)
 
-    // ── The second row's services (2026-10-20, the user's picks) ──────────────
+    // ── The second row's services ─────────────────────────────────────────────
     // Its process tree's cost while this shows (ProcCost samples only while `pid` is set),
     // and the app's own playback streams (Audio — by app id, so it's the APP's sound: two
     // windows of one browser share it, and the row says so by being the app's).
@@ -217,7 +217,6 @@ Item {
                         anchors.fill: parent
                         shape: "cookie9"
                         fillColor: Colors.of(QsWindow.window).surfaceHigh
-                        strokeColor: Colors.of(QsWindow.window).alpha(root.accent, 0.4)
                     }
                     Image {
                         anchors.centerIn: parent
@@ -242,8 +241,7 @@ Item {
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
-                // Narrower than it was (300 / 360): the facts wrap, and every pixel here is taken off the corner
-                // cards beside the island (flankW) while a window is picked.
+                // The facts wrap, so the column stays narrow.
                 Layout.preferredWidth: 230
                 Layout.maximumWidth: 300
                 Layout.alignment: Qt.AlignVCenter
@@ -283,7 +281,7 @@ Item {
                             radius: height / 2
                             // A state it is in wears the tonal container (like every other lit chip); the rest are quiet.
                             color: fact.lit ? Colors.of(QsWindow.window).primaryContainer
-                                            : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)
+                                            : Colors.of(QsWindow.window).surfaceHigh
                             Row {
                                 id: factRow
                                 anchors.centerIn: parent
@@ -308,42 +306,17 @@ Item {
             }
 
             // ── What you can do to it ─────────────────────────────────────────────
-            ChipTray {
+            InspectorActions {
                 Layout.alignment: Qt.AlignVCenter
-                ChipButton {
-                    symbol: "open_with"
-                    on: root.floating
-                    tint: root.accent
-                    onActivated: root.toggleFloat()
-                HoverTip { below: false; text: Translation.tr("Float: let it move and resize freely (Ctrl+F)") }
-                }
-                ChipButton {
-                    symbol: "keep"
-                    on: root.pinned
-                    tint: root.accent
-                    onActivated: root.togglePin()
-                HoverTip { below: false; text: Translation.tr("Pin: keep it on screen on every workspace (Ctrl+P)") }
-                }
-                ChipButton {
-                    symbol: "fullscreen"
-                    on: root.fullscreen
-                    tint: root.accent
-                    onActivated: root.toggleFullscreen()
-                HoverTip { below: false; text: Translation.tr("Fullscreen (Ctrl+Enter)") }
-                }
-            }
-
-            // ── Close it — twice ──────────────────────────────────────────────────
-            CookieButton {
-                Layout.alignment: Qt.AlignVCenter
-                implicitWidth: 44
-                implicitHeight: 44
-                name: closeLatch.armed ? "delete" : "close"
-                tint: Colors.of(QsWindow.window).danger
-                primary: closeLatch.armed
-                points: 6
-                onActivated: root.requestClose()
-                HoverTip { below: false; text: Translation.tr("Close it: click twice to confirm (Ctrl+W)") }
+                floating: root.floating
+                pinned: root.pinned
+                fullscreen: root.fullscreen
+                closeArmed: closeLatch.armed
+                accent: root.accent
+                onFloatToggled: root.toggleFloat()
+                onPinToggled: root.togglePin()
+                onFullscreenToggled: root.toggleFullscreen()
+                onCloseAsked: root.requestClose()
             }
         }
 
@@ -404,9 +377,8 @@ Item {
                             width: 28
                             height: 22
                             radius: Tokens.radiusXs + 2
-                            color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, zcHover.hovered ? 0.12 : 0.06)
-                            border.width: Tokens.borderWidth
-                            border.color: zcHover.hovered ? root.accent : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.18)
+                            color: zcHover.hovered ? Colors.of(QsWindow.window).primaryContainer : Colors.of(QsWindow.window).surfaceHigh
+                            Behavior on color { ColorAnimation { duration: Motion.respond } }
                             SpringValue {
                                 id: zcLean
                                 target: zcTap.pressed ? 0.9 : zcHover.hovered ? 1.06 : 1
@@ -576,8 +548,7 @@ Item {
         }
 
         // ── Its workspace — the tools row's other page ────────────────────────
-        // What the cell's right-click menu used to hold (2026-10-24, the user's call: it lives
-        // here now, and the cell has no menu): name and icon the APP (they follow it to any
+        // The workspace's own page (a cell has no menu): name and icon the APP (they follow it to any
         // workspace — WorkspaceLabels), swap the workspace with another of the page, bring all of
         // it to where you were, close all of it (twice). A page, not a third row: the island
         // keeps its width, and its height until you ask (the chip with the workspace's number,

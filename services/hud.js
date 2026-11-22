@@ -5,9 +5,9 @@
 // say, where a widget may sit, and what is shown and clickable in which mode.
 //
 // ── What the HUD is ───────────────────────────────────────────────────────────
-// Small widgets (performance, clips, voice, input) that live as cards in the overview,
-// above and below the workspaces (modules/hud/HudCard), and — when PINNED — are also drawn
-// on screen (modules/hud/HudLayer), unlike the desktop widgets, which sit under windows.
+// Small widgets (performance, clips, voice, input) that are PINNED to be drawn on screen
+// (modules/hud/HudLayer), unlike the desktop widgets, which sit under windows. They are placed
+// from the overview (its HUD chip, modules/hud/HudArrange) and tuned in its island (HudInspector).
 // WHERE a pinned one shows is its own `where`: "games" (over a fullscreen window on the
 // focused monitor) or "always" (a plain overlay, over everything, on the overlay's HOME
 // monitor — `home`, the one it was last arranged on, so it doesn't hop screens as focus

@@ -16,9 +16,7 @@ import "../hud"
 // what it holds (Motion.spring: it passes its size and settles, like a panel's box), while the
 // old content sinks out and the new rises in a beat behind (ViewEnter's rhythm).
 //
-// The material is a panel's: a card with the shared cookie field drifting behind its content
-// (DriftShapes, at the card's radius), so the overview's islands are the same stuff as the
-// bar's panels.
+// The material is the island pages': a flat tonal ground (GroundCard), no outline, no shadow, no field.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
@@ -45,8 +43,6 @@ Item {
     signal moved(int ws)
 
     readonly property int pad: Tokens.spacingMd
-    // A floor for the box's height (the corner cards'), so the island and they share a bottom edge.
-    property real minH: 0
 
     // The inspector stays loaded for its fade out, then goes (its live capture with it).
     property bool _hold: false
@@ -69,16 +65,14 @@ Item {
                                  : root.bulking ? (bulkLoader.item?.implicitWidth ?? 0)
                                  : root.tuning ? (hudLoader.item?.implicitWidth ?? 0)
                                  : controls.implicitWidth) + root.pad * 2
-    readonly property real wantH: Math.max(root.minH, (root.inspecting ? (inspectorLoader.item?.implicitHeight ?? 0)
+    readonly property real wantH: (root.inspecting ? (inspectorLoader.item?.implicitHeight ?? 0)
                                  : root.bulking ? (bulkLoader.item?.implicitHeight ?? 0)
                                  : root.tuning ? (hudLoader.item?.implicitHeight ?? 0)
-                                 : controls.implicitHeight) + root.pad * 2)
+                                 : controls.implicitHeight) + root.pad * 2
     implicitWidth: root.wantW
     implicitHeight: root.wantH
-    // The box's width as drawn, mid-spring — what the HUD cards beside it make room for.
-    readonly property real boxWidth: shell.width
 
-    Surface {
+    GroundCard {
         id: shell
         anchors.centerIn: parent
         // The box springs to the size of its face on M3E springs (SpringValue): a little past, then settled.
@@ -86,27 +80,13 @@ Item {
         SpringValue { id: sh; target: root.wantH; spec: Motion.springSpatial }
         width: sw.value
         height: sh.value
-        elevation: Tokens.elevationCard
-        cornerRadius: Tokens.radiusXl
-        focused: !root.idle
         // The playing cover's colour, lightly, while it shows the controls (OverviewControls).
-        tint: root.idle && controls.dressed ? controls.tone : "transparent"
-        tintAmount: root.idle && controls.dressed ? 0.14 : 0
-        Behavior on tint { ColorAnimation { duration: Motion.slow } }
-        Behavior on tintAmount { NumberAnimation { duration: Motion.slow } }
+        readonly property color ground: palette.surfaceFor(Tokens.elevationCard)
+        tone: root.idle && controls.dressed ? palette.mix(shell.ground, controls.tone, 0.14) : shell.ground
 
         Item {
             anchors.fill: parent
             clip: true
-
-            DriftShapes {
-                anchors.fill: parent
-                visible: root.shown
-                radius: Tokens.radiusXl
-                fade: 0
-                seam: false
-                shift: UiState.overviewDrift
-            }
 
             // ── Volume and brightness ─────────────────────────────────────────
             // Its own surface turned off: the island is the surface.
@@ -114,9 +94,6 @@ Item {
                 id: controls
                 anchors.centerIn: parent
                 live: root.shown && root.idle
-                color: "transparent"
-                borderWidth: 0
-                castsShadow: false
                 opacity: root.idle ? 1 : 0
                 scale: root.idle ? 1 : 0.94
                 visible: opacity > 0.01

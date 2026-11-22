@@ -14,12 +14,16 @@ import "../config"
 //
 //   HoverTip { text: "What this does" }              // above the item
 //   HoverTip { text: "…"; below: true }              // under it
+//   HoverTip { text: "…"; alignEnd: true }          // its right edge on the item's: a control at the edge of a clipped surface
 // ─────────────────────────────────────────────────────────────────────────────
 HoverHandler {
     id: root
 
     property string text: ""
     property bool below: false
+    // The label's right edge on the item's, not centred under it: for a control at the right edge of a surface that
+    // clips, where a centred label hangs out and is cut.
+    property bool alignEnd: false
     // How long the pointer rests before the label opens, so sweeping across a card does not flash one per control.
     property int delay: 450
     property int maxWidth: 280
@@ -41,7 +45,7 @@ HoverHandler {
 
     function _show() {
         if (!root.parent || root._card || root.text === "") return
-        root._card = card.createObject(root.parent, { text: root.text, below: root.below, maxWidth: root.maxWidth })
+        root._card = card.createObject(root.parent, { text: root.text, below: root.below, alignEnd: root.alignEnd, maxWidth: root.maxWidth })
     }
     function _hide() {
         if (!root._card) return
@@ -55,16 +59,17 @@ HoverHandler {
             id: c
             property string text: ""
             property bool below: false
+            property bool alignEnd: false
             property real maxWidth: 280
             property bool up: false
             z: 10000
             width: bubble.width
             height: bubble.height
-            x: Math.round((parent.width - width) / 2)
+            x: c.alignEnd ? Math.round(parent.width - width) : Math.round((parent.width - width) / 2)
             y: c.below ? parent.height + Tokens.spacingSm : -height - Tokens.spacingSm
             opacity: c.up ? 1 : 0
             scale: c.up ? 1 : 0.94
-            transformOrigin: c.below ? Item.Top : Item.Bottom
+            transformOrigin: c.alignEnd ? (c.below ? Item.TopRight : Item.BottomRight) : (c.below ? Item.Top : Item.Bottom)
             visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: Motion.respond } }
             Behavior on scale { NumberAnimation { duration: Motion.respond; easing.type: Motion.exitCurve } }

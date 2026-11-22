@@ -125,7 +125,8 @@ Singleton {
                     name: title, ranges: Logic.scoreText(title.toLowerCase(), q.toLowerCase()).ranges,
                     generic: r.kind === "page" ? "Settings" + (r.group ? " › " + r.group : "")
                                                : "Settings › " + (r.page || r.group || ""),
-                    symbol: "settings", file: r.file
+                    // `key` names the rail page (file#anchor), so a Scenes row opens Scenes.
+                    symbol: "settings", file: r.file, key: r.key || r.file
                 })
             }
         }
@@ -151,7 +152,7 @@ Singleton {
             return true
         }
         if (result.kind === "setting") {
-            UiState.openSettingsTo(result.file)
+            UiState.openSettingsTo(result.key || result.file)
             return true
         }
         if (result.kind === "web") {

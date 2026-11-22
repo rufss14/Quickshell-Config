@@ -274,7 +274,7 @@ function settleAfter(lines, i, rl) {
     return Math.round(base * (1 + shortBy / GRACE_PACE_SPAN));
 }
 
-var RULES_NORMAL = { strictWords: false, lead: 0.15, tail: 0.35, openLead: 0.8, graceMs: 1200, timingFull: 0.45, wordFull: 0.7 };
+var RULES_NORMAL = { strictWords: false, lead: 0.15, tail: 0.35, openLead: 1.2, graceMs: 1200, timingFull: 0.45, wordFull: 0.7 };
 
 function rules(list) {
     var l = list || [];
@@ -286,10 +286,11 @@ function rules(list) {
 
 // Did the recogniser hear THIS lyric word? A word of three letters or fewer is only taken on
 // its SOUND ("the" is not "she"; "know" is "no") — one edit in three letters is a different
-// word; anything longer on spelling or sound, at 0.66.
+// word; anything longer on spelling or sound, at SAME_WORD_BAR (0.6, was 0.66 until the tracker was made more forgiving).
 //
 // `strict` (Hard Rock): no sound-alikes at all, and spelling must be 85% right — one wrong letter in a long
 // word, nothing for a short one.
+var SAME_WORD_BAR = 0.6;
 function sameWord(heard, want, strict) {
     if (heard === want) return true;
     if (strict) {
@@ -300,7 +301,7 @@ function sameWord(heard, want, strict) {
         var ka = soundKey(heard), kb = soundKey(want);
         return ka !== "" && ka === kb && (ka.length >= 2 || ka !== "A");
     }
-    return closeness(heard, want) >= 0.66;
+    return closeness(heard, want) >= SAME_WORD_BAR;
 }
 
 // ── Words the recogniser cannot hear ──────────────────────────────────────────
@@ -345,8 +346,8 @@ function withFree(t, oov) { return Object.assign({}, t, { free: freeFlags(t.word
 //
 // A state is { line, w, took, prev }: the cursor (a line index into the lyrics, and a word in
 // it), how many of this utterance's words are already taken, and the previous partial.
-var LOOKAHEAD = 5;
-var LOOKBACK = 4;
+var LOOKAHEAD = 7;
+var LOOKBACK = 6;
 
 function matcherNew() { return { line: -1, w: 0, took: 0, prev: [] }; }
 
@@ -416,8 +417,9 @@ function _find(ctx, line, w, token, used, strict) {
     return best;
 }
 
-// The words between the cursor and a hit that were most likely sung and not heard: all weak,
-// no more than two, and in the line the hit is in (the cursor at a line's end counts as the
+var GAP_WEAK = 3, GAP_STRONG = 1;
+// The words between the cursor and a hit that were most likely sung and not heard: weak ones (up to GAP_WEAK)
+// plus at most GAP_STRONG other word, in the line the hit is in (the cursor at a line's end counts as the
 // start of the next). Returns [{ line, w }].
 function _gap(ctx, line, w, hit, used) {
     var c = null, from = w;
@@ -435,12 +437,14 @@ function _gap(ctx, line, w, hit, used) {
         from = 0;
     }
     if (hit.w - from < 1) return [];
-    // At most two WEAK words may have been dropped; a free (unhearable) word between is no bar and no count.
-    var out = [], weak = 0;
+    // At most GAP_WEAK WEAK words and GAP_STRONG other one may have been dropped; a free (unhearable) word
+    // between is no bar and no count.
+    var out = [], weak = 0, strong = 0;
     for (var k = from; k < hit.w; k++) {
         if ((c.flags && c.flags[k]) || used[hit.line + ":" + k]) return [];
         if (!(c.free && c.free[k])) {
-            if (!isWeak(c.words[k]) || ++weak > 2) return [];
+            if (isWeak(c.words[k])) { if (++weak > GAP_WEAK) return []; }
+            else if (++strong > GAP_STRONG) return [];
         }
         out.push({ line: hit.line, w: k, inferred: true });
     }
@@ -494,7 +498,7 @@ function matcherHear(m, ctx, heard, isFinal, strict) {
 
 // How early a line's words may be sung, in seconds: a singer comes in ahead of the lyric clock
 // by a little, and the clock itself is only as good as the lyrics' timing and Lyrics.offset.
-var OPEN_LEAD = 0.8;
+var OPEN_LEAD = 1.2;
 
 // Has the song reached `lines[i]` closely enough for its words to count?
 function lineOpen(lines, i, pos, rl) {
@@ -1235,6 +1239,29 @@ function isHeadphones(props) {
     if (HEADSET_FORMS.indexOf(form) >= 0) return true;
     var icon = String(p["device.icon-name"] || p["device.icon_name"] || "").toLowerCase();
     return icon.indexOf("headphone") >= 0 || icon.indexOf("headset") >= 0;
+}
+
+// ── Which stream is the Discord call? ─────────────────────────────────────────
+// A call's voices reach the speakers as ONE playback stream (Chromium's voice engine, "WEBRTC VoiceEngine" /
+// "playStream"; every participant mixed, notification sounds too). Karaoke can listen to it as it listens to the
+// mic, so friends in the call can sing. `streams` is [{ binary, appName, mediaName }] of the playback streams
+// (plain objects, so this is testable); `classes` is Discord's window-class list (Vesktop, Legcord… all differ),
+// lowercase prefixes. A voice-engine stream whose process matches a class wins. Failing that, a lone voice-engine
+// stream is taken (an Electron build whose binary is just "electron"): the caller only asks while Discord says it
+// is in a call, and two of them (a browser's meeting beside the call) are ambiguous, so none. Returns the index
+// into `streams`, or -1.
+function callStreamIndex(streams, classes) {
+    var list = streams || [], cls = (classes || []).map(function (c) { return String(c).toLowerCase(); });
+    var voice = [];
+    for (var i = 0; i < list.length; i++) {
+        var s = list[i] || {};
+        if (String(s.appName || "") === "WEBRTC VoiceEngine" || String(s.mediaName || "") === "playStream") voice.push(i);
+    }
+    for (var j = 0; j < voice.length; j++) {
+        var bin = String((list[voice[j]] || {}).binary || "").toLowerCase();
+        if (bin !== "" && cls.some(function (c) { return c !== "" && bin.indexOf(c) === 0; })) return voice[j];
+    }
+    return voice.length === 1 ? voice[0] : -1;
 }
 
 // The karaoke card's current line as rich text: the words you have sung lit, the rest

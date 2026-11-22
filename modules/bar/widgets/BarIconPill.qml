@@ -65,4 +65,5 @@ IconButton {
     // Resting on it says what it is and what it is doing; not while its own panel is open under it.
     tipProvider: Config.barTooltips && root.moduleId !== ""
         ? function () { return root.active ? "" : ModuleGlance.tip(root.moduleId) } : null
+    quickId: root.moduleId
 }

@@ -33,7 +33,7 @@ Item {
 
     readonly property bool ownsPanel: UiState.sidePanelScreen
         ? UiState.sidePanelScreen === root.screen : root.screen === Quickshell.screens[0]
-    readonly property bool open: UiState.sidePanel === "clipboard" && root.ownsPanel
+    readonly property bool open: UiState.sideShows("clipboard", root.screen)
 
     implicitWidth:  Config.sidebarCell
     implicitHeight: Config.sidebarCell
@@ -58,7 +58,7 @@ Item {
             root.copied = true
             copiedTimer.restart()
             popAnim.restart()
-            if (Config.peekClipboard) peek.fire("clipboard")
+            if (Config.peekClipboard && !Notifications.canGlance()) peek.fire("clipboard")
         }
         root._lastNewest = root.newest
         root._lastAt = root.newestAt
@@ -88,10 +88,10 @@ Item {
 
     // ── The last copy, at rest ────────────────────────────────────────────────
     readonly property var latest: Clipboard.count > 0 ? Clipboard.entries[0] : null
-    readonly property string latestImage: root.latest && root.latest.kind === "image" && root.latest.file
+    readonly property string latestImage: root.latest && root.latest.kind === "image" && root.latest.file && !StreamMode.active
         ? "file://" + root.latest.file : ""
     readonly property string latestHex: {
-        const t = root.latest && root.latest.kind !== "image" ? String(root.latest.preview || "").trim() : ""
+        const t = root.latest && root.latest.kind !== "image" && !StreamMode.active ? String(root.latest.preview || "").trim() : ""
         return /^#[0-9a-fA-F]{6}$/.test(t) ? t : ""
     }
     // What stands in for the glyph: never while the check says "got it".

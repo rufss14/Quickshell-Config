@@ -6,6 +6,7 @@ import QtQuick.Layouts
 import "../../config"
 import "../../components"
 import "../../services"
+import "../../state"
 
 // ── SettingsSearchResults ─────────────────────────────────────────────────────
 // What the page area shows while the rail's search field has text.
@@ -25,15 +26,20 @@ import "../../services"
 //
 // The matched part of each title is drawn in the accent, and the top result — what
 // Enter opens — carries a key hint.
+//
+// A pick hands over the whole result record, so the card can land on the row itself
+// (SettingsCard.openResult → SettingsPage.reveal), not just its page. Settings that live
+// in a panel or an island (SettingsIndex `elsewhere`) fold into one group; each row
+// says where it lives and opens it.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
 
     property string query: ""
-    signal picked(string file)
+    signal picked(var result)
 
     readonly property var results: root.query.trim() === ""
-        ? [] : SettingsIndex.search(root.query, 40)
+        ? [] : SettingsIndex.search(root.query, 40, true)
     readonly property var groups: SettingsIndex.group(root.results)
 
     // ── Keyboard selection ────────────────────────────────────────────────────
@@ -56,18 +62,33 @@ Item {
                                       bottom - flick.height + Tokens.spacingMd)
     }
 
-    // What Enter opens: the best result's file.
-    readonly property string enterFile: root.results.length > 0 ? root.results[0].file : ""
-    readonly property var enterRow: root.results.length > 0 && root.results[0].kind !== "page"
-        ? root.results[0] : null
+    // What Enter opens: the best result. A page result marks its group's header, any
+    // other its row.
+    readonly property var enterResult: root.results.length > 0 ? root.results[0] : null
+    readonly property var enterRow: root.enterResult && root.enterResult.kind !== "page" ? root.enterResult : null
 
     // Enter takes the SELECTED result, falling back to the best match when the arrows
-    // haven't been used yet.
+    // haven't been used yet. Either way the whole record, so Enter deep-links like a click.
     function pickFirst() {
         if (root.selectedIndex >= 0 && root.selectedIndex < root.results.length)
-            root.picked(root.results[root.selectedIndex].file)
-        else if (root.enterFile !== "")
-            root.picked(root.enterFile)
+            root.picked(root.results[root.selectedIndex])
+        else if (root.enterResult)
+            root.picked(root.enterResult)
+    }
+
+    // The page-kind result a group header stands for, or null (a group of rows only).
+    function pageResultOf(g) {
+        for (const r of root.results)
+            if (r.kind === "page" && r.key === g.key) return r
+        return null
+    }
+
+    // "In the Gaming island", "In the Now Playing panel", "In the overview".
+    function whereText(r) {
+        const k = UiState.elsewhereKind(r.open)
+        return k === "overview" ? Translation.tr("In the %1").arg(Translation.tr(r.where))
+             : k === "island"   ? Translation.tr("In the %1 island").arg(Translation.tr(r.where))
+             :                    Translation.tr("In the %1 panel").arg(Translation.tr(r.where))
     }
 
     // Title with the matched part in the accent, as StyledText markup. Every piece
@@ -123,7 +144,7 @@ Item {
                     id: grp
                     required property var modelData
 
-                    readonly property var view: SettingsIndex.pageFor(grp.modelData.file)
+                    readonly property var view: grp.modelData.elsewhere ? null : SettingsIndex.pageFor(grp.modelData.key)
 
                     Layout.fillWidth: true
                     Layout.fillHeight: false
@@ -136,13 +157,13 @@ Item {
                             root.selectedIndex >= 0
                             && root.results[root.selectedIndex]
                             && root.results[root.selectedIndex].kind === "page"
-                            && root.results[root.selectedIndex].file === grp.modelData.file
+                            && root.results[root.selectedIndex].key === grp.modelData.key
 
                         Layout.fillWidth: true
                         implicitHeight: headRow.implicitHeight + Tokens.spacingXs * 2
                         radius: Tokens.radiusSm
                         color: head.isSelected   ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).focus, 0.18)
-                             : headHover.hovered ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)
+                             : headHover.hovered && !grp.modelData.elsewhere ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)
                                                  : "transparent"
                         Behavior on color { ColorAnimation { duration: Motion.respond } }
                         onIsSelectedChanged: if (head.isSelected) root.ensure(head)
@@ -165,7 +186,7 @@ Item {
 
                                 MaterialIcon {
                                     anchors.centerIn: parent
-                                    glyph: grp.view?.glyph ?? "󰍉"
+                                    name: grp.modelData.elsewhere ? "open_in_new" : (grp.view?.icon ?? "search")
                                     color: Colors.of(QsWindow.window).focus
                                     variant: "body"
                                 }
@@ -173,7 +194,8 @@ Item {
 
                             StyledText {
                                 rich: true
-                                text: grp.modelData.pageHit ? root.highlighted(grp.modelData.page)
+                                text: grp.modelData.elsewhere ? root._esc(Translation.tr("Outside settings"))
+                                    : grp.modelData.pageHit ? root.highlighted(grp.modelData.page)
                                                             : root._esc(grp.modelData.page)
                                 variant: "body"
                                 font.weight: Font.DemiBold
@@ -182,29 +204,43 @@ Item {
                             // The rail page, when it isn't the same word (single-view pages).
                             StyledText {
                                 Layout.fillWidth: true
-                                visible: grp.modelData.group && grp.modelData.group !== grp.modelData.page
-                                text: grp.modelData.group ?? ""
+                                visible: grp.modelData.elsewhere
+                                         || (grp.modelData.group && grp.modelData.group !== grp.modelData.page)
+                                text: grp.modelData.elsewhere ? Translation.tr("in a panel, an island or the overview")
+                                                              : (grp.modelData.group ?? "")
                                 variant: "caption"
                                 emphasis: "dim"
                                 elide: Text.ElideRight
                             }
-                            Item { Layout.fillWidth: true; visible: !(grp.modelData.group && grp.modelData.group !== grp.modelData.page) }
+                            Item {
+                                Layout.fillWidth: true
+                                visible: !grp.modelData.elsewhere
+                                         && !(grp.modelData.group && grp.modelData.group !== grp.modelData.page)
+                            }
 
                             EnterHint {
                                 visible: head.isSelected
-                                    || (root.selectedIndex < 0 && root.enterRow === null
-                                        && root.enterFile === grp.modelData.file)
+                                    || (root.selectedIndex < 0 && root.enterRow === null && root.enterResult !== null
+                                        && root.enterResult.key === grp.modelData.key)
                             }
                             MaterialIcon {
-                                visible: headHover.hovered
+                                visible: headHover.hovered && !grp.modelData.elsewhere
                                 glyph: "󰅂"
                                 color: Colors.of(QsWindow.window).fgMuted
                                 variant: "body"
                             }
                         }
 
-                        HoverHandler { id: headHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler   { onTapped: root.picked(grp.modelData.file) }
+                        // The elsewhere group's header names no place to go; its rows do.
+                        HoverHandler {
+                            id: headHover
+                            cursorShape: grp.modelData.elsewhere ? Qt.ArrowCursor : Qt.PointingHandCursor
+                        }
+                        TapHandler {
+                            enabled: !grp.modelData.elsewhere
+                            onTapped: root.picked(root.pageResultOf(grp.modelData)
+                                                  ?? { kind: "page", key: grp.modelData.key, file: grp.modelData.file })
+                        }
                     }
 
                     // ── The matching settings on it ───────────────────────────
@@ -235,9 +271,12 @@ Item {
 
                                     // The section is the only location left to say —
                                     // the page is in the header. Skipped when it
-                                    // repeats the title (a Section's own entry).
+                                    // repeats the title (a Section's own entry). An
+                                    // elsewhere row says which panel or island instead.
+                                    readonly property bool outside: hit.modelData.kind === "elsewhere"
                                     readonly property string where:
-                                        hit.modelData.section && hit.modelData.section !== hit.modelData.title
+                                        hit.outside ? root.whereText(hit.modelData)
+                                        : hit.modelData.section && hit.modelData.section !== hit.modelData.title
                                             ? hit.modelData.section : ""
 
                                     readonly property bool isSelected:
@@ -278,8 +317,15 @@ Item {
                                             elide: Text.ElideRight
                                         }
                                         EnterHint { visible: hit.isSelected || (root.selectedIndex < 0 && root.enterRow === hit.modelData) }
+                                        // Opens somewhere else, not a page here: said before it is hovered.
                                         MaterialIcon {
-                                            visible: hitHover.hovered
+                                            visible: hit.outside
+                                            name: "open_in_new"
+                                            color: Colors.of(QsWindow.window).fgMuted
+                                            variant: "body"
+                                        }
+                                        MaterialIcon {
+                                            visible: hitHover.hovered && !hit.outside
                                             glyph: "󰅂"
                                             color: Colors.of(QsWindow.window).fgMuted
                                             variant: "body"
@@ -299,7 +345,7 @@ Item {
                                     }
 
                                     HoverHandler { id: hitHover; cursorShape: Qt.PointingHandCursor }
-                                    TapHandler   { onTapped: root.picked(hit.modelData.file) }
+                                    TapHandler   { onTapped: root.picked(hit.modelData) }
                                 }
                             }
                         }

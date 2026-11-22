@@ -1,0 +1,63 @@
+{
+  "special": {
+    "background": "#1a0a2e",
+    "cursor": "#ffeef8",
+    "foreground": "#ffeef8"
+  },
+  "colors": {
+    "color0": "#1a0a2e",
+    "color1": "#ff4fa8",
+    "color10": "#8ae8da",
+    "color11": "#ffbf6b",
+    "color12": "#b08aff",
+    "color13": "#7a9bff",
+    "color14": "#7fdcf4",
+    "color15": "#ffffff",
+    "color2": "#5fd6c4",
+    "color3": "#ffa43a",
+    "color4": "#8f5bff",
+    "color5": "#3d6bff",
+    "color6": "#46c4e8",
+    "color7": "#ffeef8",
+    "color8": "#5b3f7a",
+    "color9": "#ff7fc0"
+  },
+  "variants": {
+    "dark": {
+      "special": {
+        "background": "#1a0a2e",
+        "cursor": "#ffeef8",
+        "foreground": "#ffeef8"
+      },
+      "colors": {
+        "color0": "#1a0a2e",
+        "color1": "#ff4fa8",
+        "color10": "#8ae8da",
+        "color11": "#ffbf6b",
+        "color12": "#b08aff",
+        "color13": "#7a9bff",
+        "color14": "#7fdcf4",
+        "color15": "#ffffff",
+        "color2": "#5fd6c4",
+        "color3": "#ffa43a",
+        "color4": "#8f5bff",
+        "color5": "#3d6bff",
+        "color6": "#46c4e8",
+        "color7": "#ffeef8",
+        "color8": "#5b3f7a",
+        "color9": "#ff7fc0"
+      }
+    }
+  },
+  "gradient": {
+    "on": true,
+    "angle": 60,
+    "strength": 0.75,
+    "mid": 0.4,
+    "stops": [
+      "focus",
+      "primary",
+      "vivid"
+    ]
+  }
+}

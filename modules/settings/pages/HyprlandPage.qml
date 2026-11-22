@@ -137,6 +137,47 @@ Item {
         return t
     }
 
+    // ── What a keycap SAYS its key is ─────────────────────────────────────────
+    // The config's own names ("mouse:272", "mouse_down", "left") are for Hyprland, not for the person
+    // reading the list. Presentation only: the edit field still holds the real combo.
+    readonly property var keyNames: ({
+        "mouse:272": "Left click", "mouse:273": "Right click", "mouse:274": "Middle click",
+        "mouse:275": "Back button", "mouse:276": "Forward button",
+        "mouse_down": "Wheel down", "mouse_up": "Wheel up",
+        "mouse_left": "Wheel left", "mouse_right": "Wheel right",
+        "left": "←", "right": "→", "up": "↑", "down": "↓",
+        "return": "Enter", "escape": "Esc", "print": "PrtSc", "prior": "Page up", "next": "Page down",
+        "grave": "`", "minus": "-", "equal": "=", "comma": ",", "period": ".", "slash": "/",
+        "bracketleft": "[", "bracketright": "]", "backslash": "\\", "semicolon": ";", "apostrophe": "'"
+    })
+    function keyName(k) {
+        const raw = String(k)
+        const known = root.keyNames[raw.toLowerCase()]
+        if (known) return known
+        // XF86AudioRaiseVolume -> "Audio raise volume"
+        const xf = raw.match(/^XF86(.+)$/)
+        if (xf) {
+            const w = xf[1].replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()
+            return w.charAt(0).toUpperCase() + w.slice(1)
+        }
+        // SUPER, SHIFT, CTRL, ALT and "$mainMod" stay as written; a lone letter is a capital.
+        if (raw === raw.toUpperCase() || raw.charAt(0) === "$") return raw
+        return raw.length === 1 ? raw.toUpperCase() : raw.charAt(0).toUpperCase() + raw.slice(1)
+    }
+
+    // The action and its description as one line, without saying the same thing twice
+    // ("Fake fullscreen · Fake fullscreen focused window").
+    function actionLine(b) {
+        const a = root.prettyAction(b.action.text), d = String(b.desc || "")
+        if (d === "") return a
+        const al = a.toLowerCase(), dl = d.toLowerCase()
+        if (dl.indexOf(al) === 0) return d
+        if (al.indexOf(dl) === 0) return a
+        return a + "  ·  " + d
+    }
+
+    // A tool, not a settings form: it keeps its own layout (search, categories, the list, the add and edit
+    // plates) rather than rows. The plates are flat tonal fills with no outline.
     ColumnLayout {
         anchors.fill: parent
         spacing: Tokens.spacingLg
@@ -153,13 +194,13 @@ Item {
             titleTail: "binds"
             accent:    Colors.of(QsWindow.window).primary
             subtitle:  !HyprConfig.loaded
-                       ? "Reading ~/.config/hypr…"
-                       : HyprConfig.binds.length + " binds  ·  saved to your Hyprland config, live on reload"
+                       ? Translation.tr("Reading ~/.config/hypr…")
+                       : Translation.tr("%1 binds  ·  saved to your Hyprland config, live on reload").arg(HyprConfig.binds.length)
 
             ChipTray {
                 ChipButton {
                     symbol:  root.adding ? "close" : "add"
-                    label:   root.adding ? "Cancel" : "Add bind"
+                    label:   root.adding ? Translation.tr("Cancel") : Translation.tr("Add bind")
                     on:      !root.adding
                     tint:    Colors.of(QsWindow.window).primary
                     enabled: HyprConfig.loaded
@@ -191,26 +232,51 @@ Item {
         }
 
         // ── Categories ────────────────────────────────────────────────────────
-        ChipRow {
+        // One line that scrolls sideways (the wheel too) instead of wrapping onto a second row
+        // that pushes the list down.
+        Flickable {
+            id: catFlick
+            Layout.fillWidth: true
             Layout.fillHeight: false
+            Layout.preferredHeight: catChips.implicitHeight + Tokens.spacingXs * 2
             visible: HyprConfig.loaded && root.categories.length > 1
-            accent: Colors.of(QsWindow.window).primary
-            model: [{ value: "", label: "All  " + HyprConfig.binds.length }].concat(
-                root.categories.map(c => ({ value: c.section, label: c.section + "  " + c.n })))
-            current: root.category
-            onPicked: function (v) { root.category = v }
+            contentWidth: catChips.childrenRect.width
+            contentHeight: height
+            flickableDirection: Flickable.HorizontalFlick
+            boundsBehavior: Flickable.StopAtBounds
+            clip: true
+
+            // Wide enough that the Flow never wraps; the Flickable's contentWidth is what is really there.
+            ChipRow {
+                id: catChips
+                y: Tokens.spacingXs
+                width: 4000
+                accent: Colors.of(QsWindow.window).primary
+                model: [{ value: "", label: Translation.tr("All") + "  " + HyprConfig.binds.length }].concat(
+                    root.categories.map(c => ({ value: c.section, label: c.section + "  " + c.n })))
+                current: root.category
+                onPicked: function (v) { root.category = v }
+            }
+
+            WheelHandler {
+                acceptedDevices: PointerDevice.Mouse
+                onWheel: (event) => {
+                    const max = Math.max(0, catFlick.contentWidth - catFlick.width)
+                    catFlick.contentX = Math.max(0, Math.min(max, catFlick.contentX - event.angleDelta.y))
+                }
+            }
         }
 
         // ── Add form ──────────────────────────────────────────────────────────
-        Surface {
+        // A flat plate on the ground (the tone ladder: no outline on a plate; its fields are the controls).
+        Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: false
             visible: root.adding
             onVisibleChanged: if (visible) { addComboField.clear(); addValueField.clear() }
             implicitHeight: addRow.implicitHeight + Tokens.spacingMd * 2
-            elevation:    Tokens.elevationNested
-            cornerRadius: Tokens.radiusSm
-            castsShadow:  false
+            radius: Tokens.radiusCard
+            color: Colors.of(QsWindow.window).section
 
             RowLayout {
                 id: addRow
@@ -316,12 +382,13 @@ Item {
 
                                             Rectangle {
                                                 Layout.fillWidth: true
-                                                implicitHeight: root.rowHeight
+                                                implicitHeight: Math.max(root.rowHeight, rowContent.implicitHeight + Tokens.spacingSm * 2)
                                                 radius: Tokens.radiusSm
                                                 color: rowHover.hovered || bindItem.editing
                                                        ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.05) : "transparent"
 
                                                 RowLayout {
+                                                    id: rowContent
                                                     anchors.fill: parent
                                                     anchors.leftMargin:  Tokens.spacingSm
                                                     anchors.rightMargin: Tokens.spacingXs
@@ -333,6 +400,8 @@ Item {
                                                     // quieter than the key they go with.
                                                     Row {
                                                         Layout.preferredWidth: 168
+                                                        // A long name ("Middle click") pushes the action over rather than overlapping it.
+                                                        Layout.minimumWidth: implicitWidth
                                                         Layout.alignment: Qt.AlignVCenter
                                                         spacing: Tokens.spacingXs
 
@@ -364,7 +433,7 @@ Item {
                                                                     StyledText {
                                                                         id: capText
                                                                         anchors.centerIn: parent
-                                                                        text: cap.modelData
+                                                                        text: root.keyName(cap.modelData)
                                                                         variant: "caption"
                                                                         font.family: Tokens.fontMono
                                                                         font.weight: cap.last ? Font.DemiBold : Font.Medium
@@ -375,11 +444,15 @@ Item {
                                                             }
                                                         }
                                                     }
+                                                    // Two lines where there is room for them, so a long action is read
+                                                    // rather than cut at the column's edge.
                                                     StyledText {
                                                         Layout.fillWidth: true
-                                                        text: root.prettyAction(bindItem.modelData.action.text)
-                                                             + (bindItem.modelData.desc ? "  ·  " + bindItem.modelData.desc : "")
+                                                        Layout.preferredWidth: 1
+                                                        text: root.actionLine(bindItem.modelData)
                                                         variant: "label"
+                                                        wrapMode: Text.WordWrap
+                                                        maximumLineCount: 2
                                                         elide: Text.ElideRight
                                                     }
                                                     // Read-only marker — the action text says
@@ -408,7 +481,7 @@ Item {
                                             // Inline editor. Fields are SEEDED when it opens
                                             // rather than bound — a live binding breaks on the
                                             // first keystroke and shows stale text on reopen.
-                                            Surface {
+                                            Rectangle {
                                                 Layout.fillWidth: true
                                                 visible: bindItem.editing
                                                 onVisibleChanged: if (visible) {
@@ -416,9 +489,8 @@ Item {
                                                     actionField.setText(root.editAction)
                                                 }
                                                 implicitHeight: editCol.implicitHeight + Tokens.spacingMd * 2
-                                                elevation:    Tokens.elevationNested
-                                                cornerRadius: Tokens.radiusSm
-                                                castsShadow:  false
+                                                radius: Tokens.radiusCard
+                                                color: Colors.of(QsWindow.window).section
 
                                                 ColumnLayout {
                                                     id: editCol
@@ -430,6 +502,7 @@ Item {
 
                                                     RowLayout {
                                                         Layout.fillWidth: true
+                                                        Layout.fillHeight: false
                                                         spacing: Tokens.spacingMd
                                                         StyledText { text: "Keys"; Layout.preferredWidth: 40; variant: "caption"; emphasis: "muted" }
                                                         InputField {
@@ -441,6 +514,7 @@ Item {
                                                     }
                                                     RowLayout {
                                                         Layout.fillWidth: true
+                                                        Layout.fillHeight: false
                                                         spacing: Tokens.spacingMd
                                                         StyledText {
                                                             text: root.editExec ? "Run" : "Lua"
@@ -483,8 +557,8 @@ Item {
             StyledText {
                 anchors.centerIn: parent
                 visible: root.groups.length === 0
-                text: root.search.trim() !== "" ? "No keybinds match “" + root.search.trim() + "”."
-                                                : "No keybinds found in your config."
+                text: root.search.trim() !== "" ? Translation.tr("No keybinds match “%1”.").arg(root.search.trim())
+                                                : Translation.tr("No keybinds found in your config.")
                 variant: "body"
                 emphasis: "dim"
             }

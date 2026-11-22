@@ -36,7 +36,7 @@ ConfigDesktop {
     // BUMP THIS when you tag a release, or the shell will report itself as whatever
     // the last person to think about it said. It is the one number here that a
     // machine can't check for you.
-    readonly property string version: "0.4.1"
+    readonly property string version: "0.4.2"
     readonly property string repo:    "rufss14/Quickshell-Config"
 
     // ShellPresets (ConfigBarLayout) waits on this store; that file can't see its id.
@@ -284,7 +284,7 @@ ConfigDesktop {
         "lockLyricsOnYouTube",
 
         // Lyrics
-        "lyricsMotion", "lyricsFallback", "spotifyBridgeDetached",
+        "lyricsMotion", "lyricsStagger", "lyricsSoftFocus", "lyricsScrollAhead", "lyricsFallback", "spotifyBridgeDetached",
         "lyricsTranslate", "lyricsTranslateLang",
         "lyricsTranslateBackends", "lyricsTranslateCache",
         "lyricsRomanize", "lyricsRomanizeOnline", "lyricsRomanizeCache",
@@ -308,7 +308,7 @@ ConfigDesktop {
         "widgetParallax", "widgetParallaxStrength", "widgetEntrance",
 
         // Weather
-        "weatherPlace", "weatherLat", "weatherLon", "weatherMetric", "weatherCountry",
+        "weatherPlace", "weatherLat", "weatherLon", "weatherMetric", "weatherCountry", "weatherCities",
 
         // Calendar
         "calendarLocalColor", "calendarFeeds",
@@ -334,7 +334,7 @@ ConfigDesktop {
           load: function (v) {
               root.dockScope = v.dockScope ?? (v.dockPerMonitor ? "monitor" : "all")
           } },
-        "dockStyle", "dockShowTrash", "dockShowDownloads", "dockInnerPill", "dockMagnify", "dockMagnifyScale", "dockPreviewFuse", "dockClipLength", "dockPeek",
+        "dockStyle", "dockShowTrash", "dockShowDownloads", "dockInnerPill", "dockIconPlate", "dockSlots", "dockMagnify", "dockMagnifyScale", "dockPreviewFuse", "dockClipLength", "dockPeek",
         // One auto-hide for the whole sidebar now. A document from when each module
         // hid on its own, with separate pills, brings the dock's along: it was the
         // one that mattered, and the rest of the edge now goes with it.
@@ -351,7 +351,7 @@ ConfigDesktop {
         "sidebarEmptyReveal", "sidebarEdgeReveal",
         "peekTimer", "peekClaude", "peekColour", "peekClipboard",
         "sidebarIslands", "sidebarHero", "barMusicReact", "barTooltips",
-        "karaokeWords", "karaokeSkipHeadphoneCheck", "karaokeStayAtEnd", "karaokeLanguage", "karaokeModHidden", "karaokeModHardRock", "karaokeModTimeHell", "karaokeModelDir",
+        "karaokeWords", "karaokeDiscord", "karaokeSkipHeadphoneCheck", "karaokeStayAtEnd", "karaokeLanguage", "karaokeModHidden", "karaokeModHardRock", "karaokeModTimeHell", "karaokeModelDir",
         { key: "sidebarStats", notify: false, save: function () { return root.sidebarStats } },
         "sidebarStatsMetrics", "sidebarStatsNetMbps",
         "sidebarStatsNetSplit", "sidebarStatsTempArcs",
@@ -371,9 +371,9 @@ ConfigDesktop {
               const x = v.lensOcrLangs
               root.lensOcrLangs = (typeof x === "string" && x !== "" && x !== "eng") ? x : "auto"
           } },
-        "lensTranslateLang", "snapZones", "snapToGrid", "screenTime", "screenTimeKeepDays", "screenTimeIdleMinutes", "screenTimeGoalMinutes", "antiFlash", "antiFlashNightOnly", "antiFlashThreshold", "antiFlashFloor",
+        "lensTranslateLang", "snapZones", "snapToGrid", "hotCorner", "hotCornerEdge", "hotCornerParts", "hotCornerToggles", "hotCornerDelay", "hotCornerLinger", "hotCornerScale", "island", "islandAlign", "islandDelay", "islandLinger", "islandHandle", "islandTab", "islandPages", "islandRails", "islandOverrides", "islandSwitches", "islandOpenBy", "islandLive", "islandFollow", "islandScale", "islandEffects", "deskMenu", "deskMenuWallpapers", "deskMenuSwitches", "deskMenuTools", "deskMenuPlaces", "screenTime", "screenTimeKeepDays", "screenTimeIdleMinutes", "screenTimeGoalMinutes", "antiFlash", "antiFlashNightOnly", "antiFlashThreshold", "antiFlashFloor",
         "nightLight", "nightLightTemp", "nightLightAuto", "nightLightFollowSun",
-        "nightLightFrom", "nightLightTo",
+        "nightLightFrom", "nightLightTo", "streamMode", "streamOff", "tabletOn",
 
         // User-facing paths and lists with no settings UI of their own: persisted so an
         // edit to config.json is honoured instead of being ignored on load. A path's
@@ -401,7 +401,7 @@ ConfigDesktop {
         "wpeAudioProcessing", "wpeMouse", "wpeParallax", "wpeParticles", "wpeScenePalette",
 
         // Theming and wallpaper
-        "themeMode", "wallTheming", "albumScheme", "albumSchemeSystem", "albumSchemeLock", "albumScope",
+        "themeMode", "barGradient", "barGlass", "wallTheming", "albumScheme", "albumSchemeSystem", "albumSchemeLock", "albumHold", "albumScope",
         "albumCardColors", "colorizeIcons",
         "wallTarget", "wallShuffle", "wallShuffleMins", "wallShuffleFavs", "wallSort", "wallApplyDebug", "colorApplyDebug", "colorFavorites", "mixerBoost",
         "wallShellRender", "wallMaterial", "wallMaterialRole", "wallMaterialContrast",
@@ -410,7 +410,7 @@ ConfigDesktop {
         "wallMaterialBackdrop", "wallMaterialMirror", "wallMaterialDrift", "wallMaterialDriftSpeed", "wallMaterialSpin", "wallMaterialFallback", "wallMaterialSaved", "wallMaterialLinks", "wallParallax", "wallParallaxWorkspace",
         "wallFx", "wallFxIntensity", "wallFxMix", "wallFxSyncMs", "cavaBgBlendDir",
         { key: "cavaBgBlend", load: function (v) { root._loadCavaBlend(v) } }, "cavaBgOpacity",
-        "cavaBgMusicOnly", "cavaBgPeaks", "cavaBgGlow", "cavaBgRingCover",
+        "cavaBgMusicOnly", "cavaBgPeaks", "cavaBgGlow", "cavaBgRingCover", "cavaBgGradient",
         "wallParallaxZoom", "wallParallaxMouse", "wallDepth", "wallDepthScale", "wallDepthDepth", "wallDepthSoft", "wallDepthDate",
         "wallDepthHour12", "wallDepthInk", "wallDepthPlaces", "wallDepthPrepare", "wallFavorites", "wpeFavorites", "wpeUnsubPending",
         "updateHold", "updateCheckMins", "updateQuiet", "updateQuietFrom", "updateQuietTo", "updateSnapshot",
@@ -419,7 +419,6 @@ ConfigDesktop {
         // Appearance
         "fontFamily", "fontMonoFamily", "fontBlockFamily", "fontScale", "densityScale", "radiusScale", "cornerStyle", "iconShape", "surfaceOpacity",
         "shadowScale",
-        "accentRole",
 
         // ── The three that aren't plain assignments ───────────────────────────
 
@@ -515,6 +514,8 @@ ConfigDesktop {
         { key: "audioDeviceLevels",
           load: function(v) { root.audioDeviceLevels = root._numberMap(v.audioDeviceLevels, 0, 1.5) } },
         "audioRememberLevels",
+        { key: "canvasPans",
+          load: function(v) { root.canvasPans = root._numberMap(v.canvasPans, -1, 1) } },
 
         // Which side each panel opens on — same shape and reasoning again.
         { key: "panelPlacement",

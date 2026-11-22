@@ -36,7 +36,34 @@ end
 -- strength of its own — it follows the layer's alpha, which Hyprland's layer fade animates.
 -- With the fade off the blur switched on and off in one frame. Leave the fade alone.
 hl.layer_rule({ match = { namespace = "^quickshell-overview$" }, blur = true, ignore_alpha = 0.6 })
-hl.layer_rule({ match = { namespace = "^quickshell-bar$" }, blur = false })
+-- The bar: glass (Config.barGlass). Blur only behind what the bar's window actually draws; ignore_alpha keeps the
+-- window's empty, transparent parts sharp. At glass 0 the material is opaque and the blur is not seen.
+hl.layer_rule({ match = { namespace = "^quickshell-bar$" }, blur = true, ignore_alpha = 0.15 })
+
+-- Stream mode (services/StreamMode.qml): these shell surfaces are drawn as a black
+-- rectangle in anything that captures through the compositor (OBS's PipeWire/portal
+-- source, Discord screen share, grim) while the monitor itself is unchanged. Capture that
+-- bypasses the compositor (OBS KMS, gpu-screen-recorder KMS, a capture card) is NOT
+-- covered. The rules are defined here, switched OFF, and the shell flips them at runtime
+-- through the handles kept in _G.qs_stream — the same "static in the config, flag at
+-- runtime" split as binds.lua, because runtime Lua that DEFINES things has crashed
+-- Hyprland before (hl.bind via `hyprctl eval`). A config reload re-runs this file, so
+-- the table is rebuilt with fresh handles and every rule starts off again.
+--   id          what the shell toggles (Config.streamHide* in the shell)
+--   namespace   the layer surface's WlrLayershell.namespace
+-- The overview is deliberately NOT here: only its workspace grid is private, and the
+-- compositor can only hide a whole surface. The shell covers the grid itself (OverviewWindow).
+_G.qs_stream = {}
+for id, namespace in pairs({
+    notifications = "^quickshell-notifications$",   -- popups: the usual accidental leak
+}) do
+    _G.qs_stream[id] = hl.layer_rule({
+        name = "qs-stream-" .. id,
+        match = { namespace = namespace },
+        no_screen_share = true,
+        enabled = false,
+    })
+end
 
 -- The settings window is the shell's one real toplevel (a FloatingWindow, not a
 -- layer surface — a layer overlay sat above the bar and broke the Bar page's

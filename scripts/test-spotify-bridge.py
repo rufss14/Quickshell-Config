@@ -155,6 +155,109 @@ try:
     check("report reaches the shell", len(rep) >= 1 and rep[-1]["loaded"] == 2 and "recvAt" in rep[-1])
 
 
+    # ── /queue-op: the media page changes Spotify's queue ───────────────────────
+    import importlib.util as _iu
+    _spec = _iu.spec_from_file_location("bridge_q", os.path.join(HERE, "spotify-bridge.py"))
+    qb = _iu.module_from_spec(_spec)
+    _spec.loader.exec_module(qb)
+    C = qb.clean_queue_op
+    check("queue op: a reorder is kept", C({"op": "reorder", "uid": "a", "uri": "spotify:track:x", "anchorUid": "b", "where": "before"})
+          == {"op": "reorder", "uid": "a", "uri": "spotify:track:x", "anchorUid": "b", "anchorUri": "", "where": "before"})
+    check("queue op: a remove is kept", C({"op": "remove", "uid": "a"}) == {"op": "remove", "uid": "a", "uri": ""})
+    check("queue op: an unknown op is refused", C({"op": "clear", "uid": "a"}) is None)
+    check("queue op: a like names its track and a bool",
+          C({"op": "like", "uri": "spotify:track:" + "a" * 22, "value": True}) == {"op": "like", "uid": "", "uri": "spotify:track:" + "a" * 22, "value": True})
+    check("queue op: play starts the DJ and nothing else",
+          C({"op": "play", "uri": "spotify:playlist:37i9dQZF1EYkqdzj48dyYq"}) == {"op": "play", "uid": "", "uri": "spotify:playlist:37i9dQZF1EYkqdzj48dyYq"}
+          and C({"op": "play", "uri": "spotify:playlist:other"}) is None)
+    check("queue op: a jam takes start, end or leave",
+          C({"op": "jam", "value": "start"}) == {"op": "jam", "uid": "", "uri": "", "value": "start"}
+          and C({"op": "jam", "value": "leave"}) is not None and C({"op": "jam", "value": "host"}) is None)
+    check("queue op: open takes an album, artist, playlist or search only",
+          C({"op": "open", "uri": "spotify:album:" + "a" * 22})["uri"] == "spotify:album:" + "a" * 22
+          and C({"op": "open", "uri": "spotify:search:tyler%20the%20creator"}) is not None
+          and C({"op": "open", "uri": "spotify:track:" + "a" * 22}) is None
+          and C({"op": "open", "uri": "spotify:search:x\x01y"}) is None)
+    check("queue op: Jam settings take a known setting",
+          C({"op": "jamset", "what": "queueOnly", "value": False})["what"] == "queueOnly"
+          and C({"op": "jamset", "what": "volume", "value": True})["value"] is True
+          and C({"op": "jamset", "what": "remove", "member": "abc"})["member"] == "abc"
+          and C({"op": "jamset", "what": "queueOnly", "value": "yes"}) is None
+          and C({"op": "jamset", "what": "delete", "member": "abc"}) is None
+          and C({"op": "jamset", "what": "remove", "member": ""}) is None)
+    check("queue op: a lyrics retry names a track",
+          C({"op": "lyrics", "uri": "spotify:track:" + "a" * 22}) is not None and C({"op": "lyrics", "uri": "spotify:album:" + "a" * 22}) is None)
+    check("queue op: a like on something that is not a track is refused", C({"op": "like", "uri": "spotify:album:x", "value": True}) is None)
+    check("queue op: a like without a bool is refused", C({"op": "like", "uri": "spotify:track:" + "a" * 22, "value": "yes"}) is None)
+    check("queue op: no id is refused", C({"op": "remove"}) is None)
+    check("queue op: a reorder needs an anchor and a side",
+          C({"op": "reorder", "uid": "a"}) is None and C({"op": "reorder", "uid": "a", "anchorUid": "b", "where": "under"}) is None)
+    check("queue op: an id that is not a string, or too long, is refused",
+          C({"op": "remove", "uid": 5}) is None and C({"op": "remove", "uid": "x" * 65}) is None)
+    check("queue op: extra fields are dropped", "evil" not in C({"op": "remove", "uid": "a", "evil": 1}))
+
+    def post_raw(path, body):
+        req = urllib.request.Request(base + path, data=body, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.status, json.loads(r.read().decode() or "{}")
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read().decode() or "{}") if e.length else {}
+    st, _ = post_raw("/queue-op", b"{not json")
+    check("queue op: junk is a 400", st == 400)
+    st, _ = post_raw("/queue-op", json.dumps({"op": "nuke", "uid": "a"}).encode())
+    check("queue op: a bad op is a 400", st == 400)
+
+    # Nobody polling: the extension is not there.
+    time.sleep(5.2)   # let the last poll's "listening" window pass
+    st, r = post_raw("/queue-op", json.dumps({"op": "remove", "uid": "a"}).encode())
+    check("queue op: no extension is a 503", st == 503 and r.get("error") == "spotify-not-listening")
+
+    # An extension that answers: a poll woken by the request, the mailbox, the report.
+    out = {}
+    def ask():
+        out["res"] = post_raw("/queue-op", json.dumps({"op": "reorder", "uid": "a", "uri": "spotify:track:x",
+                                                       "anchorUid": "b", "where": "after"}).encode())
+    held = {}
+    def hold_poll():
+        held["res"] = get("/events")
+    hp = threading.Thread(target=hold_poll); hp.start()
+    time.sleep(0.3)
+    ta = threading.Thread(target=ask); ta.start()
+    hp.join(5)
+    check("queue op: the held poll is woken", held["res"][0] == 200)
+    st, css = get("/mailbox.css")
+    import base64 as _b64, re as _re
+    mail = json.loads(_b64.b64decode(_re.search(r'content:"([^"]*)"', css).group(1)))
+    qop = mail.get("queueop") or {}
+    check("queue op: it is in the mailbox", qop.get("op") == "reorder" and qop.get("uid") == "a"
+          and qop.get("anchorUid") == "b" and qop.get("where") == "after" and "at" not in qop)
+    post("/", json.dumps({"type": "queue-done", "seq": qop.get("seq"), "ok": True}).encode())
+    ta.join(8)
+    check("queue op: the caller gets the report", out["res"][0] == 200 and out["res"][1]["ok"] is True)
+    time.sleep(0.2)
+    check("queue op: the shell is told", any(l.get("type") == "queue-op" and l.get("ok") is True for l in lines))
+    st, css = get("/mailbox.css")
+    mail = json.loads(_b64.b64decode(_re.search(r'content:"([^"]*)"', css).group(1)))
+    check("queue op: done means out of the mailbox", "queueop" not in mail)
+
+    # A refusal from the extension is passed on, as a 502 with its reason.
+    out = {}
+    hp = threading.Thread(target=hold_poll); hp.start()
+    time.sleep(0.3)
+    ta = threading.Thread(target=ask); ta.start()
+    hp.join(5)
+    st, css = get("/mailbox.css")
+    mail = json.loads(_b64.b64decode(_re.search(r'content:"([^"]*)"', css).group(1)))
+    post("/", json.dumps({"type": "queue-done", "seq": mail["queueop"]["seq"], "ok": False, "error": "no such track"}).encode())
+    ta.join(8)
+    check("queue op: a refusal is a 502 with the reason", out["res"][0] == 502 and out["res"][1]["error"] == "no such track")
+
+    # The queue snapshot passes through to the shell like an anchor.
+    post("/", json.dumps({"type": "queue", "rev": "3", "next": []}).encode())
+    time.sleep(0.2)
+    check("queue snapshot reaches the shell", any(l.get("type") == "queue" and l.get("rev") == "3" for l in lines))
+
     # ── /spectrum: cava's frames, to whoever is listening ────────────────────
     import importlib.util
     spec = importlib.util.spec_from_file_location("bridge", os.path.join(HERE, "spotify-bridge.py"))
@@ -261,8 +364,57 @@ try:
         n = ncalls()
         p5, _, err5 = bridge.canvas_file(big)
         check("canvas: a failure is not retried at once", p5 is None and err5 == "failed recently" and ncalls() == n)
+
+        # The raw clip for the shell's own player: never blocks, announces itself, no ffmpeg.
+        payload["size"] = 2000
+        sent = []
+        real_emit = bridge.emit
+        bridge.emit = sent.append
+        try:
+            vid = good.replace("9f5e", "cccc")
+            n = ncalls()
+            first = bridge.canvas_video_start(vid)
+            for _ in range(100):
+                if any(m.get("type") == "canvas-ready" for m in sent): break
+                time.sleep(0.05)
+            ready = [m for m in sent if m.get("type") == "canvas-ready"]
+            check("video: first ask returns at once with no path", first == "")
+            check("video: the fetch announces itself", len(ready) == 1 and ready[0]["canvas"] == vid
+                  and ready[0]["canvasPath"] == bridge.canvas_video_path(vid))
+            check("video: the clip is the untouched download", os.path.getsize(ready[0]["canvasPath"]) == 2000)
+            check("video: no ffmpeg, no temp dirs", ncalls() == n
+                  and [x for x in os.listdir(bridge.CANVAS_DIR) if x.startswith(".")] == [])
+            check("video: second ask is the cache path", bridge.canvas_video_start(vid) == ready[0]["canvasPath"]
+                  and len(sent) == 1)
+            payload["size"] = bridge.CANVAS_MAX + 1
+            sent.clear()
+            bad = good.replace("9f5e", "dddd")
+            bridge.canvas_video_start(bad)
+            for _ in range(100):
+                if sent: break
+                time.sleep(0.05)
+            check("video: an oversized clip is an error, not a file",
+                  sent and sent[0]["type"] == "canvas-error" and not os.path.exists(bridge.canvas_video_path(bad)))
+            time.sleep(0.2)
+            check("video: a failure is not retried at once", bridge.canvas_video_start(bad) == "" and len(sent) == 1)
+        finally:
+            bridge.emit = real_emit
     finally:
         ur.urlopen = real_open
+
+    # An anchor's `canvas` is a trust boundary: only a canvaz URL is carried on, and what is
+    # carried is the cache's path, never a URL the shell could follow.
+    def anchor_out(canvas):
+        n = len(lines)
+        post("/", json.dumps({"type": "anchor", "trackUri": "spotify:track:x", "canvas": canvas}).encode())
+        for _ in range(50):
+            if len(lines) > n: break
+            time.sleep(0.05)
+        return lines[-1]
+    out = anchor_out("https://evil.example/a.mp4")
+    check("anchor: a foreign canvas is dropped", out.get("canvas") == "" and out.get("canvasPath") == "")
+    out = anchor_out(None)
+    check("anchor: no canvas is empty strings", out.get("canvas") == "" and out.get("canvasPath") == "")
 
     # An empty POST to / is still refused (the anchor contract is unchanged).
     try:

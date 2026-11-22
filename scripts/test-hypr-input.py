@@ -52,6 +52,13 @@ for label, hw in sources:
     check("%s: two scroll factors stay apart" % label,
           (data["pointer"]["mouse_scroll_factor"]["value"], data["pointer"]["touchpad_scroll_factor"]["value"]), (2.0, 0.5))
     check("%s: touchpad natural_scroll untouched" % label, data["input"]["natural_scroll"]["value"], before_ns)
+    # Natural scrolling is written to the touchpad table by name, inserted when absent.
+    for val, want in (("true", True), ("false", False)):
+        r = run(d, "set-input", "--name", "touchpad_natural_scroll", "--value", val)
+        check("%s: set touchpad_natural_scroll=%s ok" % (label, val), r.get("ok"), True)
+        if r.get("ok"):
+            check("%s: touchpad_natural_scroll reads back" % label,
+                  r["data"]["pointer"]["touchpad_natural_scroll"]["value"], want)
     for name, val in [("accel_profile", 'x"); os.execute("id'), ("accel_profile", ""), ("mouse_scroll_factor", "99"),
                       ("tap_to_click_typo", "true"), ("mouse_scroll_factor", "abc")]:
         check("%s: refused %s=%r" % (label, name, val), run(d, "set-input", "--name", name, "--value", val).get("ok"), False)

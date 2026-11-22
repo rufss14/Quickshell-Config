@@ -77,3 +77,19 @@ Moved from CLAUDE.md › API caution; the rules there still apply.
     the top level — top-level Lua runs during `--verify-config` too, so a
     top-level exec launches the thing you were only trying to check.
   - `scripts/greet-preview.lua` is the worked example.
+
+- **A PipeWire capture aimed at something that isn't there is linked to the MICROPHONE** (measured
+  2026-11-22, WirePlumber 0.5.19, pipewire 1.6.11). A `target.object` that no node answers to — or no
+  target at all, for `pw-record` — falls back to the default INPUT unless the stream sets
+  `node.dont-fallback` (`linking/find-defined-target.lua`). Zen's playback stream was replaced under a running
+  cava (serial 288 pinned, 1868 live; the trigger, probably a pause, was not measured), and a capture
+  pinned by NAME to "Zen" was left linked to the mic: the desktop visualiser sat flat under the music
+  and moved when the user spoke (`pw-dump`: cava `target.object=Zen` with its only links from
+  `alsa_input…`). That it falls back at the moment the node dies, rather than at connect, is inferred. Pin to the node's `object.serial` (`Audio.serialOf`), restart on a new serial
+  (`CavaStream.serial`), run nothing while there is no node, give `pw-record` `node.dont-fallback`
+  for a target and `stream.capture.sink` for none (`music-pulse.py record_command`).
+  - **Not closed:** a cava already running when its node dies is relinked to the mic by WirePlumber for the
+    moment (tens of ms) before the shell notices the node is gone and stops it. cava has no way to set
+    `node.dont-fallback`; `PIPEWIRE_PROPS` / a private `client.conf` `stream.properties` are untried.
+  - A capture of the default OUTPUT is safe by construction: cava with no `[input]` section sets
+    `stream.capture.sink` and links from the sink's monitor.

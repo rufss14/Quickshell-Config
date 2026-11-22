@@ -54,7 +54,8 @@ Item {
     property bool   mirror:    Config.wallMaterialMirror
     // A panel editing one slot's form dims every other shape, so the part being chosen for stands out.
     property string highlightSlot: ""
-    readonly property var forms: ({
+    // The form each part wears (a look's thumbnail assigns its own).
+    property var forms: ({
         stack:  Config.wallMaterialStack,
         centre: Config.wallMaterialCentre,
         side:   Config.wallMaterialSide,

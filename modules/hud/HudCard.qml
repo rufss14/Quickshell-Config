@@ -10,36 +10,27 @@ import "../../state"
 import "../../services/hud.js" as H
 
 // ── HudCard ───────────────────────────────────────────────────────────────────
-// One HUD widget as a card in the overview's corners, round the workspaces: the shared
-// cookie field drifting through it (DriftShapes — the same field as the grid's card, the
-// island and the open dim, so a cookie crosses from one into the next), a header — the
-// widget's cookie chip, its name, where it shows once pinned, a status line — and three
-// chips: PIN (draw it on screen), MOVE (arrange it on the real screen, HudArrange) and TUNE
-// (put it in the island, where HudInspector sets its options; outlined while it's there).
-// The widget's own content goes in the default slot, laid out in a ROW.
+// One HUD widget as a card in the overview's HUD row: a flat ground (GroundCard: no outline, no
+// shadow, no field), a header — the widget's own shape badge, its name, where it shows once
+// pinned, a status line — and a tools capsule that opens under the pointer: PIN (draw it on
+// screen), MOVE (arrange it on the real screen, HudArrange) and TUNE (put it in the island,
+// where HudInspector sets its options; lit while it's there). The widget's own content goes in
+// the default slot, laid out in a ROW, on plates of its own.
 //
-// Wide and short, at ONE height for every card (`bodyHeight`): the strips' height is then a
+// Wide and short, at ONE height for every card (`bodyHeight`): the row's height is then a
 // constant, so the grid's room never depends on how wide a card ended up — a card whose
 // height followed its width (wrapping text, a wrapping Flow) would feed back into the
 // grid's size, which sets the cards' widths.
 //
 // ── Motion ────────────────────────────────────────────────────────────────────
-//   · It springs in with its neighbours (PopIn, `index`); the overview flies it in from its
-//     own corner on top of that.
-//   · Under the pointer it LEANS: a couple of degrees about its centre, the edge nearest the
-//     pointer sinking (the desktop widgets' tilt, smaller — these are wide), with the
-//     settings cards' PointerGlow lighting the fill and the edge nearest it. The cookies
-//     inside stay put on the screen (DriftShapes maps through the card's real transform), so
-//     the card reads as glass moving over the field.
+//   · It springs in with its neighbours (PopIn, `index`).
+//   · The badge is a plain disc until the widget is pinned, then blooms into the widget's own
+//     shape on a spring, and the where-badge grows in beside the name.
 //   · The status line swaps through a fade when it changes KIND ("Not in a call" → "General
 //     · 0:12"), and simply ticks while only its figures change (`statusKind`).
-//   · The pin / move / tune chips fade and slide in only while the pointer is on the card.
-//   · The cookie chip swells when the widget is pinned, and the where-badge grows in beside
-//     the name — the same gesture QuickToggleTile makes for "you just turned me on".
-// (The turning corner flourish, HudArt, was removed 2026-10-20: cut by the chips, it read as a
-// glitch in the corner — the user's call.)
+//   · The tools capsule fades and slides in only while the pointer is on the card.
 // ─────────────────────────────────────────────────────────────────────────────
-Surface {
+GroundCard {
     id: root
 
     required property string wid
@@ -52,12 +43,13 @@ Surface {
     property color accent: Colors.of(QsWindow.window).primary
     readonly property var pal: Colors.of(QsWindow.window)
     default property alias content: body.data
-    // 2.2 units (2.5 until 2026-10-20: the two strips took ~380 of 1080 px from the grid).
-    readonly property int bodyHeight: Math.round(Tokens.sideCardUnit * 2.2)
+    readonly property int bodyHeight: Math.round(Tokens.sideCardUnit * 2.8)
 
     readonly property var meta: H.info(root.wid)
     readonly property var entry: Hud.layout.widgets[root.wid]
     readonly property bool inspected: Hud.inspecting === root.wid
+    // Each widget blooms into a shape of its own (island-style: give each sibling a different one).
+    readonly property string badgeShape: ({ clips: "cookie9", voice: "clover", stats: "sunny", input: "squircle" })[root.wid] ?? "cookie9"
 
     // What the status line says, and the copy it shows (see the header's Motion).
     readonly property string statusText: root.status !== "" ? root.status : Translation.tr(root.meta.blurb)
@@ -66,64 +58,15 @@ Surface {
     function statusKind(t) { return t.replace(/[0-9]/g, "") }
     onStatusTextChanged: if (root.statusKind(root.statusText) === root.statusKind(root.shownStatus)) root.shownStatus = root.statusText
 
-    elevation: Tokens.elevationCard
-    cornerRadius: Tokens.radiusXl
-    focused: root.inspected
+    // A card being tuned is one tone up.
+    tone: root.inspected ? root.pal.surfaceHigh : root.pal.surfaceFor(Tokens.elevationCard)
     implicitHeight: col.implicitHeight + Tokens.spacingLg * 2
 
     PopIn { id: pop; active: root.running; index: root.index }
-    // Surface's opacity IS itemOpacity; the entrance folds into it rather than replacing it.
-    // The corner cards sit back from the workspaces card (the point of the screen): a touch more see-through
-    // and a quieter edge, until one is being tuned (2026-11-03 review: nine cards of equal weight).
-    itemOpacity: Tokens.surfaceOpacity * 0.86 * pop.opacity
-    borderColor: root.inspected ? Colors.of(QsWindow.window).outlineFocus
-                                : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.08)
+    opacity: pop.opacity
     scale: pop.scale
 
-    // ── The lean ──────────────────────────────────────────────────────────────
-    // `px`/`py`: the pointer's place on the card, -1..1 from its centre, 0 off it. They are
-    // what animates (live-tracking timing while over it, a spring home on leaving), so the
-    // two rotations can't disagree. Sign as WidgetFrame's: the edge nearer the pointer sinks.
     HoverHandler { id: cardHover }
-    readonly property real tiltMax: Motion.ambientOn ? 2.2 : 0
-    property real px: cardHover.hovered && root.width > 0
-        ? Math.max(-1, Math.min(1, (cardHover.point.position.x / root.width - 0.5) * 2)) : 0
-    property real py: cardHover.hovered && root.height > 0
-        ? Math.max(-1, Math.min(1, (cardHover.point.position.y / root.height - 0.5) * 2)) : 0
-    Behavior on px { NumberAnimation { duration: cardHover.hovered ? Motion.track : Motion.spatial; easing.type: cardHover.hovered ? Motion.trackCurve : Motion.overshoot } }
-    Behavior on py { NumberAnimation { duration: cardHover.hovered ? Motion.track : Motion.spatial; easing.type: cardHover.hovered ? Motion.trackCurve : Motion.overshoot } }
-    transform: [
-        Rotation {
-            origin.x: root.width / 2
-            origin.y: root.height / 2
-            axis { x: 1; y: 0; z: 0 }
-            angle: -root.py * root.tiltMax
-        },
-        Rotation {
-            origin.x: root.width / 2
-            origin.y: root.height / 2
-            axis { x: 0; y: 1; z: 0 }
-            angle: root.px * root.tiltMax
-        }
-    ]
-
-    Item {
-        anchors.fill: parent
-        clip: true
-        DriftShapes {
-            anchors.fill: parent
-            visible: root.running
-            radius: root.radius
-            fade: 0
-            seam: false
-            shift: UiState.overviewDrift
-        }
-    }
-    PointerGlow {
-        hover: cardHover
-        color: root.accent
-        radius: root.radius
-    }
 
     ColumnLayout {
         id: col
@@ -138,18 +81,25 @@ Surface {
             Layout.fillHeight: false
             spacing: Tokens.spacingMd
 
-            ScallopChip {
-                implicitWidth: 34
-                implicitHeight: 34
-                tint: root.accent
-                hot: root.entry.pinned
+            // Off, a disc; pinned, it blooms into the widget's own shape.
+            Item {
+                implicitWidth: Tokens.iconXl + Tokens.spacingMd
+                implicitHeight: implicitWidth
+                MorphShape {
+                    anchors.fill: parent
+                    shape: root.entry.pinned ? root.badgeShape : "circle"
+                    spec: Motion.springSpatialFast
+                    fillColor: root.entry.pinned ? root.pal.primaryContainer : root.pal.surfaceHigh
+                    Behavior on fillColor { ColorAnimation { duration: Motion.respond } }
+                }
                 MaterialIcon {
                     anchors.centerIn: parent
                     name: root.meta.symbol
                     fill: root.entry.pinned ? 1 : 0
-                    color: root.accent
+                    color: root.entry.pinned ? root.pal.fgOnPrimaryContainer : root.pal.fgMuted
                     font.pixelSize: Tokens.iconMd
                     Behavior on fill { NumberAnimation { duration: Motion.standard } }
+                    Behavior on color { ColorAnimation { duration: Motion.respond } }
                 }
             }
             ColumnLayout {
@@ -172,7 +122,7 @@ Surface {
                         opacity: root.entry.pinned ? 1 : 0
                         clip: true
                         radius: height / 2
-                        color: root.pal.alpha(root.accent, 0.16)
+                        color: root.pal.surfaceHigh
                         Behavior on implicitWidth { NumberAnimation { duration: Motion.spatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spring } }
                         Behavior on opacity { NumberAnimation { duration: Motion.standard } }
                         RowLayout {
@@ -182,13 +132,13 @@ Surface {
                             MaterialIcon {
                                 name: root.entry.where === "always" ? "monitor" : "sports_esports"
                                 fill: 1
-                                color: root.accent
+                                color: root.pal.fgMuted
                                 font.pixelSize: Tokens.iconSm
                             }
                             StyledText {
                                 text: root.entry.where === "always" ? Translation.tr("Always") : Translation.tr("Over games")
                                 variant: "caption"
-                                color: root.accent
+                                color: root.pal.fgMuted
                                 font.weight: Font.DemiBold
                             }
                         }
@@ -216,34 +166,46 @@ Surface {
                     }
                 }
             }
-            // The chips show only under the pointer (or while the card is in the island):
-            // twelve of them across the four corners were the loudest thing on the overview
-            // (the user's pick, 2026-10-20). Faded, not hidden, so the header doesn't reflow
-            // as they come; whether it's pinned is still said by the where-badge.
-            ChipTray {
+            // The tools show only under the pointer (or while the card is in the island): twelve
+            // of them across the four cards were the loudest thing on the overview. Faded, not
+            // hidden, so the header doesn't reflow as they come; whether it's pinned is still said
+            // by the badge and the where-badge.
+            Rectangle {
                 id: tray
                 readonly property bool shown: cardHover.hovered || root.inspected
+                implicitWidth: tools.implicitWidth + Tokens.spacingXs * 2
+                implicitHeight: tools.implicitHeight + Tokens.spacingXs * 2
+                radius: height / 2
+                color: root.pal.surfaceHigh
                 opacity: tray.shown ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: tray.shown ? Motion.standard : Motion.exit } }
-                transform: Translate {
-                    x: (1 - tray.opacity) * Tokens.spacingMd
-                }
-                ChipButton {
-                    symbol: "keep"
-                    on: root.entry.pinned
-                    tint: root.accent
-                    onActivated: Hud.pin(root.wid, !root.entry.pinned)
-                }
-                ChipButton {
-                    symbol: "open_with"
-                    tint: root.accent
-                    onActivated: Hud.arrange(true, root.wid)
-                }
-                ChipButton {
-                    symbol: "tune"
-                    on: root.inspected
-                    tint: root.accent
-                    onActivated: Hud.inspect(root.wid)
+                transform: Translate { x: (1 - tray.opacity) * Tokens.spacingMd }
+                Row {
+                    id: tools
+                    anchors.centerIn: parent
+                    CardTool {
+                        symbol: "keep"
+                        filled: root.entry.pinned
+                        tint: root.entry.pinned ? root.accent : root.pal.fgMuted
+                        hoverTint: root.accent
+                        name: Translation.tr("Pin")
+                        onActivated: { Hud.pin(root.wid, !root.entry.pinned); bump() }
+                    }
+                    CardTool {
+                        symbol: "open_with"
+                        tint: root.pal.fgMuted
+                        hoverTint: root.accent
+                        name: Translation.tr("Move")
+                        onActivated: Hud.arrange(true, root.wid)
+                    }
+                    CardTool {
+                        symbol: "tune"
+                        filled: root.inspected
+                        tint: root.inspected ? root.accent : root.pal.fgMuted
+                        hoverTint: root.accent
+                        name: Translation.tr("Tune")
+                        onActivated: Hud.inspect(root.wid)
+                    }
                 }
             }
         }

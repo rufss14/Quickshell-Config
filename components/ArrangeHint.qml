@@ -224,7 +224,7 @@ Surface {
                                 shape: tile.on ? root.shapes[tile.modelData.mode] : "circle"
                                 fillColor: tile.off ? root.pal.alpha(root.pal.danger, 0.24)
                                          : tile.on  ? root.pal.primary
-                                         :            root.pal.surfaceHigh
+                                         :            root.pal.plate
                             }
                             MaterialIcon {
                                 anchors.centerIn: parent

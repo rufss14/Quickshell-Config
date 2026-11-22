@@ -6,23 +6,31 @@ import QtQuick.Layouts
 import "../../../config"
 import "../../../components"
 import "../../../services"
+import "../../../state"
 import "../../../services/treemap.js" as Treemap
 
 // ── StoragePage — System › Storage ────────────────────────────────────────────
 // What's using the disks, what can be given back, and what's installed on purpose.
 //
-// ── Rebuilt around the map (2026-10-26) ───────────────────────────────────────
-// It was a column of bars and a list of folders by name. A folder's size is a ratio
-// of the whole, and a list of bars hides that the biggest one is most of it. So the
-// home folder is now a SPACE MAP: a squarified treemap (services/treemap.js) whose
-// tiles are the biggest folders, each as large as its share. Hover for the path.
+// ── Built around the map ──────────────────────────────────────────────────────
+// A folder's size is a ratio of the whole, and a list of bars hides that the biggest one
+// is most of it. So the home folder is a SPACE MAP: a squarified treemap
+// (services/treemap.js) whose tiles are the biggest folders, each as large as its share.
+// Hover for the path.
 //
-//     ┌ disks — one capacity bar each, the root disk broken down by what fills it ┐
-//     ├ space map of $HOME ─────────────────────────┬ reclaim — caches, logs …   ┤
-//     └─────────────────────────────────────────────┴ password, then Clean        ┘
+//     disks: one capacity bar each, the root disk broken down by what fills it
+//     space map of $HOME
+//     reclaim: caches, logs ... password, then Clean
 //
-// Disks | Packages is a header switch: related questions ("where did my space go" /
-// "what did I install and do I still want it"), but two different pages of answers.
+// Storage and Packages are two pages of the settings rail on this one file: related questions
+// ("where did my space go" / "what did I install and do I still want it"), two different
+// answers. The rail entry's anchor (UiState.settingsAnchor, "packages" or "") picks the view,
+// so there is no switch in the header and the package list gets the whole page.
+//
+// ── Grouped, with the tools left as tools ─────────────────────────────────────
+// Each block is a grouped Section: one tonal segment per visible child. The capacity bars,
+// the treemap and the package table keep their own drawing inside a segment (no outlines on
+// them: the segment is the well); Reclaim is a list of cleanups on segments of their own.
 //
 // ── Trash and app caches are reported, not offered ────────────────────────────
 // They show up on the map and get no button — see Storage.qml. Packages are the
@@ -42,7 +50,10 @@ import "../../../services/treemap.js" as Treemap
 Item {
     id: root
 
-    Component.onCompleted:   Storage.acquire()
+    Component.onCompleted: {
+        Storage.acquire()
+        root.scanPackagesOnce()
+    }
     Component.onDestruction: Storage.release()
 
     onVisibleChanged: if (root.visible) Storage.refresh()
@@ -73,13 +84,26 @@ Item {
         onTriggered: Storage.clearRun()
     }
 
-    // "disks" | "packages" — resets to "disks" every time the page is (re)built,
-    // same as WallpaperPage's `source`: it's a view choice for this visit, not a
-    // preference worth persisting to Config.
-    property string section: "disks"
+    // Which rail page this is: the catalogue entry `StoragePage.qml#packages` sets the anchor.
+    // Set imperatively, not bound: "" is also the anchor of every OTHER page, so a binding
+    // would flip a Packages page that is sliding out back to Disks mid-fade. "packages"
+    // lands at once; "" lands a beat later, and only while this page still takes input
+    // (SettingsCard disables a slot that is leaving). WallpaperPage does the same.
+    property bool packagesView: UiState.settingsAnchor === "packages"
+    function _takeAnchor() {
+        if (UiState.settingsAnchor === "packages") root.packagesView = true
+        else if (UiState.settingsAnchor === "") Qt.callLater(root._takeDisks)
+    }
+    function _takeDisks() {
+        if (root.enabled && UiState.settingsAnchor === "") root.packagesView = false
+    }
+    Connections {
+        target: UiState
+        function onSettingsAnchorChanged() { root._takeAnchor() }
+    }
 
-    // One password for both tabs — see the PasswordField component below for how
-    // its two instances (Reclaim column, Packages toolbar) stay in sync.
+    // One password for both views — see the PasswordField component below for how
+    // its two instances (Reclaim, Packages) stay in sync.
     property string sudoPass: ""
     readonly property bool locked: root.sudoPass.length === 0
 
@@ -87,14 +111,14 @@ Item {
     property string pkgSource: "official"
     property string pkgQuery: ""
 
-    // Packages.qml doesn't exist — this scans lazily, the first time the tab is
-    // actually opened, same reasoning as scanHome(): no point paying pacman -Qei
-    // on every Storage visit when most opens are just "how full are my disks".
-    onSectionChanged: {
-        if (root.section === "packages" && !Storage.hasScannedPackages
-            && !Storage.packagesScanning)
+    // Scans lazily, the first time the Packages view is shown, same reasoning as scanHome():
+    // no point paying pacman -Qei on every Storage visit when most opens are just "how full
+    // are my disks".
+    function scanPackagesOnce() {
+        if (root.packagesView && !Storage.hasScannedPackages && !Storage.packagesScanning)
             Storage.scanPackages()
     }
+    onPackagesViewChanged: root.scanPackagesOnce()
 
     // ── The header's own reading ──────────────────────────────────────────────
     // Free space on the root filesystem plus anything the reclaimers could give back:
@@ -115,6 +139,10 @@ Item {
     readonly property var sourcePackages: root.pkgSource === "aur"     ? root.aurPackages
                                          : root.pkgSource === "flatpak" ? root.flatpakPackages
                                          : root.officialPackages
+
+    readonly property string pkgSourceName: root.pkgSource === "aur" ? "AUR"
+                                          : root.pkgSource === "flatpak" ? "Flatpak"
+                                          : Translation.tr("official")
 
     readonly property var filteredPackages: {
         const q = root.pkgQuery.trim().toLowerCase()
@@ -169,12 +197,15 @@ Item {
     readonly property int pkgSizeW:     70
     readonly property int pkgActionW:   100
 
-    // Segment colours for the composition strip. Cycled by index so adjacent slices stay
-    // distinguishable; "Other" and "Free" are deliberately NOT in the cycle, because they
-    // aren't things — they're the remainder and the gap.
-    readonly property var segmentColors: [
-        Colors.of(QsWindow.window).focus, Colors.of(QsWindow.window).info, Colors.of(QsWindow.window).warning, Colors.of(QsWindow.window).ramp5, Colors.of(QsWindow.window).success
-    ]
+    // Segment colours for the composition strip and the map's tiles. Cycled by index so adjacent
+    // slices stay distinguishable: hues the palette keeps apart (primary, success, warning) alternate
+    // with duller tones of an accent mixed toward the ground, so two neighbours differ in lightness
+    // even on a wallpaper whose accents are close. "Other" and "Free" are deliberately NOT in the
+    // cycle, because they aren't things, they're the remainder and the gap.
+    readonly property var segmentColors: {
+        const c = Colors.of(QsWindow.window)
+        return [c.primary, c.success, c.mix(c.info, c.section, 0.55), c.warning, c.mix(c.primary, c.section, 0.6)]
+    }
 
     function segmentColor(kind, index) {
         if (kind === "free")     return Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.10)
@@ -187,43 +218,27 @@ Item {
     SettingsPage {
         anchors.fill: parent
 
-        bento:     true
-        glyph:     "󰋊"
-        title:     Translation.tr("Storage")
-        titleTail: root.section === "packages" ? "· packages" : ""
+        grouped:   true
+        glyph:     root.packagesView ? "󰏓" : "󰋊"
+        title:     root.packagesView ? Translation.tr("Packages") : Translation.tr("Storage")
         accent:    Colors.of(QsWindow.window).primary
-        subtitle:  root.section === "packages"
+        subtitle:  root.packagesView
                    ? (Storage.hasScannedPackages
-                      ? Storage.packages.length + " installed on purpose — not pulled in as dependencies"
-                      : "Scanning…")
+                      ? Translation.tr("%1 installed on purpose, not pulled in as dependencies").arg(Storage.packages.length)
+                      : Translation.tr("Scanning…"))
                    : root.freeText
 
         actions: [
             BusyDot { running: Storage.packagesScanning || Storage.probing || Storage.scanning
-                      tint: Colors.of(QsWindow.window).primary },
-            ChipTray {
-                ChipButton {
-                    symbol: "hard_drive"
-                    label:  Translation.tr("Disks")
-                    on:     root.section === "disks"
-                    tint:   Colors.of(QsWindow.window).primary
-                    onActivated: root.section = "disks"
-                }
-                ChipButton {
-                    symbol: "inventory_2"
-                    label:  Translation.tr("Packages")
-                    on:     root.section === "packages"
-                    tint:   Colors.of(QsWindow.window).primary
-                    onActivated: root.section = "packages"
-                }
-            }
+                      tint: Colors.of(QsWindow.window).primary }
         ]
 
         // ══ A run in progress ═════════════════════════════════════════════════
         // Reclaim and uninstall share one runner (Storage._run), so whichever view you
         // are on when it starts or ends shows it. Success leaves on its own.
         Section {
-            span:     3
+            grouped:  true
+            fullRow:  true
             visible:  root.showLog
             glyph:    Storage.runBusy ? "󰑮" : Storage.runExit === 0 ? "󰄬" : "󰀦"
             title:    Storage.runLabel
@@ -290,14 +305,13 @@ Item {
         // Each disk a capacity bar; the root disk's bar IS its breakdown (the free part
         // is its last segment), so "how full" and "full of what" are one picture.
         Section {
-            span:     3
-            visible:  root.section === "disks"
+            grouped:  true
+            visible:  !root.packagesView
             glyph:    "󰋊"
             title:    Translation.tr("Disks")
             subtitle: Storage.filesystems.length + (Storage.filesystems.length === 1 ? " filesystem" : " filesystems")
-            help:     Translation.tr("Each disk's used space against its size. The root disk is broken down by what fills it; Other is everything not measured on its own, and Reserved is the share the filesystem keeps for root — why the numbers seem not to add up.")
+            help:     Translation.tr("Each disk's used space against its size. The root disk is broken down by what fills it; Other is everything not measured on its own, and Reserved is the share the filesystem keeps for root, which is why the numbers seem not to add up.")
             accent:   Colors.of(QsWindow.window).primary
-            bodySpacing: Tokens.spacingMd
 
             Repeater {
                 model: Storage.filesystems
@@ -308,10 +322,44 @@ Item {
             }
         }
 
+        // ══ Reclaim ═══════════════════════════════════════════════════════════
+        Section {
+            grouped:  true
+            visible:  !root.packagesView
+            glyph:    "󰃢"
+            title:    Translation.tr("Reclaim space")
+            subtitle: Storage.probing ? "Measuring…"
+                    : Storage.reclaimableBytes > 0 ? Storage.bytes(Storage.reclaimableBytes) + " to free"
+                    : "Nothing to clean"
+            help:     Translation.tr("Caches, old package versions and logs: files that rebuild themselves. Orphans are packages nothing needs any more; removing those uninstalls them, so it asks twice.")
+            accent:   Colors.of(QsWindow.window).primary
+
+            // Directly above what it unlocks.
+            PasswordField {
+                helpText: "Unlocks the cleanups below."
+            }
+
+            Repeater {
+                model: Storage.reclaimers
+                delegate: ReclaimRow {
+                    required property var modelData
+                    rec: modelData
+                }
+            }
+
+            StyledText {
+                Layout.fillWidth: true
+                visible: Storage.reclaimers.length === 0 && !Storage.probing
+                text: Translation.tr("The caches and logs are already small")
+                variant: "caption"
+                emphasis: "dim"
+            }
+        }
+
         // ══ The space map ═════════════════════════════════════════════════════
         Section {
-            span:     2
-            visible:  root.section === "disks"
+            grouped:  true
+            visible:  !root.packagesView
             glyph:    "󰉋"
             title:    Translation.tr("Home folder")
             subtitle: Storage.scanning ? "Scanning… " + Storage.scanElapsed + "s"
@@ -330,28 +378,26 @@ Item {
                 }
             }
 
-            // Before the first scan: what the button is for.
-            ColumnLayout {
+            // Before the first scan: what the button is for, in one line (the Scan chip is in the heading).
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 150
+                Layout.fillHeight: false
                 visible: !Storage.hasScanned
-                spacing: Tokens.spacingSm
+                spacing: Tokens.spacingMd
 
-                Item { Layout.fillHeight: true }
                 MaterialIcon {
-                    Layout.alignment: Qt.AlignHCenter
                     name: "folder_open"
-                    variant: "display"
+                    variant: "title"
                     color: Colors.of(QsWindow.window).fgDim
                 }
                 StyledText {
                     Layout.fillWidth: true
-                    horizontalAlignment: Text.AlignHCenter
-                    text: Storage.scanning ? "Measuring your folders…" : "Scan to see where your space went"
+                    Layout.preferredWidth: 0
+                    text: Storage.scanning ? Translation.tr("Measuring your folders…") : Translation.tr("Scan to see where your space went")
                     variant: "caption"
                     emphasis: "dim"
+                    wrapMode: Text.WordWrap
                 }
-                Item { Layout.fillHeight: true }
             }
 
             Item {
@@ -381,7 +427,7 @@ Item {
                         Behavior on color { ColorAnimation { duration: Motion.respond } }
 
                         HoverHandler { id: tileHover }
-                        HelpTip { text: tile.folder.path + " — " + Storage.bytes(tile.folder.bytes) }
+                        HelpTip { text: tile.folder.path + "  ·  " + Storage.bytes(tile.folder.bytes) }
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -409,51 +455,20 @@ Item {
             }
         }
 
-        // ══ Reclaim ═══════════════════════════════════════════════════════════
-        Section {
-            span:     1
-            visible:  root.section === "disks"
-            glyph:    "󰃢"
-            title:    Translation.tr("Reclaim space")
-            subtitle: Storage.probing ? "Measuring…"
-                    : Storage.reclaimableBytes > 0 ? Storage.bytes(Storage.reclaimableBytes) + " to free"
-                    : "Nothing to clean"
-            help:     Translation.tr("Caches, old package versions and logs — files that rebuild themselves. Orphans are packages nothing needs any more; removing those uninstalls them, so it asks twice.")
-            accent:   Colors.of(QsWindow.window).primary
-            bodySpacing: Tokens.spacingXs
-
-            // Directly above what it unlocks.
-            PasswordField {
-                helpText: "Unlocks the cleanups below."
-            }
-
-            Repeater {
-                model: Storage.reclaimers
-                delegate: ReclaimRow {
-                    required property var modelData
-                    rec: modelData
-                }
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                Layout.topMargin: Tokens.spacingSm
-                visible: Storage.reclaimers.length === 0 && !Storage.probing
-                text: Translation.tr("The caches and logs are already small")
-                variant: "caption"
-                emphasis: "dim"
-            }
-        }
-
         // ══ Packages ══════════════════════════════════════════════════════════
+        // The whole page on the Packages rail entry. The table is ONE segment (header, rows and
+        // empty states), so a few hundred rows are not a few hundred segments.
         Section {
-            span:     3
-            visible:  root.section === "packages"
+            grouped:  true
+            fullRow:  true
+            visible:  root.packagesView
             glyph:    "󰏓"
             title:    Translation.tr("Installed on purpose")
+            // The count is of the chosen source and says so, so it never reads as a different
+            // total from the header's (all three sources).
             subtitle: root.pkgQuery !== ""
-                      ? root.filteredPackages.length + " of " + root.sourcePackages.length
-                      : root.sourcePackages.length + " packages"
+                      ? Translation.tr("%1 of %2 %3").arg(root.filteredPackages.length).arg(root.sourcePackages.length).arg(root.pkgSourceName)
+                      : root.sourcePackages.length + " " + root.pkgSourceName
             accent:   Colors.of(QsWindow.window).primary
 
             actions: ChipTray {
@@ -465,29 +480,25 @@ Item {
                 }
             }
 
-            // Where they came from — counts in the labels — and a search.
-            RowLayout {
+            // Where they came from, counts in the labels.
+            TabStrip {
+                connected: true
                 Layout.fillWidth: true
-                Layout.fillHeight: false
-                spacing: Tokens.spacingSm
+                accent: Colors.of(QsWindow.window).primary
+                model: [
+                    { value: "official", label: "Official " + root.officialPackages.length, icon: "package" },
+                    { value: "aur",      label: "AUR " + root.aurPackages.length,           icon: "extension" },
+                    { value: "flatpak",  label: "Flatpak " + root.flatpakPackages.length,   icon: "inventory_2" }
+                ]
+                current: root.pkgSource
+                onPicked: function (v) { root.pkgSource = v }
+            }
 
-                TabStrip {
-                    Layout.preferredWidth: 440
-                    accent: Colors.of(QsWindow.window).primary
-                    model: [
-                        { value: "official", label: "Official " + root.officialPackages.length, icon: "package" },
-                        { value: "aur",      label: "AUR " + root.aurPackages.length,           icon: "extension" },
-                        { value: "flatpak",  label: "Flatpak " + root.flatpakPackages.length,   icon: "inventory_2" }
-                    ]
-                    current: root.pkgSource
-                    onPicked: function (v) { root.pkgSource = v }
-                }
-                InputField {
-                    cornerRadius: implicitHeight / 2
-                    Layout.fillWidth: true
-                    placeholder: Translation.tr("Search packages")
-                    onEdited: function (t) { root.pkgQuery = t }
-                }
+            InputField {
+                cornerRadius: implicitHeight / 2
+                Layout.fillWidth: true
+                placeholder: Translation.tr("Search packages")
+                onEdited: function (t) { root.pkgQuery = t }
             }
 
             RowLayout {
@@ -528,180 +539,167 @@ Item {
                 }
             }
 
-            RowLayout {
+            // The table. One column layout so it is a single segment.
+            ColumnLayout {
                 Layout.fillWidth: true
-                Layout.leftMargin:  Tokens.spacingSm
-                Layout.rightMargin: Tokens.spacingSm
-                Layout.bottomMargin: Tokens.spacingXs
-                spacing: Tokens.spacingMd
-
-                Rectangle {
-                    Layout.preferredWidth: root.pkgCheckboxW
-                    Layout.alignment: Qt.AlignVCenter
-                    width: 16; height: 16
-                    radius: Tokens.radiusXs
-                    color: root.allFilteredSelected ? Colors.of(QsWindow.window).primary : "transparent"
-                    border.width: Tokens.borderWidth
-                    border.color: root.allFilteredSelected ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).outline
-
-                    MaterialIcon {
-                        anchors.centerIn: parent
-                        visible: root.allFilteredSelected
-                        glyph: "󰄬"
-                        variant: "micro"
-                        color: Colors.of(QsWindow.window).fgOnPrimary
-                    }
-
-                    TapHandler { onTapped: root.toggleSelectAllFiltered() }
-                }
-
-                // The name takes all the slack, in the header AND every row, so the
-                // fixed columns after it sit at the same x down the whole list.
-                StyledText {
-                    Layout.fillWidth: true
-                    text: "Package"; variant: "caption"; emphasis: "muted"
-                }
-                StyledText { Layout.preferredWidth: root.pkgVersionW; text: "Version"; variant: "caption"; emphasis: "muted" }
-                StyledText {
-                    Layout.preferredWidth: root.pkgSizeW
-                    horizontalAlignment: Text.AlignRight
-                    text: "Size"; variant: "caption"; emphasis: "muted"
-                }
-                Item { Layout.preferredWidth: root.pkgActionW; Layout.minimumWidth: root.pkgActionW }
-            }
-            Divider { Layout.leftMargin: Tokens.spacingSm; Layout.rightMargin: Tokens.spacingSm }
-
-            Repeater {
-                model: root.filteredPackages
-                delegate: Item {
-                    id: pkgRow
-                    required property var modelData
-
-                    Layout.fillWidth: true
-                    implicitHeight: pkgRowContent.implicitHeight + Tokens.spacingXs * 2
-
-                    // Flatpak needs no sudo — it authenticates through
-                    // polkit — so a flatpak row is never "Locked" the way
-                    // a pacman one is. See Storage.uninstallPackages().
-                    readonly property bool blocked:
-                        pkgRow.modelData.source !== "flatpak" && root.locked
-
-                    ArmLatch {
-                        id: pkgDeleteLatch
-                        onConfirmed: {
-                            root.deselect([pkgRow.modelData.id])
-                            Storage.uninstallPackages([pkgRow.modelData.id], root.sudoPass)
-                        }
-                    }
-
-                    RowLayout {
-                        id: pkgRowContent
-                        anchors.left:  parent.left
-                        anchors.right: parent.right
-                        anchors.leftMargin:  Tokens.spacingSm
-                        anchors.rightMargin: Tokens.spacingSm
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Tokens.spacingMd
-
-                        Rectangle {
-                            Layout.preferredWidth: root.pkgCheckboxW
-                            Layout.alignment: Qt.AlignVCenter
-                            width: 16; height: 16
-                            radius: Tokens.radiusXs
-                            color: root.isSelected(pkgRow.modelData.id) ? Colors.of(QsWindow.window).primary : "transparent"
-                            border.width: Tokens.borderWidth
-                            border.color: root.isSelected(pkgRow.modelData.id)
-                                ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).outline
-
-                            MaterialIcon {
-                                anchors.centerIn: parent
-                                visible: root.isSelected(pkgRow.modelData.id)
-                                glyph: "󰄬"
-                                variant: "micro"
-                                color: Colors.of(QsWindow.window).fgOnPrimary
-                            }
-
-                            TapHandler { onTapped: root.toggleSelect(pkgRow.modelData.id) }
-                        }
-
-                        // ── Name, with the description on hover ───────
-                        // Hover target and tooltip anchor are the name
-                        // text itself now, not the whole row — so
-                        // hovering the Remove button doesn't pop a
-                        // description, and the tooltip lands directly
-                        // under the name rather than under the row's
-                        // trailing edge (wherever that happened to be).
-                        StyledText {
-                            id: pkgNameText
-                            Layout.fillWidth: true
-                            text: pkgRow.modelData.name
-                            variant: "body"
-                            elide: Text.ElideRight
-
-                            // What it is — the card's shared tip, like
-                            // every other explanation in Settings.
-                            HelpTip { text: pkgRow.modelData.description }
-                        }
-
-                        StyledText {
-                            Layout.preferredWidth: root.pkgVersionW
-                            text: pkgRow.modelData.version
-                            variant: "caption"
-                            emphasis: "dim"
-                            elide: Text.ElideRight
-                        }
-                        StyledText {
-                            Layout.preferredWidth: root.pkgSizeW
-                            horizontalAlignment: Text.AlignRight
-                            text: Storage.bytes(pkgRow.modelData.bytes)
-                            variant: "caption"
-                            color: Colors.of(QsWindow.window).fgMuted
-                        }
-
-                        // Same two-step "armed" idiom as the reclaimers above —
-                        // this deletes a package outright, so it earns the same
-                        // confirm every risky button on this page gets. Ghost
-                        // rather than normal/bordered by default: a bordered
-                        // button per row is exactly the extra chrome a flat list
-                        // is trying to avoid — it only needs to be loud once armed.
-                        PanelButton {
-                            capsule: true
-                            Layout.preferredWidth: root.pkgActionW
-                            Layout.minimumWidth: root.pkgActionW
-                            Layout.maximumWidth: root.pkgActionW
-                            Layout.alignment: Qt.AlignVCenter
-                            variant: pkgDeleteLatch.armed ? "primary" : "ghost"
-                            accent:  Colors.of(QsWindow.window).danger
-                            glyph: pkgRow.blocked ? "󰌾" : "󰩺"
-                            label: pkgDeleteLatch.armed ? "Remove?"
-                                 : pkgRow.blocked ? "Locked" : "Remove"
-                            enabled: !Storage.runBusy && !pkgRow.blocked
-
-                            onActivated: pkgDeleteLatch.trigger()
-                        }
-                    }
-
-                    Divider {
-                        anchors.left:   parent.left
-                        anchors.right:  parent.right
-                        anchors.bottom: parent.bottom
-                    }
-                }
-            }
-
-            // ── Empty states ──────────────────────────────────────────
-            Surface {
-                Layout.fillWidth: true
-                visible: Storage.packagesScanning && !Storage.hasScannedPackages
-                elevation: Tokens.elevationNested
-                implicitHeight: scanBox.implicitHeight + Tokens.spacingLg * 2
+                Layout.fillHeight: false
+                spacing: 0
 
                 RowLayout {
-                    id: scanBox
-                    anchors.left:  parent.left
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.margins: Tokens.spacingLg
+                    Layout.fillWidth: true
+                    Layout.fillHeight: false
+                    Layout.bottomMargin: Tokens.spacingXs
+                    spacing: Tokens.spacingMd
+
+                    Rectangle {
+                        Layout.preferredWidth: root.pkgCheckboxW
+                        Layout.alignment: Qt.AlignVCenter
+                        width: 16; height: 16
+                        radius: Tokens.radiusXs
+                        color: root.allFilteredSelected ? Colors.of(QsWindow.window).primary : "transparent"
+                        border.width: Tokens.borderWidth
+                        border.color: root.allFilteredSelected ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).outline
+
+                        MaterialIcon {
+                            anchors.centerIn: parent
+                            visible: root.allFilteredSelected
+                            glyph: "󰄬"
+                            variant: "micro"
+                            color: Colors.of(QsWindow.window).fgOnPrimary
+                        }
+
+                        TapHandler { onTapped: root.toggleSelectAllFiltered() }
+                    }
+
+                    // The name takes all the slack, in the header AND every row, so the
+                    // fixed columns after it sit at the same x down the whole list.
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: "Package"; variant: "caption"; emphasis: "muted"
+                    }
+                    StyledText { Layout.preferredWidth: root.pkgVersionW; text: "Version"; variant: "caption"; emphasis: "muted" }
+                    StyledText {
+                        Layout.preferredWidth: root.pkgSizeW
+                        horizontalAlignment: Text.AlignRight
+                        text: "Size"; variant: "caption"; emphasis: "muted"
+                    }
+                    Item { Layout.preferredWidth: root.pkgActionW; Layout.minimumWidth: root.pkgActionW }
+                }
+                Divider { }
+
+                Repeater {
+                    model: root.filteredPackages
+                    delegate: Item {
+                        id: pkgRow
+                        required property var modelData
+
+                        Layout.fillWidth: true
+                        implicitHeight: pkgRowContent.implicitHeight + Tokens.spacingXs * 2
+
+                        // Flatpak needs no sudo — it authenticates through
+                        // polkit — so a flatpak row is never "Locked" the way
+                        // a pacman one is. See Storage.uninstallPackages().
+                        readonly property bool blocked:
+                            pkgRow.modelData.source !== "flatpak" && root.locked
+
+                        ArmLatch {
+                            id: pkgDeleteLatch
+                            onConfirmed: {
+                                root.deselect([pkgRow.modelData.id])
+                                Storage.uninstallPackages([pkgRow.modelData.id], root.sudoPass)
+                            }
+                        }
+
+                        RowLayout {
+                            id: pkgRowContent
+                            anchors.left:  parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Tokens.spacingMd
+
+                            Rectangle {
+                                Layout.preferredWidth: root.pkgCheckboxW
+                                Layout.alignment: Qt.AlignVCenter
+                                width: 16; height: 16
+                                radius: Tokens.radiusXs
+                                color: root.isSelected(pkgRow.modelData.id) ? Colors.of(QsWindow.window).primary : "transparent"
+                                border.width: Tokens.borderWidth
+                                border.color: root.isSelected(pkgRow.modelData.id)
+                                    ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).outline
+
+                                MaterialIcon {
+                                    anchors.centerIn: parent
+                                    visible: root.isSelected(pkgRow.modelData.id)
+                                    glyph: "󰄬"
+                                    variant: "micro"
+                                    color: Colors.of(QsWindow.window).fgOnPrimary
+                                }
+
+                                TapHandler { onTapped: root.toggleSelect(pkgRow.modelData.id) }
+                            }
+
+                            // Name, with the description on hover. The tip's host is the name
+                            // text itself, not the row, so hovering the Remove button does not
+                            // pop a description.
+                            StyledText {
+                                id: pkgNameText
+                                Layout.fillWidth: true
+                                text: pkgRow.modelData.name
+                                variant: "body"
+                                elide: Text.ElideRight
+
+                                HelpTip { text: pkgRow.modelData.description }
+                            }
+
+                            StyledText {
+                                Layout.preferredWidth: root.pkgVersionW
+                                text: pkgRow.modelData.version
+                                variant: "caption"
+                                emphasis: "dim"
+                                elide: Text.ElideRight
+                            }
+                            StyledText {
+                                Layout.preferredWidth: root.pkgSizeW
+                                horizontalAlignment: Text.AlignRight
+                                text: Storage.bytes(pkgRow.modelData.bytes)
+                                variant: "caption"
+                                color: Colors.of(QsWindow.window).fgMuted
+                            }
+
+                            // Same two-step "armed" idiom as the reclaimers above: this deletes
+                            // a package outright, so it earns the same confirm. Ghost until
+                            // armed: a bordered button per row is chrome a flat list does not need.
+                            PanelButton {
+                                capsule: true
+                                Layout.preferredWidth: root.pkgActionW
+                                Layout.minimumWidth: root.pkgActionW
+                                Layout.maximumWidth: root.pkgActionW
+                                Layout.alignment: Qt.AlignVCenter
+                                variant: pkgDeleteLatch.armed ? "primary" : "ghost"
+                                accent:  Colors.of(QsWindow.window).danger
+                                glyph: pkgRow.blocked ? "󰌾" : "󰩺"
+                                label: pkgDeleteLatch.armed ? "Remove?"
+                                     : pkgRow.blocked ? "Locked" : "Remove"
+                                enabled: !Storage.runBusy && !pkgRow.blocked
+
+                                onActivated: pkgDeleteLatch.trigger()
+                            }
+                        }
+
+                        Divider {
+                            anchors.left:   parent.left
+                            anchors.right:  parent.right
+                            anchors.bottom: parent.bottom
+                        }
+                    }
+                }
+
+                // ── Empty states ──────────────────────────────────────────
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: false
+                    Layout.topMargin: Tokens.spacingSm
+                    visible: Storage.packagesScanning && !Storage.hasScannedPackages
                     spacing: Tokens.spacingMd
 
                     BusyDot { running: true }
@@ -711,48 +709,27 @@ Item {
                         emphasis: "dim"
                     }
                 }
-            }
 
-            Surface {
-                Layout.fillWidth: true
-                visible: Storage.hasScannedPackages
-                    && root.filteredPackages.length === 0
-                    && !Storage.packagesScanning
-                elevation: Tokens.elevationNested
-                implicitHeight: pkgEmptyBox.implicitHeight + Tokens.spacingLg * 2
-
-                ColumnLayout {
-                    id: pkgEmptyBox
-                    anchors.left:  parent.left
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.margins: Tokens.spacingLg
-                    spacing: Tokens.spacingXs
-
-                    StyledText {
-                        text: root.pkgQuery !== ""
-                            ? "Nothing matches “" + root.pkgQuery + "”."
-                            : root.pkgSource === "aur"
-                                ? "No AUR packages installed."
-                            : root.pkgSource === "flatpak"
-                                ? "No Flatpak apps installed."
-                                : "No official packages installed explicitly."
-                        variant: "body"
-                        font.weight: Font.DemiBold
-                    }
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.topMargin: Tokens.spacingSm
+                    visible: Storage.hasScannedPackages
+                        && root.filteredPackages.length === 0
+                        && !Storage.packagesScanning
+                    text: root.pkgQuery !== ""
+                        ? "Nothing matches “" + root.pkgQuery + "”."
+                        : root.pkgSource === "aur"
+                            ? "No AUR packages installed."
+                        : root.pkgSource === "flatpak"
+                            ? "No Flatpak apps installed."
+                            : "No official packages installed explicitly."
+                    variant: "body"
+                    font.weight: Font.DemiBold
                 }
             }
         }
     }
 
-    // ── PasswordField ─────────────────────────────────────────────────────────
-    // Shared by the Reclaim column (Disks) and the Packages toolbar — "directly
-    // above what it unlocks" applies twice now, since both tabs gate a delete
-    // action on sudo. The two instances share one value (root.sudoPass) through
-    // an explicit, guarded sync rather than a plain `text: root.sudoPass`
-    // binding — QML silently breaks that binding the moment a user types into
-    // the field, which would leave only whichever field was typed into last
-    // actually driving `root.locked`.
     // ── DiskRow — one filesystem as a capacity bar ────────────────────────────
     // The root disk's bar is its composition (Storage.rootComposition, whose last
     // segments are Reserved and Free), with a legend; every other disk is used/free.
@@ -874,21 +851,15 @@ Item {
 
         Layout.fillWidth: true
         Layout.fillHeight: false
-        implicitHeight: rrCol.implicitHeight + Tokens.spacingSm * 2
+        implicitHeight: rrCol.implicitHeight
 
-        Rectangle {
-            anchors.fill: parent
-            radius: Tokens.radiusSm
-            color: rrHover.hovered ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.05) : "transparent"
-            Behavior on color { ColorAnimation { duration: Motion.respond } }
-        }
-        HoverHandler { id: rrHover }
+        // The row sits on a segment of the grouped card, which is its ground.
         // What it removes, and how much of its folder that is — the explanation that
         // was two lines under every row.
         HelpTip {
             text: rr.rec.detail + (rr.ctx
-                ? (rr.rec.known ? " — " + Storage.bytes(rr.rec.bytes) + " of the " + Storage.bytes(rr.ctx.bytes) + " in " + rr.ctx.path
-                                : " — " + rr.ctx.path + " is " + Storage.bytes(rr.ctx.bytes) + " in total")
+                ? (rr.rec.known ? ": " + Storage.bytes(rr.rec.bytes) + " of the " + Storage.bytes(rr.ctx.bytes) + " in " + rr.ctx.path
+                                : ": " + rr.ctx.path + " is " + Storage.bytes(rr.ctx.bytes) + " in total")
                 : "")
         }
 
@@ -897,8 +868,6 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: Tokens.spacingSm
-            anchors.rightMargin: Tokens.spacingXs
             spacing: Tokens.spacingXs
 
             RowLayout {
@@ -954,6 +923,14 @@ Item {
         }
     }
 
+    // ── PasswordField ─────────────────────────────────────────────────────────
+    // Shared by the Reclaim group (Storage) and the package list (Packages) — "directly
+    // above what it unlocks" applies twice now, since both views gate a delete
+    // action on sudo. The two instances share one value (root.sudoPass) through
+    // an explicit, guarded sync rather than a plain `text: root.sudoPass`
+    // binding — QML silently breaks that binding the moment a user types into
+    // the field, which would leave only whichever field was typed into last
+    // actually driving `root.locked`.
     component PasswordField: ColumnLayout {
         id: pwField
         property string helpText: ""
@@ -980,7 +957,7 @@ Item {
             Layout.preferredWidth: 0
             text: root.locked
                 ? pwField.helpText
-                : "Unlocked — it goes straight to sudo and isn't stored."
+                : "Unlocked. It goes straight to sudo and isn't stored."
             variant: "caption"
             color: root.locked ? Colors.of(QsWindow.window).fgDim : Colors.of(QsWindow.window).success
             wrapMode: Text.WordWrap

@@ -142,6 +142,20 @@ Singleton {
         root._run(["set", "--file", file, "--line", "" + line,
                    "--key", key, "--type", type, "--value", "" + value])
     }
+    // Whether hardware.lua has a line for this INPUT key (kb_layout, sensitivity,
+    // follow_mouse, natural_scroll). The by-line setters below do nothing without one,
+    // so a control asks first and disables itself with a reason instead.
+    function hasInput(key) {
+        const d = root._input[key]
+        return !!(d && d.line)
+    }
+    // Set an INPUT key where hardware.lua already has it; false when there is no line.
+    function setInputLine(key, type, value) {
+        const d = root._input[key]
+        if (!d || !d.line) return false
+        root.setValue(d.file, d.line, key, type, value)
+        return true
+    }
     // A mouse/touchpad key (hypr-config.py POINTER): set where it is, or inserted into
     // its table when hardware.lua doesn't have it yet.
     function setInput(name, value) {

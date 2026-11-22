@@ -31,7 +31,11 @@ Item {
         id: field
         anchors.fill: parent
         cornerRadius: height / 2
-        elevation: Tokens.elevationCard
+        // A flat pill, like the search: no outline, no shadow.
+        castsShadow: false
+        borderWidth: 0
+        trace: false
+        color: Colors.of(QsWindow.window).surfaceHigh
         enabled: root.ready
         icon: "auto_awesome"
         placeholder: root.placeholder

@@ -53,6 +53,10 @@ public:
     // The rim sweep (BlobGroup::rimSweep / rimColor): x, y, radius, width · r, g, b, strength.
     float m_rimSweep[4] = {};
     float m_rimColor[4] = {};
+    // The gradient (BlobGroup::gradAxis / gradMid / gradColor0-2): the line, then three colours. mid 0 = off.
+    float m_gradAxis[4] = {};
+    float m_gradMid = 0.0f;
+    float m_gradColors[12] = {};
 };
 
 class BlobMaterialShader : public QSGMaterialShader {

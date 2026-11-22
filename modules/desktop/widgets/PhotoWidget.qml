@@ -174,7 +174,7 @@ Item {
         Rectangle {
             anchors.fill: parent
             radius: root.opts.roundness ?? Config.widgetRoundness
-            color: root.bgMode === "transparent" ? "transparent" : Colors.of(QsWindow.window).surfaceContainer
+            color: root.bgMode === "transparent" ? "transparent" : Colors.of(QsWindow.window).plateLow
             opacity: root.bgOpacity
         }
         WidgetEmpty {
@@ -223,7 +223,7 @@ Item {
         Rectangle {
             anchors.fill: parent
             radius: root.shaped ? 0 : (root.opts.roundness ?? Config.widgetRoundness)
-            color: root.bgMode === "transparent" ? "transparent" : Colors.of(QsWindow.window).surfaceContainer
+            color: root.bgMode === "transparent" ? "transparent" : Colors.of(QsWindow.window).plateLow
             opacity: root.bgOpacity
             layer.enabled: root.bgMode === "blur" || root.bgMode === "glass"
             layer.effect: MultiEffect { blurEnabled: true; blur: 0.8; blurMax: 12 }

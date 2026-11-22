@@ -30,7 +30,7 @@ Item {
 
     readonly property bool ownsPanel: UiState.sidePanelScreen
         ? UiState.sidePanelScreen === root.screen : root.screen === Quickshell.screens[0]
-    readonly property bool open: UiState.sidePanel === "timer" && root.ownsPanel
+    readonly property bool open: UiState.sideShows("timer", root.screen)
 
     // Which one the ring shows: a countdown running or finished wins over the stopwatch.
     readonly property bool countdown: Timers.timerRunning || Timers.timerDone || Timers.timerPaused

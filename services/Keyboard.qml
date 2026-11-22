@@ -97,10 +97,12 @@ Singleton {
     // confirm what you already had, and lose Portuguese. So this is a list, and the
     // page adds to and removes from it.
     //
-    // ── hyprctl keyword is session-only ───────────────────────────────────────
-    // These changes die with the Hyprland session — they are not written to
-    // hyprland.conf. The page says so, because a settings page that silently forgets
-    // is worse than one that doesn't offer the setting.
+    // ── kb_layout is saved to hardware.lua, then applied live ─────────────────
+    // The list is persisted through HyprConfig (the same writer the Hyprland pages use,
+    // backed up and syntax-checked) and ALSO pushed with `hyprctl keyword`, so it takes
+    // effect at once and survives a Hyprland restart. Without a kb_layout line in
+    // hardware.lua there is nothing to save to, so setLayouts refuses and the page
+    // disables its controls with a reason (`layoutsEditable`).
     property var    layouts:     []      // e.g. ["us", "pt"]
     property string variant:     ""
     property int    repeatRate:  25
@@ -161,22 +163,29 @@ Singleton {
         keywordProc.running = true
     }
 
+    // The page must hold HyprConfig.acquire() while it edits; false until it has read.
+    readonly property bool layoutsEditable: HyprConfig.loaded && HyprConfig.hasInput("kb_layout")
+
     function setLayouts(list) {
         const next = list.filter(s => s !== "")
-        if (next.length === 0) return          // no layouts at all = no keyboard
+        if (next.length === 0) return false    // no layouts at all = no keyboard
+        if (!HyprConfig.setInputLine("kb_layout", "str", next.join(","))) return false
         root.layouts = next
         root._keyword("input:kb_layout", next.join(","))
+        return true
     }
 
     function addLayout(name) {
-        if (root.layouts.indexOf(name) !== -1) return
-        root.setLayouts(root.layouts.concat([name]))
+        if (root.layouts.indexOf(name) !== -1) return false
+        return root.setLayouts(root.layouts.concat([name]))
     }
 
     function removeLayout(name) {
-        root.setLayouts(root.layouts.filter(l => l !== name))
+        return root.setLayouts(root.layouts.filter(l => l !== name))
     }
 
+    // Session only: unlike the layout list, repeat rate and delay are not written to
+    // hardware.lua, so a Hyprland restart brings back what the config says.
     function setRepeat(rate, delay) {
         root.repeatRate  = rate
         root.repeatDelay = delay

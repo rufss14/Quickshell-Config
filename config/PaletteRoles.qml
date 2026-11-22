@@ -272,7 +272,24 @@ QtObject {
     // A SECTION card — a panel's flat container for a group of controls (the clock and colours panels).
     // surfaceContainer at Tokens.sectionAlpha, so the cookies drifting behind the panel read through it.
     // Not for controls (a switch, a tray of chips), which stay solid.
-    readonly property color section: alpha(surfaceContainer, Tokens.sectionAlpha)
+    // While the bar wears a gradient (Config.barGradient) it is a veil of the text colour instead, so the
+    // card is the gradient made a little lighter and not a flat block standing on it.
+    readonly property color section: root.veiled ? root.wash : alpha(surfaceContainer, Tokens.sectionAlpha)
+
+    // ── The gradient's veil ───────────────────────────────────────────────────
+    // Whether the bar and islands wear a gradient, and what an inner pill or a card is then: a thin veil of
+    // text and accent over whatever is under it. An opaque tonal fill would hide the gradient behind a
+    // flat shape; this is the same lift (the tonal fills are the base mixed toward the text) that moves
+    // with the colours beneath it. Read by BarGroup and SidePill's inner pills and by `section`.
+    readonly property bool gradientOn: Config.barGradient?.on === true
+    // Veiled: the material under the cards is a gradient or glass, not one opaque colour.
+    readonly property bool veiled: root.gradientOn || Config.barGlass > 0
+    readonly property color wash: alpha(mix(text, primary, 0.18), root._hc ? 0.22 : 0.10)
+    // A tonal plate (a button, a card inside a card, a tile) and a quieter one: surfaceHigh and surfaceContainer
+    // as they are, or veils of the same lift while the material under them is veiled. They stand where the two
+    // used to, so a surface that is not over the bar's material still reads the same.
+    readonly property color plate:    root.veiled ? alpha(mix(text, primary, 0.18), root._hc ? 0.30 : 0.17) : surfaceHigh
+    readonly property color plateLow: root.veiled ? root.wash : surfaceContainer
 
     // ── The accent's container (Material 3's primaryContainer) ────────────────
     // A quiet fill in the accent's hue, for the ONE emphasised thing in a region that is

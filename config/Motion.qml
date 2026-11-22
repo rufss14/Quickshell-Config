@@ -348,6 +348,11 @@ Singleton {
     readonly property var springSpatialFast: ({ stiffness: 800,  damping: root.reduced ? 1.0 : 0.6 })
     readonly property var springSpatial:     ({ stiffness: 380,  damping: root.reduced ? 1.0 : 0.8 })
     readonly property var springSpatialSlow: ({ stiffness: 200,  damping: root.reduced ? 1.0 : 0.8 })
+    // springScroll: a long, calm glide for a view that follows the eye (the lyrics' strip between lines). Critically damped,
+    // so nothing overshoots, and a spring leaves rest with ZERO velocity and keeps what it has when the next line arrives
+    // a moment later; the duration-and-curve it replaced restarted from a standstill on every line and, on
+    // emphasizedDecel, covered half the distance in its first 35 ms.
+    readonly property var springScroll:      ({ stiffness: 140,  damping: 1.0 })
     readonly property var springEffectsFast: ({ stiffness: 3800, damping: 1.0 })
     readonly property var springEffects:     ({ stiffness: 1600, damping: 1.0 })
     readonly property var springEffectsSlow: ({ stiffness: 800,  damping: 1.0 })

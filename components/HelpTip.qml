@@ -28,6 +28,9 @@ HoverHandler {
     // A bar pill's tip: the bar's blob draws it (modules/bar/PillTip) when it is welded, and TipBubble
     // stands down for it.
     property bool pill: false
+    // The module whose quick card (modules/bar/PillTip) hangs under this pill in place of plain words;
+    // "" for none, and for a module with no card the tip stays words.
+    property string quick: ""
     readonly property bool active: root.hovered && (root.text !== "" || root.provide !== null)
 
     enabled: root.text !== "" || root.provide !== null

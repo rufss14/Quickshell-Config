@@ -2,9 +2,9 @@
 """
 top-procs.py — what is using the machine right now, for the System stats panel's "Busiest" tile.
 
-    top-procs.py [N]     → one JSON object on stdout, always; exit 0
+    top-procs.py [N]     → one JSON object on stdout, always; exit 0 (N = rows per list, 1..200, default 5)
 
-out  {"ok":true,"cpu":[{"name":"firefox","cpu":41.2,"mb":2310.4,"procs":19}, …],   busiest first
+out  {"ok":true,"cpu":[{"name":"firefox","cpu":41.2,"mb":2310.4,"procs":19,"pids":[…]}, …],   busiest first
               "mem":[…same rows, biggest first…]}                                  at most N (5) each
 err  {"ok":false,"error":"…"}
 
@@ -36,8 +36,52 @@ def parse_stat(text):
         return None
 
 
+# How many pids a row keeps for the Tasks tab to end. A browser with more renderers is ended by its first 64.
+PIDS_PER_ROW = 64
+
+
+def read_io(path):
+    """Bytes this process has moved to and from storage (read_bytes + write_bytes from /proc/<pid>/io). 0 when
+    /proc does not let us read it (another user's process), so the disk column simply stays quiet for it."""
+    try:
+        with open(path) as f:
+            vals = dict(line.split(":", 1) for line in f if ":" in line)
+        return int(vals["read_bytes"]) + int(vals["write_bytes"])
+    except (OSError, KeyError, ValueError):
+        return 0
+
+
+def read_gpu(pid_dir):
+    """GPU time this process has used, in ns, summed over its engines (drm-engine-gfx, -compute, … in
+    /proc/<pid>/fdinfo for each open /dev/dri file). One DRM client can be open on several fds, so each
+    drm-client-id counts once. 0 for a process that does not use the GPU, one we cannot look into, or a driver
+    that does not report it (amdgpu and recent Intel do; NVIDIA's proprietary driver does not)."""
+    seen = {}
+    try:
+        fds = os.listdir(pid_dir + "/fd")
+    except OSError:
+        return 0
+    for fd in fds:
+        try:
+            if not os.readlink(f"{pid_dir}/fd/{fd}").startswith("/dev/dri/"):
+                continue
+            with open(f"{pid_dir}/fdinfo/{fd}") as f:
+                client, ns = None, 0
+                for line in f:
+                    k, _, v = line.partition(":")
+                    if k == "drm-client-id":
+                        client = v.strip()
+                    elif k.startswith("drm-engine-") and not k.startswith("drm-engine-capacity"):
+                        ns += int(v.split()[0])
+        except (OSError, ValueError, IndexError):
+            continue
+        if client is not None:
+            seen[client] = max(seen.get(client, 0), ns)
+    return sum(seen.values())
+
+
 def snapshot(proc="/proc"):
-    """pid → (name, ticks, rss_pages) for every process with memory of its own."""
+    """pid → (name, ticks, rss_pages, storage_bytes, gpu_ns) for every process with memory of its own."""
     out = {}
     for d in os.listdir(proc):
         if not d.isdigit():
@@ -50,25 +94,56 @@ def snapshot(proc="/proc"):
         except (OSError, IndexError, ValueError):
             continue          # it ended between the listing and the read
         if st and rss > 0:
-            out[int(d)] = (st[0], st[1], rss)
+            out[int(d)] = (st[0], st[1], rss, read_io(f"{proc}/{d}/io"), read_gpu(f"{proc}/{d}"))
     return out
+
+
+# How many of a row's own processes the Tasks tab can expand to show, by their own CPU and memory.
+MEMBERS_PER_ROW = 16
 
 
 def rank(before, after, seconds, hz, page_kb, limit=5):
     """Two snapshots → {"cpu": rows, "mem": rows}. A pid only in `after` started inside the
-    window: its memory counts, its CPU doesn't (there is nothing to subtract from)."""
+    window: its memory counts, its CPU and disk don't (there is nothing to subtract from).
+    A row: name, cpu (% of one core), mb, procs, disk (MB/s), gpu (% of the GPU's time), pids (up to PIDS_PER_ROW), members (the
+    busiest MEMBERS_PER_ROW processes, each {pid, cpu, mb, disk})."""
     groups = {}
-    for pid, (name, ticks, rss) in after.items():
-        g = groups.setdefault(name, {"name": name, "ticks": 0, "kb": 0, "procs": 0})
+    for pid, v in after.items():
+        name, ticks, rss = v[0], v[1], v[2]
+        io = v[3] if len(v) > 3 else 0
+        gpu = v[4] if len(v) > 4 else 0
+        g = groups.setdefault(name, {"name": name, "ticks": 0, "kb": 0, "procs": 0, "io": 0, "gpu": 0, "pids": [], "members": []})
+        if len(g["pids"]) < PIDS_PER_ROW:
+            g["pids"].append(pid)
         prev = before.get(pid)
+        d_ticks = d_io = d_gpu = 0
         if prev and prev[0] == name:
-            g["ticks"] += max(0, ticks - prev[1])
+            d_ticks = max(0, ticks - prev[1])
+            d_io = max(0, io - (prev[3] if len(prev) > 3 else 0))
+            d_gpu = max(0, gpu - (prev[4] if len(prev) > 4 else 0))
+        g["ticks"] += d_ticks
+        g["io"] += d_io
+        g["gpu"] += d_gpu
         g["kb"] += rss * page_kb
         g["procs"] += 1
-    rows = [{"name": g["name"],
-             "cpu": round(g["ticks"] / hz / seconds * 100, 1) if seconds > 0 else 0.0,
-             "mb": round(g["kb"] / 1024, 1),
-             "procs": g["procs"]} for g in groups.values()]
+        g["members"].append({"pid": pid, "ticks": d_ticks, "kb": rss * page_kb, "io": d_io, "gpu": d_gpu})
+
+    def rate(ticks):
+        return round(ticks / hz / seconds * 100, 1) if seconds > 0 else 0.0
+
+    def gpu_pct(ns):
+        return min(100.0, round(ns / 1e9 / seconds * 100, 1)) if seconds > 0 else 0.0
+
+    def mbps(nbytes):
+        return round(nbytes / 1048576 / seconds, 2) if seconds > 0 else 0.0
+
+    rows = []
+    for g in groups.values():
+        members = sorted(g["members"], key=lambda m: (-m["ticks"], -m["kb"], m["pid"]))[:MEMBERS_PER_ROW]
+        rows.append({"name": g["name"], "cpu": rate(g["ticks"]), "mb": round(g["kb"] / 1024, 1),
+                     "procs": g["procs"], "disk": mbps(g["io"]), "gpu": gpu_pct(g["gpu"]), "pids": sorted(g["pids"]),
+                     "members": [{"pid": m["pid"], "cpu": rate(m["ticks"]), "mb": round(m["kb"] / 1024, 1),
+                                  "disk": mbps(m["io"]), "gpu": gpu_pct(m["gpu"])} for m in members]})
     by_cpu = sorted(rows, key=lambda r: (-r["cpu"], -r["mb"], r["name"]))
     by_mem = sorted(rows, key=lambda r: (-r["mb"], -r["cpu"], r["name"]))
     return {"cpu": [r for r in by_cpu if r["cpu"] > 0][:limit], "mem": by_mem[:limit]}
@@ -76,7 +151,7 @@ def rank(before, after, seconds, hz, page_kb, limit=5):
 
 def main(argv):
     try:
-        limit = max(1, min(20, int(argv[1]))) if len(argv) > 1 else 5
+        limit = max(1, min(200, int(argv[1]))) if len(argv) > 1 else 5
     except ValueError:
         limit = 5
     try:

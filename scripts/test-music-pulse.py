@@ -281,5 +281,14 @@ acc, n = accents_of(y)
 check("accents: busy snares thinned", n > 30 and len(acc) <= 0.45 * n, "%d accents of %d snares" % (len(acc), n))
 check("accents: at most ~3 a second", all(b - a >= mp.ACCENT_GAP_S - 1e-6 for a, b in zip(acc, acc[1:])))
 
+# The capture must never be able to hear the microphone: a named target may not fall back to the default
+# input, and no target means the default output's monitor, not pw-record's own default (the input).
+named = mp.record_command("pw-record", "1868")
+check("record: a target is pinned and never falls back",
+      named[named.index("--target") + 1] == "1868" and "{ node.dont-fallback=true }" in named, str(named))
+default = mp.record_command("pw-record", "")
+check("record: no target captures the sink", "--target" not in default and "{ stream.capture.sink=true }" in default, str(default))
+check("record: both end on stdout", named[-1] == "-" and default[-1] == "-")
+
 print("%d passed, %d failed" % (passed, failed))
 sys.exit(1 if failed else 0)

@@ -443,6 +443,9 @@ Singleton {
     // The bar's and the sidebar's own opacity, as DRAWN: the user's value, or solid under
     // high contrast. Draw with these; the Config values are what the sliders edit. (A
     // desktop widget's is WidgetFrame.effOpacity, which also has a per-tile override.)
+    // The alpha of glass (Config.barGlass): 1 solid, down to 0.4 at the top of the slider (under that the text on
+    // it loses its ground). Nothing in high contrast.
+    readonly property real glass: Config.highContrast ? 1 : 1 - 0.6 * Math.max(0, Math.min(1, Config.barGlass))
     readonly property real barOpacity:  Config.highContrast ? 1 : Config.barOpacity
     readonly property real sideOpacity: Config.highContrast ? 1 : Config.sideOpacity
 }

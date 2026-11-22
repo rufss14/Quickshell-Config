@@ -68,11 +68,11 @@ Item {
         }
     }
 
-    Surface {
+    GroundCard {
         id: pop
+        popup: true
         z: 950
-        elevation: Tokens.elevationPopup
-        cornerRadius: Tokens.radiusCard
+        radius: Tokens.radiusCard
         width: Tokens.sideCardUnit * 7
         height: popCol.implicitHeight + Tokens.spacingLg * 2
         x: root.below ? root.width - pop.width + Tokens.spacingMd : -Tokens.spacingMd

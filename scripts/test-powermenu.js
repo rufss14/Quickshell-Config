@@ -31,6 +31,9 @@ check("keys are unique", new Set(keys).size, keys.length);
 check("letters are unique", new Set(P.ACTIONS.map(a => a.letter)).size, P.ACTIONS.length);
 check("every letter is one uppercase character", P.ACTIONS.every(a => /^[A-Z]$/.test(a.letter)), true);
 check("every action has a glyph, label and hint", P.ACTIONS.every(a => a.glyph && a.label && a.hint), true);
+// The badge's shape: one shape each, from the set shapes.js knows, none of the spiky ones (rejected as a hover state).
+check("every action has its own known, calm shape", [new Set(P.ACTIONS.map(a => a.shape)).size === P.ACTIONS.length,
+    P.ACTIONS.every(a => /^(squircle|clover|sunny|pentagon|hexagon|cookie\d+)$/.test(a.shape))], [true, true]);
 // The safety rule: anything that asks twice must say what it asks and how loudly — an armed
 // button can't carry its warning in colour alone.
 check("confirm actions ask a question and carry a tone", P.ACTIONS.filter(a => a.confirm).every(a => /\?$/.test(a.ask) && (a.tone === "warning" || a.tone === "danger")), true);

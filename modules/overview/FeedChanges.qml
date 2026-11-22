@@ -7,7 +7,7 @@ import "../../components"
 import "../../services"
 
 // ── FeedChanges ───────────────────────────────────────────────────────────────
-// The left face's "What's changed" page (OverviewFeed): the patch notes (services/Changelog,
+// The drawer's "What's new" page (OverviewFeed): the patch notes (services/Changelog,
 // assets/changelog.json). The newest release is the page:
 //   · a hero card — the version on a turning cookie, the release's name and date, "New" when you
 //     haven't seen it, its one-paragraph summary (no glow or sheen — the user didn't like them);
@@ -72,8 +72,6 @@ Item {
                 contentWidth: width
                 contentHeight: body.implicitHeight + Tokens.spacingLg
                 boundsBehavior: Flickable.StopAtBounds
-                // Scrolled by the face's wheel and drag (OverviewFeed); a mouse drag here is the swipe.
-                interactive: false
 
                 Column {
                     id: body
@@ -87,9 +85,8 @@ Item {
                         width: body.width
                         height: heroCol.implicitHeight + Tokens.spacingLg * 2
                         radius: Tokens.radiusCard
-                        color: Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceContainer, 0.92)
-                        border.width: Tokens.borderWidth
-                        border.color: Colors.of(QsWindow.window).alpha(root.accent, 0.45)
+                        // The drawer's one loud plate: the accent container, its badge on the accent.
+                        color: Colors.of(QsWindow.window).primaryContainer
                         ViewEnter { target: hero; active: root.lit; rise: Tokens.spacingXl }
 
                         Column {
@@ -107,9 +104,7 @@ Item {
                                     ShapeBox {
                                         anchors.fill: parent
                                         fallback: "cookie"
-                                        fillColor: Colors.of(QsWindow.window).alpha(root.accent, heroHover.hovered ? 0.34 : 0.22)
-                                        strokeColor: Colors.of(QsWindow.window).alpha(root.accent, 0.7)
-                                        strokeWidth: 2
+                                        fillColor: heroHover.hovered ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).primary, Colors.of(QsWindow.window).fgOnPrimary, 0.12) : Colors.of(QsWindow.window).primary
                                         Behavior on fillColor { ColorAnimation { duration: Motion.respond } }
                                         RotationAnimator on rotation {
                                             from: 0; to: 360
@@ -123,7 +118,7 @@ Item {
                                         text: root.latest ? "v" + root.latest.version : ""
                                         variant: "title"
                                         font.weight: Font.Bold
-                                        color: root.accent
+                                        color: Colors.of(QsWindow.window).fgOnPrimary
                                     }
                                 }
                                 Column {
@@ -152,7 +147,7 @@ Item {
                                             anchors.verticalCenter: parent.verticalCenter
                                             text: root.latest ? Changelog.dateLabel(root.latest.date) : ""
                                             variant: "caption"
-                                            emphasis: "dim"
+                                            color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fgOnPrimaryContainer, 0.72)
                                         }
                                     }
                                     StyledText {
@@ -160,6 +155,7 @@ Item {
                                         text: root.latest ? root.latest.name : ""
                                         variant: "headline"
                                         font.weight: Font.Bold
+                                        color: Colors.of(QsWindow.window).fgOnPrimaryContainer
                                         wrapMode: Text.Wrap
                                     }
                                 }
@@ -168,7 +164,7 @@ Item {
                                 width: heroCol.width
                                 text: root.latest ? root.latest.summary : ""
                                 variant: "caption"
-                                emphasis: "muted"
+                                color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fgOnPrimaryContainer, 0.72)
                                 wrapMode: Text.Wrap
                             }
                         }

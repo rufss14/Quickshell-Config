@@ -28,6 +28,12 @@ import "screentime"
 // The one thing the panel itself holds is WHICH DAY you are reading (`picked`, "" = today), shared by the Week
 // page, which picks it, and the Apps page, which lists it.
 //
+// ── On an island (`island`, set by IslandCard; 2026-11-15) ─────────────────────
+// No title row, the wallpaper and colour pages' recipe: the loud card standing upright in a left column
+// (ScreenTimeIslandHero) over a SourceRail of the three pages with their numbers, and the page you are on filling
+// the rest, scrolling past the card's height. The pages are the same files; `pagesBox` moves into the right side.
+// `qs ipc call island part screentime week` opens on a page (today | week | apps).
+//
 // ── Height ────────────────────────────────────────────────────────────────────
 // The pages box is as tall as the page you are on, within the room the dock has (past that the page scrolls),
 // and follows it on a spring with no overshoot. Tracking off and nothing recorded: the hero alone.
@@ -40,6 +46,12 @@ Item {
 
     // The room the dock has for this panel (SidePanelDock sets it). 0 = not told yet, no limit.
     property real maxHeight: 0
+    // On an island: the upright layout below (IslandCard sets it, and the card gives the size).
+    property bool island: false
+    Component.onCompleted: {
+        const part = UiState.islandPartFor("screentime")
+        if (root.island && root._pageOrder.indexOf(part) >= 0) root.page = part
+    }
 
     implicitWidth: Tokens.sideCardUnit * 9
     readonly property int margin: Tokens.spacingXl
@@ -89,6 +101,7 @@ Item {
 
     ColumnLayout {
         id: mainCol
+        visible: !root.island
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -149,37 +162,89 @@ Item {
             }
         }
 
+        // The pages stand here in the panel; on an island, beside the loud card (islandRight).
         Item {
-            id: pagesBox
+            id: pagesSlot
             Layout.fillWidth: true
             Layout.fillHeight: false
-            clip: true
-            visible: root.hasData || hv.value > 0.5
-            // As tall as the page you are on, within the room the dock has: past that the page scrolls. It
-            // follows the page on a spring (no overshoot — a panel that bounces its own size reads as a glitch),
-            // so a short page never leaves empty room under it.
-            readonly property real wanted: root.hasData
-                ? [todayPage, weekPage, appsPage][Math.max(0, root._pageOrder.indexOf(root.page))].implicitHeight : 0
-            readonly property real chrome: root.margin * 2 + hero.height + mainCol.spacing * 2
-                                           + tabs.height + (header.visible ? header.height + mainCol.spacing : 0)
-            readonly property real room: root.maxHeight > 0 ? Math.max(Tokens.sideCardUnit * 3, root.maxHeight - pagesBox.chrome)
-                                                            : 100000
-            implicitHeight: Math.min(hv.value, pagesBox.room)
-            SpringValue { id: hv; target: pagesBox.wanted; spec: Motion.springEffects; epsilon: 0.5 }
-            Component.onCompleted: hv.jump(pagesBox.wanted)
+            implicitHeight: root.island ? 0 : pagesBox.implicitHeight
+            visible: pagesBox.visible
+        }
+    }
 
-            Flickable {
-                anchors.fill: parent
-                contentWidth: width
-                contentHeight: hv.value
-                interactive: hv.value > pagesBox.height + 1
-                boundsBehavior: Flickable.StopAtBounds
-                clip: true
+    // ══ On an island ══════════════════════════════════════════════════════════
+    readonly property int sideW: Tokens.spacingXl * 14 + Tokens.spacingSm
+    RowLayout {
+        anchors.fill: parent
+        visible: root.island
+        spacing: Tokens.spacingMd
 
-                ScreenTimeTodayView { id: todayPage; panel: root }
-                ScreenTimeWeekView  { id: weekPage;  panel: root }
-                ScreenTimeAppsView  { id: appsPage;  panel: root }
+        ColumnLayout {
+            Layout.fillWidth: false
+            Layout.preferredWidth: root.sideW
+            Layout.fillHeight: true
+            spacing: Tokens.spacingMd
+
+            ScreenTimeIslandHero {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                panel: root
             }
+            SourceRail {
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+                Layout.preferredHeight: 3 * (Tokens.iconXl + Tokens.spacingMd) + Tokens.spacingSm * 2 + Tokens.spacingXs * 2
+                visible: root.hasData
+                current: root.page
+                model: [
+                    { value: "today", label: Translation.tr("Today"), icon: "today", shape: "cookie9",
+                      figure: ScreenTime.short(ScreenTime.todayTotal) || "0" },
+                    { value: "week",  label: Translation.tr("Week"),  icon: "calendar_month", shape: "clover",
+                      figure: ScreenTime.short(ScreenTime.weekAverage) || "0", big: false },
+                    { value: "apps",  label: Translation.tr("Apps"),  icon: "apps", shape: "sunny",
+                      figure: String(Object.keys(ScreenTime.dayFor(root.day)).length) }
+                ]
+                onPicked: v => root.page = v
+            }
+        }
+        Item {
+            id: islandRight
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+        }
+    }
+
+    Item {
+        id: pagesBox
+        parent: root.island ? islandRight : pagesSlot
+        anchors.fill: parent
+        clip: true
+        visible: root.hasData || hv.value > 0.5
+        // As tall as the page you are on, within the room the dock has: past that the page scrolls. It
+        // follows the page on a spring (no overshoot — a panel that bounces its own size reads as a glitch),
+        // so a short page never leaves empty room under it.
+        readonly property real wanted: root.hasData
+            ? [todayPage, weekPage, appsPage][Math.max(0, root._pageOrder.indexOf(root.page))].implicitHeight : 0
+        readonly property real chrome: root.margin * 2 + hero.height + mainCol.spacing * 2
+                                       + tabs.height + (header.visible ? header.height + mainCol.spacing : 0)
+        readonly property real room: root.island ? 100000
+                                   : root.maxHeight > 0 ? Math.max(Tokens.sideCardUnit * 3, root.maxHeight - pagesBox.chrome)
+                                                        : 100000
+        implicitHeight: Math.min(hv.value, pagesBox.room)
+        SpringValue { id: hv; target: pagesBox.wanted; spec: Motion.springEffects; epsilon: 0.5 }
+        Component.onCompleted: hv.jump(pagesBox.wanted)
+
+        Flickable {
+            anchors.fill: parent
+            contentWidth: width
+            contentHeight: hv.value
+            interactive: hv.value > pagesBox.height + 1
+            boundsBehavior: Flickable.StopAtBounds
+            clip: true
+
+            ScreenTimeTodayView { id: todayPage; panel: root }
+            ScreenTimeWeekView  { id: weekPage;  panel: root }
+            ScreenTimeAppsView  { id: appsPage;  panel: root }
         }
     }
 }

@@ -11,6 +11,7 @@ import "../../components"
 import "../../services"
 import "../../state"
 import "widgets"
+import "../island"
 
 // ── Bar ───────────────────────────────────────────────────────────────────────
 // The status bar.
@@ -98,7 +99,26 @@ PanelWindow {
                       panelDock.rightCardA,  panelDock.rightCardOpen),
         { x: sidePanelDock.maskItem.x, y: sidePanelDock.maskItem.y,
           w: sidePanelDock.maskItem.width, h: sidePanelDock.maskItem.height,
-          a: sidePanelDock.cardOpacity, open: sidePanelDock.wanted }
+          a: sidePanelDock.cardOpacity, open: sidePanelDock.wanted },
+        // The island's card is a panel too: the cookie field runs in its material between the pieces.
+        { x: islandDock.maskItem.x, y: islandDock.maskItem.y,
+          w: islandDock.maskItem.width, h: islandDock.maskItem.height,
+          a: islandDock.lit ? 1 : 0, open: islandDock.lit },
+        { x: islandLeft.maskItem.x, y: islandLeft.maskItem.y,
+          w: islandLeft.maskItem.width, h: islandLeft.maskItem.height,
+          a: islandLeft.lit ? 1 : 0, open: islandLeft.lit },
+        { x: islandRight.maskItem.x, y: islandRight.maskItem.y,
+          w: islandRight.maskItem.width, h: islandRight.maskItem.height,
+          a: islandRight.lit ? 1 : 0, open: islandRight.lit },
+        { x: islandBL.maskItem.x, y: islandBL.maskItem.y,
+          w: islandBL.maskItem.width, h: islandBL.maskItem.height,
+          a: islandBL.lit ? 1 : 0, open: islandBL.lit },
+        { x: islandBC.maskItem.x, y: islandBC.maskItem.y,
+          w: islandBC.maskItem.width, h: islandBC.maskItem.height,
+          a: islandBC.lit ? 1 : 0, open: islandBC.lit },
+        { x: islandBR.maskItem.x, y: islandBR.maskItem.y,
+          w: islandBR.maskItem.width, h: islandBR.maskItem.height,
+          a: islandBR.lit ? 1 : 0, open: islandBR.lit }
     ]
     // A bar panel's card, cut at the bar's underside: on its way in it starts a slide above it, hidden
     // behind the bar (BarDock's `reveal`), and that part is not the panel's yet — counted, it lit
@@ -132,7 +152,9 @@ PanelWindow {
                       // …and the dock sits on the bottom edge itself, where
                       // auto-hide's reveal zone has to be able to receive hover
                       // (the sidebar's bar and its buttons likewise).
-                               Math.max(dockHost.bottomReach, sideBarHost.bottomReach)))
+                               Math.max(dockHost.bottomReach, sideBarHost.bottomReach),
+                      // …and the bottom row of islands stands on the bottom edge.
+                               UiState.islandRowPresent("bottom") ? (root.screen?.height ?? 0) : 0))
     // Explicit, not Auto-derived from the window size — the apron must not push
     // tiled windows down, and neither may the panels' reserved room above. Same direct-assignment idiom as DesktopClock's zone.
     exclusiveZone: Config.barExtent
@@ -146,6 +168,7 @@ PanelWindow {
         Region { item: panelDock.rightMask;  intersection: Intersection.Combine }
         Region { item: panelDock.centerMask; intersection: Intersection.Combine }
         Region { item: toastHost.maskItem;   intersection: Intersection.Combine }
+        Region { item: reloadHost.maskItem;  intersection: Intersection.Combine }
         Region { item: trayMenuHost.maskItem; intersection: Intersection.Combine }
         Region { item: settingsHost.maskItem; intersection: Intersection.Combine }
         // The dock: its card, its preview, the screen edge that reveals it while
@@ -160,6 +183,18 @@ PanelWindow {
         Region { item: barDockPopups.menuMask;    intersection: Intersection.Combine }
         // The workspace pill's glance: its card, while it is out.
         Region { item: workspaceGlance.maskItem;  intersection: Intersection.Combine }
+        Region { item: pillTip.maskItem;          intersection: Intersection.Combine }
+        // The island's card, while it is out.
+        Region { item: islandDock.maskItem;       intersection: Intersection.Combine }
+        Region { item: islandLeft.maskItem;       intersection: Intersection.Combine }
+        Region { item: islandRight.maskItem;      intersection: Intersection.Combine }
+        // The bottom row: its cards, and its handles' reach (no strip of this window is there to take it).
+        Region { item: islandBL.maskItem;         intersection: Intersection.Combine }
+        Region { item: islandBC.maskItem;         intersection: Intersection.Combine }
+        Region { item: islandBR.maskItem;         intersection: Intersection.Combine }
+        Region { item: islandBL.handleMask;       intersection: Intersection.Combine }
+        Region { item: islandBC.handleMask;       intersection: Intersection.Combine }
+        Region { item: islandBR.handleMask;       intersection: Intersection.Combine }
         // A sidebar button's panel, beside it.
         Region { item: sidePanelDock.maskItem; intersection: Intersection.Combine }
         // The OSD's sliders, while they are up: draggable, so they take the pointer.
@@ -205,11 +240,17 @@ PanelWindow {
            || barDockPopups.wantsExclusiveFocus
            // The power column: arrow keys, letters and Escape must reach it, and it is
            // opened from another surface, so OnDemand would never deliver them.
-           || powerDock.wantsExclusive)                                   ? WlrKeyboardFocus.Exclusive
+           || powerDock.wantsExclusive
+           // System update as an island page: its password field or a run's question.
+           || islandDock.wantsExclusive || islandLeft.wantsExclusive || islandRight.wantsExclusive
+           || islandBL.wantsExclusive || islandBC.wantsExclusive || islandBR.wantsExclusive) ? WlrKeyboardFocus.Exclusive
         : (panelDock.wantsKeyboardFocus
            || trayMenuHost.expanded || dockHost.wantsKeyboardFocus
            || barDockPopups.wantsKeyboardFocus
            || sidePanelDock.wantsKeyboardFocus
+           // An island's page may hold a field (a Wi-Fi password, a search), and Escape closes it.
+           || islandDock.wantsKeyboardFocus || islandLeft.wantsKeyboardFocus || islandRight.wantsKeyboardFocus
+           || islandBL.wantsKeyboardFocus || islandBC.wantsKeyboardFocus || islandBR.wantsKeyboardFocus
            || UiState.arrange)                                            ? WlrKeyboardFocus.OnDemand
         :                                                                   WlrKeyboardFocus.None
 
@@ -278,8 +319,8 @@ PanelWindow {
             // whole extent is material; floating it is inset, and the ring stops at
             // the pill's underside so the gap above stays open.
             item.barHeight = Qt.binding(() =>
-                Config.barAnchored ? Config.barSurfaceHeight
-                                   : root.inset + Config.barSurfaceHeight)
+                Config.barAnchored || Config.barHidden ? Config.barSurfaceHeight
+                                                       : root.inset + Config.barSurfaceHeight)
 
             // The FULL depth: when the blob owns the ring, ScreenFrame's overlay is
             // unmapped and this band is the only frame there is. (It used to stop one
@@ -306,6 +347,10 @@ PanelWindow {
             item.centerY = Qt.binding(() => panelDock.y + panelDock.centerCardY)
             item.centerW = Qt.binding(() => panelDock.centerCardW)
             item.centerH = Qt.binding(() => panelDock.centerCardH)
+
+            item.leftR   = Qt.binding(() => panelDock.leftCardR)
+            item.rightR  = Qt.binding(() => panelDock.rightCardR)
+            item.centerR = Qt.binding(() => panelDock.centerCardR)
 
             item.settingsX = Qt.binding(() => settingsHost.blobX)
             item.settingsY = Qt.binding(() => settingsHost.blobY)
@@ -343,13 +388,40 @@ PanelWindow {
             item.previewW = Qt.binding(() => dockHost.previewBlobW)
             item.previewH = Qt.binding(() => dockHost.previewBlobH)
 
-            item.toastRects = Qt.binding(() => toastHost.toastRects)
+            // The reload card (a failed reload comes out of the bar) is one more lobe, first in the list.
+            item.toastRects = Qt.binding(() => reloadHost.rects.concat(toastHost.toastRects))
 
             // The workspace glance fills this window, so its card is already in window space.
             item.glanceX = Qt.binding(() => workspaceGlance.blobX)
             item.glanceY = Qt.binding(() => workspaceGlance.blobY)
             item.glanceW = Qt.binding(() => workspaceGlance.blobW)
             item.glanceH = Qt.binding(() => workspaceGlance.blobH)
+
+            // The island fills this window too.
+            item.islandX = Qt.binding(() => islandDock.blobX)
+            item.islandY = Qt.binding(() => islandDock.blobY)
+            item.islandW = Qt.binding(() => islandDock.blobW)
+            item.islandH = Qt.binding(() => islandDock.blobH)
+            item.islandLX = Qt.binding(() => islandLeft.blobX)
+            item.islandLY = Qt.binding(() => islandLeft.blobY)
+            item.islandLW = Qt.binding(() => islandLeft.blobW)
+            item.islandLH = Qt.binding(() => islandLeft.blobH)
+            item.islandRX = Qt.binding(() => islandRight.blobX)
+            item.islandRY = Qt.binding(() => islandRight.blobY)
+            item.islandRW = Qt.binding(() => islandRight.blobW)
+            item.islandRH = Qt.binding(() => islandRight.blobH)
+            item.islandBLX = Qt.binding(() => islandBL.blobX)
+            item.islandBLY = Qt.binding(() => islandBL.blobY)
+            item.islandBLW = Qt.binding(() => islandBL.blobW)
+            item.islandBLH = Qt.binding(() => islandBL.blobH)
+            item.islandBCX = Qt.binding(() => islandBC.blobX)
+            item.islandBCY = Qt.binding(() => islandBC.blobY)
+            item.islandBCW = Qt.binding(() => islandBC.blobW)
+            item.islandBCH = Qt.binding(() => islandBC.blobH)
+            item.islandBRX = Qt.binding(() => islandBR.blobX)
+            item.islandBRY = Qt.binding(() => islandBR.blobY)
+            item.islandBRW = Qt.binding(() => islandBR.blobW)
+            item.islandBRH = Qt.binding(() => islandBR.blobH)
 
             // The pill tooltip fills this window too.
             item.tipX = Qt.binding(() => pillTip.blobX)
@@ -451,6 +523,11 @@ PanelWindow {
     // they belong at the edges. Filling the gap is the merge; moving the content is
     // a different bar.
 
+    // 1 while the bar shows, 0 once it is hidden (Config.barHidden): its material and pills fade out
+    // while the window's reserved space and the frame's top edge settle to their thin size.
+    property real barShown: Config.barHidden ? 0 : 1
+    Behavior on barShown { NumberAnimation { duration: Motion.standard; easing.type: Motion.travel } }
+
     // ── The span the unified surface covers ───────────────────────────────────
     // Read off the regions' live geometry rather than recomputed from insets, so it
     // stays correct while `sideInset` is animating (mode switches move it) and while
@@ -512,6 +589,21 @@ PanelWindow {
     // takes, and it is passed by name at three call sites below.
     function moduleVisible(id) { return BarModules.visible(id) }
 
+    // module id → its slot Item in BarGroupRow. The whole map is replaced on a change, so a
+    // reader (the spacer) re-evaluates; the slot's own width is what it then follows live.
+    property var moduleSlots: ({})
+    function slotSeen(id, slot) {
+        const next = Object.assign({}, root.moduleSlots)
+        next[id] = slot
+        root.moduleSlots = next
+    }
+    function slotGone(id, slot) {
+        if (root.moduleSlots[id] !== slot) return
+        const next = Object.assign({}, root.moduleSlots)
+        delete next[id]
+        root.moduleSlots = next
+    }
+
     // ══ The module registry ═══════════════════════════════════════════════════
     // id → widget, with its wiring. The wiring has to live here (it reaches for
     // root.screen, root.hyprMonitor, UiState) — which is exactly why this is a map of
@@ -536,6 +628,8 @@ PanelWindow {
             case "idle":        return idleC
             case "gamemode":    return gamemodeC
             case "nightlight":  return nightLightC
+            case "stream":      return streamC
+            case "spacer":      return spacerC
             case "privacy":     return privacyC
             case "clock":       return clockC
             case "notifications": return notificationsC
@@ -675,7 +769,12 @@ PanelWindow {
         ClockPill {
             accent: Config.moduleAccent("clock", Colors.of(QsWindow.window).primary)
             active: UiState.isOpen("clock")
+            monitorName: root.hyprMonitor?.name ?? ""
             onToggled: root.openPanel("clock")
+            onNoticeClicked: function (kind) {
+                UiState.activeScreen = root.screen
+                UiState.openPanel(kind === "clipboard" ? "clipboard" : "notifications")
+            }
         }
     }
     // Notifications / Do Not Disturb. Click opens the notification centre (the
@@ -768,6 +867,23 @@ PanelWindow {
             symbolFill: NightLight.shouldBeOn ? 1 : 0
             iconColor:  NightLight.shouldBeOn ? nightPill.accent : Colors.of(QsWindow.window).stateIdleFg
             onClicked:  NightLight.toggle()
+        }
+    }
+    // ── Stream mode ───────────────────────────────────────────────────────────
+    // Only there while a screen capture is running: "Streaming" and the capturing
+    // app's icon. What is hidden is the tooltip (ModuleGlance).
+    Component {
+        id: streamC
+        StreamPill {}
+    }
+    // ── Spacer ────────────────────────────────────────────────────────────────
+    // Empty room; a module to look at while the bar is being arranged, so it can be picked up.
+    Component {
+        id: spacerC
+        SpacerPill {
+            slots: root.moduleSlots
+            guide: UiState.barArrange
+            chip: true
         }
     }
     Component {
@@ -893,6 +1009,8 @@ PanelWindow {
     // contracts as they slide together rather than snapping to its final width.
     Item {
         id: unifiedBar
+        opacity: root.barShown
+        visible: root.barShown > 0.01
 
         readonly property bool fused: Config.frameFused
         readonly property bool bandVisible: Config.frameBandVisible
@@ -998,6 +1116,8 @@ PanelWindow {
     // ══ LEFT ══════════════════════════════════════════════════════════════════
     BarRegion {
         id: leftRegion
+        opacity: root.barShown
+        visible: root.barShown > 0.01
 
         anchors.top:        parent.top
         anchors.left:       parent.left
@@ -1010,6 +1130,8 @@ PanelWindow {
             region: "left"
             componentFor:  root.moduleFor
             moduleVisible: root.moduleVisible
+            slotSeen: root.slotSeen
+            slotGone: root.slotGone
             // Arrange mode: the real modules become drag sources and drop targets.
             // The drag they start is a PLATFORM drag (see BarGroupRow's dragProxy),
             // so it leaves this layer-shell surface and can be dropped on the
@@ -1025,6 +1147,8 @@ PanelWindow {
     // whenever the keyboard-layout tag changed width.
     BarRegion {
         id: center
+        opacity: root.barShown
+        visible: root.barShown > 0.01
 
         anchors.top:       parent.top
         anchors.topMargin: root.inset
@@ -1094,6 +1218,8 @@ PanelWindow {
             region: "centre"
             componentFor:  root.moduleFor
             moduleVisible: root.moduleVisible
+            slotSeen: root.slotSeen
+            slotGone: root.slotGone
             // Arrange mode: the real modules become drag sources and drop targets.
             // The drag they start is a PLATFORM drag (see BarGroupRow's dragProxy),
             // so it leaves this layer-shell surface and can be dropped on the
@@ -1105,6 +1231,8 @@ PanelWindow {
     // ══ RIGHT ═════════════════════════════════════════════════════════════════
     BarRegion {
         id: rightRegion
+        opacity: root.barShown
+        visible: root.barShown > 0.01
 
         anchors.top:         parent.top
         anchors.right:       parent.right
@@ -1117,6 +1245,8 @@ PanelWindow {
             region: "right"
             componentFor:  root.moduleFor
             moduleVisible: root.moduleVisible
+            slotSeen: root.slotSeen
+            slotGone: root.slotGone
             // Arrange mode: the real modules become drag sources and drop targets.
             // The drag they start is a PLATFORM drag (see BarGroupRow's dragProxy),
             // so it leaves this layer-shell surface and can be dropped on the
@@ -1394,6 +1524,17 @@ PanelWindow {
         screen:  root.screen
     }
 
+    // ── The reload card ───────────────────────────────────────────────────────
+    // A failed (or, if asked for, a successful) configuration reload, coming out from under the bar
+    // and drawn by the blob. Fullscreen hands it to ReloadPopup's own window. See BarReloadHost.
+    BarReloadHost {
+        id: reloadHost
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.topMargin: reloadHost.topMargin
+        screen: root.screen
+    }
+
     // ── The docked settings panel ─────────────────────────────────────────────
     // SettingsWindow's alternative (Config.settingsPanel on): the settings card
     // welded into the frame's bottom strip. In this window rather than its own for
@@ -1433,7 +1574,96 @@ PanelWindow {
         z: 50
         monitor: root.hyprMonitor
         welded: root.blobRing
+        clearLeft:  !UiState.sidebarHidden && sideRail.edge === "left"  ? sideRail.band : 0
+        clearRight: !UiState.sidebarHidden && sideRail.edge === "right" ? sideRail.band : 0
         deformMatrix: blobLayer.item?.glanceDeform ?? Qt.matrix4x4()
+    }
+
+    // ── The islands ───────────────────────────────────────────────────────────
+    // Three handles on the bar, at its left, middle and right, and three on the screen's bottom edge; a card
+    // melts out of each (Config.island; UiState.openIsland says which may be open together). Above the glance,
+    // which hangs from the same edge: the pointer is on one or the other.
+    IslandDock {
+        id: islandDock
+        anchors.fill: parent
+        z: 51
+        forScreen: root.screen
+        welded: root.blobRing && !UiState.arrange
+        // Beside a sidebar the card stays off its face.
+        clearLeft:  !UiState.sidebarHidden && sideRail.edge === "left"  ? sideRail.band : 0
+        clearRight: !UiState.sidebarHidden && sideRail.edge === "right" ? sideRail.band : 0
+        deformMatrix: blobLayer.item?.islandDeform ?? Qt.matrix4x4()
+        onCardOpened: (cx, top, w, h) => blobLayer.item?.igniteBox(cx, top, w, h)
+    }
+    IslandDock {
+        id: islandLeft
+        island: "left"
+        anchors.fill: parent
+        z: 51
+        forScreen: root.screen
+        welded: islandDock.welded
+        // The sidebar's face where it holds this side: the card stands on it, as a bar panel does.
+        clearLeft:  sideRail.edge === "left"  ? sideRail.panelFace : 0
+        clearRight: sideRail.edge === "right" ? sideRail.panelFace : 0
+        deformMatrix: blobLayer.item?.islandLDeform ?? Qt.matrix4x4()
+        onCardOpened: (cx, top, w, h) => blobLayer.item?.igniteBox(cx, top, w, h)
+    }
+    IslandDock {
+        id: islandRight
+        island: "right"
+        anchors.fill: parent
+        z: 51
+        forScreen: root.screen
+        welded: islandDock.welded
+        // The sidebar's face where it holds this side: the card stands on it, as a bar panel does.
+        clearLeft:  sideRail.edge === "left"  ? sideRail.panelFace : 0
+        clearRight: sideRail.edge === "right" ? sideRail.panelFace : 0
+        deformMatrix: blobLayer.item?.islandRDeform ?? Qt.matrix4x4()
+        onCardOpened: (cx, top, w, h) => blobLayer.item?.igniteBox(cx, top, w, h)
+    }
+    // The bottom row: the sidebar's pages. Each stands on the frame's bottom strip, or on the sidebar's face
+    // when the sidebar is on the bottom edge; welded only where there is blob material to melt out of.
+    readonly property real bottomFace: sideRail.edge === "bottom" && sideRail.occupied && !UiState.sidebarHidden ? sideRail.band : 0
+    readonly property bool bottomWelded: islandDock.welded
+        && ((Config.screenFrame && Config.frameFused) || (root.bottomFace > 0 && sideRail.welded))
+    IslandDock {
+        id: islandBL
+        island: "bottomLeft"
+        anchors.fill: parent
+        z: 51
+        forScreen: root.screen
+        welded: root.bottomWelded
+        bottomFace: root.bottomFace
+        clearLeft:  sideRail.edge === "left"  ? sideRail.panelFace : 0
+        clearRight: sideRail.edge === "right" ? sideRail.panelFace : 0
+        deformMatrix: blobLayer.item?.islandBLDeform ?? Qt.matrix4x4()
+        onCardOpened: (cx, top, w, h) => blobLayer.item?.igniteBox(cx, top, w, h)
+    }
+    IslandDock {
+        id: islandBC
+        island: "bottomCenter"
+        anchors.fill: parent
+        z: 51
+        forScreen: root.screen
+        welded: root.bottomWelded
+        bottomFace: root.bottomFace
+        clearLeft:  !UiState.sidebarHidden && sideRail.edge === "left"  ? sideRail.band : 0
+        clearRight: !UiState.sidebarHidden && sideRail.edge === "right" ? sideRail.band : 0
+        deformMatrix: blobLayer.item?.islandBCDeform ?? Qt.matrix4x4()
+        onCardOpened: (cx, top, w, h) => blobLayer.item?.igniteBox(cx, top, w, h)
+    }
+    IslandDock {
+        id: islandBR
+        island: "bottomRight"
+        anchors.fill: parent
+        z: 51
+        forScreen: root.screen
+        welded: root.bottomWelded
+        bottomFace: root.bottomFace
+        clearLeft:  sideRail.edge === "left"  ? sideRail.panelFace : 0
+        clearRight: sideRail.edge === "right" ? sideRail.panelFace : 0
+        deformMatrix: blobLayer.item?.islandBRDeform ?? Qt.matrix4x4()
+        onCardOpened: (cx, top, w, h) => blobLayer.item?.igniteBox(cx, top, w, h)
     }
 
     // ── Tips ──────────────────────────────────────────────────────────────────

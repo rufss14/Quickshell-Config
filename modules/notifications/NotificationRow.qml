@@ -50,6 +50,9 @@ Rectangle {
     property bool fresh: false
     // The centre's accent (the dot); the panel passes its own.
     property color accent: Colors.of(QsWindow.window).primary
+    // On an island page: a lifted card on the page's plate (surfaceHigh, rounder under the pointer)
+    // instead of a faint wash over whatever is behind it.
+    property bool plated: false
     // Select mode (the centre's): a click ticks the tile; `selected` is whether it is ticked.
     property bool selecting: false
     property bool selected: false
@@ -70,10 +73,18 @@ Rectangle {
         : [Colors.of(QsWindow.window).primary, Colors.of(QsWindow.window).focus,
            Colors.of(QsWindow.window).info][root.toneIndex]
 
-    radius: Tokens.radiusPill
+    radius: root.plated ? (root.hot || root.selected ? Tokens.radiusCard : Tokens.radiusPill) : Tokens.radiusPill
+    Behavior on radius { NumberAnimation { duration: Motion.standard; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.respondCurve } }
     // Barely there at rest — a faint wash that lets the ground show through — and it comes up
-    // under the pointer. No outline: that is what made the first tiles read as boxes.
-    color: root.selected ? Colors.of(QsWindow.window).alpha(root.accent, 0.18)
+    // under the pointer. No outline: that is what made the first tiles read as boxes. Plated, the
+    // tile is a card of its own: surfaceHigh, the accent container when ticked, a wash of the tone
+    // when critical.
+    readonly property color _card: Colors.of(QsWindow.window).surfaceHigh
+    color: root.plated
+        ? (root.selected ? Colors.of(QsWindow.window).primaryContainer
+           : root.critical ? Qt.tint(root._card, Colors.of(QsWindow.window).alpha(root.tone, root.hot ? 0.30 : 0.20))
+           : Qt.tint(root._card, Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, root.hot ? 0.07 : 0)))
+        : root.selected ? Colors.of(QsWindow.window).alpha(root.accent, 0.18)
          : root.critical
         ? Colors.of(QsWindow.window).alpha(root.tone, root.hot ? 0.20 : 0.12)
         : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, root.hot ? 0.07 : 0.035)

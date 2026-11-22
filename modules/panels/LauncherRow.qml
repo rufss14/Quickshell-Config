@@ -176,7 +176,7 @@ Item {
                 anchors.fill: parent
                 visible: !row.isApp || row.iconPath === ""
                 shape: row.current ? "cookie9" : "squircle"
-                fillColor: row.blocker !== "" ? row.c.surfaceContainer
+                fillColor: row.blocker !== "" ? row.c.plateLow
                          : row.current ? row.c.primary : row.c.primaryContainer
                 Behavior on fillColor { ColorAnimation { duration: Motion.respond } }
 

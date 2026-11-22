@@ -75,7 +75,7 @@ ColumnLayout {
                     MorphShape {
                         anchors.fill: parent
                         shape: "cookie9"
-                        fillColor: Colors.of(QsWindow.window).surfaceHigh
+                        fillColor: Colors.of(QsWindow.window).plate
                     }
                     MaterialIcon {
                         anchors.centerIn: parent

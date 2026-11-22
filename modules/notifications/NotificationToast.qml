@@ -42,6 +42,8 @@ Surface {
     // inside OverviewNotifications' own Nested app-group card, one real level
     // deeper — Card→Nested→Popup, the "card in a card" lift that file documents.
     elevation: root.inCentre ? Tokens.elevationPopup : Tokens.elevationCard
+    // A floating toast wears the shell's gradient; a drawer row sits on its group's card.
+    gradient: !root.inCentre
     // A softer corner than the default card — a toast is a friendly, transient
     // thing, not a dense panel, and the extra roundness reads as lighter.
     cornerRadius: Tokens.radiusCard

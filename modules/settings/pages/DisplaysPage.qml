@@ -43,19 +43,61 @@ Item {
     function patch(name, fields) {
         root.edited = root.edited.map(m => m.name === name ? Object.assign({}, m, fields) : m)
     }
+    // Four short segments in a row's control slot.
+    readonly property int rotationWidth: Tokens.fieldHeight * 10
+
     function modeKey(m) { return m.width + "x" + m.height + "@" + Math.round(m.refresh) }
+    function sizeKey(m) { return m.width + "x" + m.height }
+
+    // Hyprland's description is "make model serial". The serial is nothing to show in a header
+    // (it is on screen-shares), so a long last word with a digit in it is dropped. A description
+    // of two words has no serial to drop.
+    function modelOnly(desc) {
+        const t = String(desc || "").trim().split(/\s+/)
+        if (t.length >= 3 && /\d/.test(t[t.length - 1]) && t[t.length - 1].length >= 8) t.pop()
+        return t.join(" ")
+    }
+
+    // The resolutions a screen offers, each once (its modes list one per refresh rate), biggest first.
+    readonly property var sizeChips: {
+        if (!root.sel) return []
+        const seen = {}, out = []
+        for (const m of root.sel.modes) {
+            const k = root.sizeKey(m)
+            if (seen[k]) continue
+            seen[k] = true
+            out.push({ value: k, label: m.width + " × " + m.height })
+        }
+        return out
+    }
+    // The refresh rates of the chosen resolution, fastest first.
+    readonly property var rateChips: root.sel
+        ? root.sel.modes.filter(m => root.sizeKey(m) === root.sizeKey(root.sel))
+                        .map(m => ({ value: root.modeKey(m), label: Math.round(m.refresh) + " Hz" }))
+        : []
+    // A new resolution keeps the refresh rate when it has it, else the nearest one.
+    function pickSize(key) {
+        const same = root.sel.modes.filter(m => root.sizeKey(m) === key)
+        if (same.length === 0) return
+        let best = same[0]
+        for (const m of same)
+            if (Math.abs(m.refresh - root.sel.refresh) < Math.abs(best.refresh - root.sel.refresh)) best = m
+        root.patch(root.sel.name, { width: best.width, height: best.height, refresh: best.refresh })
+    }
 
     SettingsPage {
         anchors.fill: parent
 
-        bento:     true
+        grouped:   true
+        // The map stays in view while the screen's settings scroll beside it.
+        groupLayout: "split"
         glyph:     "󰍹"
         title:     Translation.tr("Displays")
         titleTail: ""
         accent:    Colors.of(QsWindow.window).primary
-        subtitle:  Displays.pending ? "Keep these settings? Reverting in " + Displays.secondsLeft + " s"
-                 : root.edited.length + (root.edited.length === 1 ? " screen" : " screens")
-                   + (Displays.editable ? "" : "  ·  your own Hyprland config: copy the lines")
+        subtitle:  Displays.pending ? Translation.tr("Keep these settings? Reverting in %1 s").arg(Displays.secondsLeft)
+                 : (root.edited.length === 1 ? Translation.tr("1 screen") : Translation.tr("%1 screens").arg(root.edited.length))
+                   + (Displays.editable ? "" : "  ·  " + Translation.tr("your own Hyprland config: copy the lines"))
 
         actions: ChipTray {
             ChipButton {
@@ -67,7 +109,7 @@ Item {
             ChipButton {
                 visible: !Displays.pending
                 enabled: root.dirty && !Displays.busy
-                label:  Displays.editable ? "Apply" : "Copy lines"
+                label:  Displays.editable ? Translation.tr("Apply") : Translation.tr("Copy lines")
                 symbol: Displays.editable ? "check" : "content_copy"
                 solid:  true
                 onActivated: Displays.editable ? Displays.apply(root.edited) : Displays.copyLines(root.edited)
@@ -76,20 +118,20 @@ Item {
 
         // ══ Keep or revert ════════════════════════════════════════════════════
         Section {
-            span:    3
+            fullRow: true
             visible: Displays.pending
             glyph:   "󰔟"
             title:   Translation.tr("Keep these settings?")
-            subtitle: "Going back to the previous layout in " + Displays.secondsLeft + " s"
+            subtitle: Translation.tr("Going back to the previous layout in %1 s").arg(Displays.secondsLeft)
             accent:  Colors.of(QsWindow.window).warning
             actions: ChipTray {
-                ChipButton { label: "Revert"; symbol: "undo"; onActivated: Displays.revert() }
-                ChipButton { label: "Keep"; symbol: "check"; solid: true; onActivated: Displays.keep() }
+                ChipButton { label: Translation.tr("Revert"); symbol: "undo"; onActivated: Displays.revert() }
+                ChipButton { label: Translation.tr("Keep"); symbol: "check"; solid: true; onActivated: Displays.keep() }
             }
         }
 
         Section {
-            span:    3
+            fullRow: true
             visible: Displays.lastError !== ""
             glyph:   "󰀪"
             title:   Translation.tr("Couldn't apply")
@@ -98,18 +140,20 @@ Item {
         }
 
         // ══ The map ═══════════════════════════════════════════════════════════
+        // A tool body, so the map is one segment of a grouped Section, pinned on the left.
         Section {
-            span:     3
+            grouped:  true
+            side:     true
             symbol:   "dashboard"
             title:    Translation.tr("Arrangement")
-            subtitle: Translation.tr("Drag a screen to move it; click one to edit it below")
+            subtitle: Translation.tr("Drag a screen to move it")
             accent:   Colors.of(QsWindow.window).primary
 
             Item {
                 id: map
                 Layout.fillWidth: true
                 Layout.fillHeight: false
-                Layout.preferredHeight: 220
+                Layout.preferredHeight: 240
 
                 readonly property var on: root.edited.filter(m => !m.disabled)
                 readonly property var bounds: {
@@ -144,8 +188,9 @@ Item {
                             anchors.fill: parent
                             radius: Tokens.radiusSm
                             color: cell.picked ? Colors.of(QsWindow.window).primaryContainer : Colors.of(QsWindow.window).surfaceHigh
-                            border.width: cell.picked ? 2 : 1
-                            border.color: cell.picked ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).outline
+                            // Only the chosen screen is outlined; the others are tone alone.
+                            border.width: cell.picked ? 2 : 0
+                            border.color: Colors.of(QsWindow.window).primary
                             opacity: mover.moving ? 0.35 : 1
                         }
                         ColumnLayout {
@@ -202,78 +247,137 @@ Item {
         }
 
         // ══ The selected screen ═══════════════════════════════════════════════
+        // Which screen it is and whether it is on, under the map; its mode is the group beside.
         Section {
-            span:     3
+            grouped:  true
+            side:     true
             visible:  root.sel !== null
             symbol:   "monitor"
             title:    root.sel ? root.sel.name : ""
-            subtitle: root.sel ? root.sel.desc : ""
-            accent:   Colors.of(QsWindow.window).primary
+            subtitle: root.sel ? root.modelOnly(root.sel.desc) : ""
 
             // Every screen, including one that's off (it isn't on the map then).
             ChipRow {
                 visible: root.edited.length > 1
                 accent: Colors.of(QsWindow.window).primary
-                model: root.edited.map(m => ({ value: m.name, label: m.name + (m.disabled ? " (off)" : "") }))
+                model: root.edited.map(m => ({ value: m.name, label: m.name + (m.disabled ? " " + Translation.tr("(off)") : "") }))
                 current: root.selected
                 onPicked: function (v) { root.selected = v }
             }
 
             SettingRow {
-                label: Translation.tr("On")
-                help:  Translation.tr("Turn a screen off without unplugging it. At least one has to stay on.")
+                rowTap: true
+                enabled: !Displays.pending
+                label:  Translation.tr("On")
+                detail: root.sel && root.sel.disabled ? Translation.tr("Off, not on the map") : ""
+                help:   Translation.tr("Turn a screen off without unplugging it. At least one has to stay on.")
+                onTapped: if (root.sel) root.patch(root.sel.name, { disabled: !root.sel.disabled })
+
                 Toggle {
                     accent: Colors.of(QsWindow.window).primary
-                    enabled: !Displays.pending
                     checked: root.sel ? !root.sel.disabled : false
                     onToggled: if (root.sel) root.patch(root.sel.name, { disabled: !root.sel.disabled })
                 }
             }
+        }
 
-            StyledText { text: "Resolution and refresh rate"; variant: "caption"; emphasis: "dim"; visible: root.sel !== null && !root.sel.disabled }
-            ChipRow {
+        // ══ Its mode ══════════════════════════════════════════════════════════
+        // The resolution first, then the refresh rates that resolution has: one wall of every
+        // combination was thirty chips.
+        Section {
+            grouped:  true
+            visible:  root.sel !== null && !root.sel.disabled
+            symbol:   "tune"
+            title:    Translation.tr("Mode")
+
+            ColumnLayout {
                 Layout.fillWidth: true
-                visible: root.sel !== null && !root.sel.disabled
-                enabled: !Displays.pending
-                accent: Colors.of(QsWindow.window).primary
-                model: root.sel ? root.sel.modes.map(m => ({ value: root.modeKey(m), label: m.label })) : []
-                current: root.sel ? root.modeKey(root.sel) : ""
-                onPicked: function (v) {
-                    const m = root.sel.modes.find(x => root.modeKey(x) === v)
-                    if (m) root.patch(root.sel.name, { width: m.width, height: m.height, refresh: m.refresh })
+                Layout.fillHeight: false
+                spacing: Tokens.spacingSm
+
+                StyledText {
+                    text: Translation.tr("Resolution")
+                    variant: "body"
+                    font.weight: Font.Medium
+                }
+                ChipRow {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: false
+                    enabled: !Displays.pending
+                    accent: Colors.of(QsWindow.window).primary
+                    model: root.sizeChips
+                    current: root.sel ? root.sizeKey(root.sel) : ""
+                    onPicked: function (v) { root.pickSize(v) }
                 }
             }
 
-            StyledText { text: "Scale"; variant: "caption"; emphasis: "dim"; visible: root.sel !== null && !root.sel.disabled }
-            ChipRow {
-                visible: root.sel !== null && !root.sel.disabled
-                enabled: !Displays.pending
-                accent: Colors.of(QsWindow.window).primary
-                model: [1, 1.25, 1.5, 1.75, 2].map(s => ({ value: s, label: Math.round(s * 100) + "%" }))
-                current: root.sel ? root.sel.scale : 1
-                onPicked: function (v) { root.patch(root.sel.name, { scale: v }) }
-            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+                spacing: Tokens.spacingSm
 
-            StyledText { text: "Rotation"; variant: "caption"; emphasis: "dim"; visible: root.sel !== null && !root.sel.disabled }
-            ChipRow {
-                visible: root.sel !== null && !root.sel.disabled
-                enabled: !Displays.pending
-                accent: Colors.of(QsWindow.window).primary
-                model: [{ value: 0, label: "Normal" }, { value: 1, label: "90°" },
-                        { value: 2, label: "180°" }, { value: 3, label: "270°" }]
-                current: root.sel ? (root.sel.transform & 3) : 0
-                onPicked: function (v) { root.patch(root.sel.name, { transform: v }) }
+                StyledText {
+                    text: Translation.tr("Refresh rate")
+                    variant: "body"
+                    font.weight: Font.Medium
+                }
+                ChipRow {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: false
+                    enabled: !Displays.pending
+                    accent: Colors.of(QsWindow.window).primary
+                    model: root.rateChips
+                    current: root.sel ? root.modeKey(root.sel) : ""
+                    onPicked: function (v) {
+                        const m = root.sel.modes.find(x => root.modeKey(x) === v)
+                        if (m) root.patch(root.sel.name, { width: m.width, height: m.height, refresh: m.refresh })
+                    }
+                }
             }
 
             SettingRow {
                 visible: root.sel !== null && !root.sel.disabled
-                label: Translation.tr("Variable refresh rate")
-                help:  Translation.tr("Adaptive sync (FreeSync / G-Sync compatible). Only on screens that support it.")
+                enabled: !Displays.pending
+                label:   Translation.tr("Scale")
+
+                ChipRow {
+                    accent: Colors.of(QsWindow.window).primary
+                    model: [1, 1.25, 1.5, 1.75, 2].map(s => ({ value: s, label: Math.round(s * 100) + "%" }))
+                    current: root.sel ? root.sel.scale : 1
+                    onPicked: function (v) { root.patch(root.sel.name, { scale: v }) }
+                }
+            }
+
+            SettingRow {
+                visible: root.sel !== null && !root.sel.disabled
+                enabled: !Displays.pending
+                label:   Translation.tr("Rotation")
+
+                TabStrip {
+                    // A SettingRow's control slot is a plain Item: size by implicitWidth.
+                    implicitWidth: root.rotationWidth
+                    connected: true
+                    accent: Colors.of(QsWindow.window).primary
+                    model: [{ value: 0, label: Translation.tr("Normal") }, { value: 1, label: "90°" },
+                            { value: 2, label: "180°" }, { value: 3, label: "270°" }]
+                    current: root.sel ? (root.sel.transform & 3) : 0
+                    onPicked: function (v) { root.patch(root.sel.name, { transform: v }) }
+                }
+            }
+
+            SettingRow {
+                rowTap: true
+                visible: root.sel !== null && !root.sel.disabled
+                enabled: !Displays.pending
+                label:  Translation.tr("Variable refresh rate")
+                detail: root.sel && root.sel.vrr ? Translation.tr("Follows what the screen is showing") : Translation.tr("Fixed rate")
+                help:   Translation.tr("Adaptive sync (FreeSync / G-Sync compatible). Only on screens that support it.")
+                onTapped: if (root.sel) root.patch(root.sel.name, { vrr: !root.sel.vrr })
+
                 Toggle {
                     accent: Colors.of(QsWindow.window).primary
-                    enabled: !Displays.pending
                     checked: root.sel ? root.sel.vrr : false
-                    onToggled: root.patch(root.sel.name, { vrr: !root.sel.vrr })
+                    onToggled: if (root.sel) root.patch(root.sel.name, { vrr: !root.sel.vrr })
                 }
             }
         }

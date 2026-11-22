@@ -8,6 +8,7 @@ singleton Dns      1.0 Dns.qml
 singleton AuthAgent 1.0 AuthAgent.qml
 singleton SongRec 1.0 SongRec.qml
 singleton Tasks 1.0 Tasks.qml
+singleton Workouts 1.0 Workouts.qml
 singleton Hud 1.0 Hud.qml
 singleton ReloadWatch 1.0 ReloadWatch.qml
 singleton Secrets 1.0 Secrets.qml
@@ -18,6 +19,7 @@ singleton Hypr     1.0 Hypr.qml
 singleton Taskbar  1.0 Taskbar.qml
 singleton Cursor   1.0 Cursor.qml
 singleton CursorEffects 1.0 CursorEffects.qml
+singleton Tablet 1.0 Tablet.qml
 singleton Recents  1.0 Recents.qml
 singleton Places   1.0 Places.qml
 singleton FilePins 1.0 FilePins.qml
@@ -46,6 +48,7 @@ singleton LyricsTranslate 1.0 LyricsTranslate.qml
 singleton LyricsRomanize 1.0 LyricsRomanize.qml
 singleton SpotifyBridge 1.0 SpotifyBridge.qml
 singleton AlbumArt 1.0 AlbumArt.qml
+singleton QueuePalettes 1.0 QueuePalettes.qml
 singleton AlbumScheme 1.0 AlbumScheme.qml
 singleton Notifications 1.0 Notifications.qml
 singleton SysInfo 1.0 SysInfo.qml
@@ -69,6 +72,7 @@ singleton Contagion 1.0 Contagion.qml
 singleton ColorScheme 1.0 ColorScheme.qml
 singleton Look 1.0 Look.qml
 singleton WallpaperEngine 1.0 WallpaperEngine.qml
+singleton WallColors 1.0 WallColors.qml
 singleton Timers   1.0 Timers.qml
 singleton Clipboard 1.0 Clipboard.qml
 singleton Clips 1.0 Clips.qml
@@ -84,6 +88,7 @@ singleton Calendar 1.0 Calendar.qml
 singleton Reminders 1.0 Reminders.qml
 singleton WorldClock 1.0 WorldClock.qml
 singleton NightLight 1.0 NightLight.qml
+singleton StreamMode 1.0 StreamMode.qml
 singleton Screenshot 1.0 Screenshot.qml
 singleton ClaudePresence 1.0 ClaudePresence.qml
 singleton Cs2Presence 1.0 Cs2Presence.qml

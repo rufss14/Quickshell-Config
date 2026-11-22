@@ -139,3 +139,12 @@ Things that bit us and are cheap to re-check:
   false; layer.enabled: true`, read by a MultiEffect) renders its children, but each child's `visible`
   reports false. A component that skips work `if (!visible)` draws nothing there: CavaBG's Waveform was
   blank for that (2026-10-31). Gate on a property the host can override (`WaveformSpectrum.drawing`).
+- **Never name a property `onSomething`.** `readonly property bool onCover: …` loads without a word and then
+  never updates: QML reads `on<Name>` as a signal handler's name, so the binding is not kept alive (the colour
+  scheme card kept showing the wallpaper's palette while `onCover` printed false, 2026-11-14). Call it `coverMode`.
+- **A Layout child that is already hidden when its parent is made can keep its slot** (measured in the headless
+  sandbox, Qt 6.12, 2026-11-22). `ModuleInspector` was a `ColumnLayout` whose first child had `visible: info === null`;
+  opened with a module already picked, the layout still reserved that child's height and spacing: the visible card
+  stood 54px low while `implicitHeight` was correct, so the page packed the Library from the true height and drew it over
+  the card's last row. The first open (child visible, then hidden) laid out fine, and nothing is logged. Where a
+  child's visibility is decided at creation, use a positioner (`Column`) or place by x/y from the width.

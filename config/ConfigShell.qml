@@ -46,14 +46,23 @@ Singleton {
     // changes the bar's SHAPE and never its weight.
     //
     // Floored so a thin bar with a large inset cannot collapse to nothing.
+    //
+    // Hidden (`barHidden`), the bar owns only what the frame's top edge needs: the ring's own depth while the
+    // frame is on, nothing when it is off. Everything that asks "where does the bar end" follows by itself.
     readonly property int barExtent:
-        root.barAnchored ? Math.max(24, root.barThickness - root.barInset * 2)
-                         : root.barThickness
+        root.barHidden ? (root.screenFrame ? root.frameDepth : 0)
+        : root.barAnchored ? Math.max(24, root.barThickness - root.barInset * 2)
+                           : root.barThickness
+
+    // The bar taken out of the way (the desktop menu's View, `qs ipc call statusbar toggle`). Not a
+    // preference: nothing is unloaded, and a bar you forgot about comes back on the next reload, like
+    // UiState.sidebarHidden. It lives here and not in UiState because barExtent, a Config value, depends on it.
+    property bool barHidden: false
 
     // The height of the surface drawn inside that extent — a pill, or the anchored
     // bar itself, which fills its extent completely.
     readonly property int barSurfaceHeight:
-        root.barAnchored ? root.barExtent
+        root.barHidden || root.barAnchored ? root.barExtent
                          : root.barThickness - (root.barShape ? 0 : root.barInset) * 2
 
     // Where something that must sit UNDER the top bar starts (the reload card, the snip tool's
@@ -342,12 +351,6 @@ Singleton {
     // Read through Tokens (borderWidth, the *Opacity values) and PaletteRoles, never here.
     // Like motionReduced, not part of a bar preset or a look bundle.
     property bool highContrast: false
-
-    // A shell-wide fallback accent, in the same vocabulary as every per-module and
-    // per-widget accent: a ROLE NAME from `accentRoles` below, never a hex string.
-    // "" keeps today's behaviour (every widget's own hardcoded default, usually
-    // Colors.primary) — this only matters to a widget that reads it explicitly.
-    property string accentRole: ""
 
     // ── Screen frame ──────────────────────────────────────────────────────────
     // Wraps the screen in a thin ring of the bar's material: a band along the top

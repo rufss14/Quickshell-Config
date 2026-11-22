@@ -9,7 +9,7 @@ import "musicpulse.js" as MP
 
 // ── MusicPulse ────────────────────────────────────────────────────────────────
 // What the music is doing right now, as a handful of 0..1 numbers anything on the desktop
-// can move to (2026-10-31): the wallpaper effects (modules/desktop/WallFx) and the
+// can move to: the wallpaper effects (modules/desktop/WallFx) and the
 // music-reactive sidebar.
 //
 //   level · bass · mid · high   envelopes (fast up, slower down)
@@ -21,13 +21,13 @@ import "musicpulse.js" as MP
 //   song · songView · character what the track is like (hit rates, energy, section, drop) — what
 //                               the wallpaper effects adapt to; musicpulse.js songStep
 //
-// ── A beat clock, not a reaction (2026-10-31) ─────────────────────────────────
-// The user, more than once: the effects "feel off or slow compared to the song". So the
+// ── A beat clock, not a reaction ──────────────────────────────────────────────
+// The effects have to keep up with the song, not "feel off or slow compared" to it. So the
 // numbers come from scripts/music-pulse.py when it can run (pw-record and numpy, probed once):
 // the player's audio read in 5 ms steps, the kick, snare/clap and hi-hat told apart, and the
 // tempo and phase tracked so an 808 note between the beats isn't taken for a kick. Nothing
-// fires unless it is heard (the user, same day: "shaking and zooming without kicks" — the
-// clock used to fire its predicted grid). Measured: the cava detector found 3 beats in 20 s;
+// fires unless it is heard: a clock that fired its predicted grid read as shaking and
+// zooming without kicks. Measured: the cava detector found 3 beats in 20 s;
 // the helper, on the synthetic kit, every kick and snare and none that weren't (python3
 // scripts/test-music-pulse.py). `bpm` and `locked` say what it is locked to. Without the
 // helper's tools, the cava stream below and musicpulse.js are the fallback.
@@ -120,7 +120,7 @@ Singleton {
     // schedAt): Sync is applied HERE now, not by restarting the helper — a restart relearned the
     // tempo every time the fader moved.
     readonly property var _dspCommand: ["python3", Quickshell.shellPath("scripts/music-pulse.py"),
-        "--target", root.sourceNode]
+        "--target", root.sourceSerial]
     property var _sched: MP.schedInitial()
     // Restarts dip `_cycling` so `running` stays a binding (CavaStream's reason: assigning it
     // would leave the helper running after the music stops). An exit of its own — PipeWire
@@ -210,7 +210,7 @@ Singleton {
         }
     }
 
-    // ── The song (2026-10-31): what the effects adapt to ──────────────────────
+    // ── The song: what the effects adapt to ───────────────────────────────────
     // A running picture of the track (musicpulse.js `songStep`): how often each drum is heard,
     // how driving it is, whether the drums just dropped out. Stepped per pulse while live (not
     // while winding down: a pause shouldn't make the song look calmer), reset per track.
@@ -252,18 +252,22 @@ Singleton {
         if (!root.live) { root.bpm = 0; root.locked = false }
     }
 
-    readonly property string sourceNode: {
+    readonly property var _sourceStream: {
         const appId = root.player ? (root.player.desktopEntry || "") : ""
-        if (!appId) return ""
+        if (!appId) return null
         const nodes = Audio.streamsFor(appId)
-        // (`?? ""`: a node PipeWire hasn't described yet has no name.)
-        return nodes.length > 0 ? (nodes[0].name ?? "") : ""
+        return nodes.length > 0 ? nodes[0] : null
     }
+    // What the player's capture is pinned to (CavaStream.serial). Both are "" until PipeWire has
+    // described the node, so a name never stands without its serial.
+    readonly property string sourceSerial: Audio.serialOfNode(root._sourceStream)
+    readonly property string sourceNode: root.sourceSerial !== "" ? (root._sourceStream.name ?? "") : ""
 
     CavaStream {
         id: stream
         tag: "pulse"
         source: root.sourceNode
+        serial: root.sourceSerial
         running: root.live && root.probed && !root.dspOk
         barCount: 24
         sensitivity: 100

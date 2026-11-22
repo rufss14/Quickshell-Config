@@ -6,7 +6,7 @@ Moved from CLAUDE.md; the project rules there still apply.
 
 Since 2026-11-08 what stands on the edge is arranged on Settings › Bar › Modules
 (`BarPage`: one inspector and one library — `ModuleInspector`, `ModuleLibrary` — with the
-REAL bar and sidebar armed while it's open, so pressing a module there picks it; a scaled map
+REAL bar and sidebar armed by its Arrange button (opening the page doesn't arm them), so pressing a module there picks it; a scaled map
 of both surfaces was tried for a round and dropped). The dock and the stats are modules like the
 rest; their old tabs (`DockPage`, `SidebarStatsPage`) are gone and their settings are the
 inspector's `DockOptions` / `StatsOptions` (`UiState.openSettingsTo` still accepts the old
@@ -294,6 +294,10 @@ page names and picks the module). Settings › Sidebar keeps the edge, size, aut
   (`holdingPanel`); SUPER+SHIFT+D slides the panel back to the strip with the bar
   (`BarDock.edgeInset`, eased). `panelFace` must never read `cards` or `barShown` — both
   follow the panels' x. A bottom sidebar doesn't hold panels; cards crossing it still step it.
+- **Since 2026-11-15, with the islands on, a button whose page is on an island's rail opens THAT island**
+  (the sidebar's own on the bottom row; Stats opens Performance, To-do / Clipboard / Idle open Desk): see
+  `docs/bar-and-blob.md` › "The bottom row". What follows is the beside-the-button slot, which now serves
+  only pages on no rail (voice, hover cards, the clips' target and peek) and every panel while the islands are off.
 - **Buttons with panels** (the user's picks, 2026-09-29): the stats and the clips are ONE
   bar-style button each (small modules, 1 cell, groupable like the rest — only the dock
   stands alone), with a LIVE GLANCE at rest, and their panel opens BESIDE the button:
@@ -506,6 +510,10 @@ sidebar module gained a bar form put it on BOTH surfaces. `Config._barKnown()` c
 module with a sidebar form as known; such a module waits in the pool.
 
 ## Idle actions (2026-10-08)
+
+**On the Desk island (2026-11-18)** the rules are edited by `modules/island/IslandIdle` (master-detail: a card per
+rule, the chosen rule's length, action, command and note), which `IslandDesk` grows out of its "When I'm away" card
+on two springs and shrinks back into it; Escape closes it. `InactivityPanel` stays for the bar and sidebar docks.
 
 "After N minutes without input, do X" — `inactivity` in the catalogue, a cell on the sidebar
 (`SideInactivity`) and a pill on the bar (`SideModulePill`), one panel either dock holds

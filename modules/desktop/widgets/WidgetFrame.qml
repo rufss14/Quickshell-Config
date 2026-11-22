@@ -5,6 +5,7 @@ import "../../../config"
 import "../../../components"
 import "../../../services"
 import "../../../state"
+import "../../../services/gradient.js" as Grad
 
 // ── WidgetFrame ───────────────────────────────────────────────────────────────
 // The tile every desktop widget sits in: the surface, the size, the drag, and the
@@ -34,8 +35,20 @@ Surface {
     // dropped off the edge of the screen where there is no way to grab it again.
     property real boundsW: 0
     property real boundsH: 0
+    // Where this layer sits on the screen, and the screen's size: the layer starts where the compositor's
+    // reserved edges (the bar, the sidebar) end, so a tile's x and y are the screen's less these. The glass
+    // samples the wallpaper in SCREEN coordinates (a layer-sized, layer-origin texture looked at the wrong
+    // part of the picture, and at the wrong scale).
+    property real insetX: 0
+    property real insetY: 0
+    property real screenW: 0
+    property real screenH: 0
 
     signal committed(real nx, real ny)
+
+    // "Calm": move me to the quietest part of the wallpaper (the layer answers; offered only when it has read the picture).
+    property bool calmAvailable: false
+    signal calmRequested()
 
     // ── Per-widget accent ─────────────────────────────────────────────────────
     // A ROLE NAME from the palette, never a hex string — the same rule the bar's
@@ -210,7 +223,28 @@ Surface {
     // `primaryContainer`, not in the tile. The elevation stays a card's (what the tile IS);
     // only the fill's tone is overridden, through the same fade Surface uses.
     elevation: Tokens.elevationCard
-    color: Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceContainer, frame.fillOpacity)
+    // While the gradient is on (and the glass is not drawing the body) the tile's fill is the gradient plate
+    // under the content, so the tile is not a flat block on a bar that is not.
+    readonly property bool gradientFill: !frame.bare && !frame.refracting && gradientPlate.shown
+    // The bar's own fill (frameFill), not a container tone of its own: a tile beside the bar or the sidebar is the
+    // same colour as they are. Under a gradient it is the slice of the SCREEN's gradient under the tile.
+    color: frame.gradientFill ? "transparent"
+         : Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).frameFill, frame.fillOpacity)
+
+    GradientPlate {
+        id: gradientPlate
+        anchors.fill: parent
+        visible: !frame.bare
+        radius: frame.radius
+        ground: Colors.of(QsWindow.window).frameFill
+        line: {
+            const a = Grad.axis(gradientPlate.doc.angle, frame.screenW, frame.screenH)
+            const ox = frame.insetX + frame.x - frame.grow, oy = frame.insetY + frame.y - frame.grow
+            return [a[0] - ox, a[1] - oy, a[2], a[3]]
+        }
+        // Over the glass it is a tint on what the lens shows, not a replacement for it.
+        fillOpacity: frame.effOpacity * (frame.refracting ? 0.42 : 1)
+    }
 
     // ── The shape morphs ──────────────────────────────────────────────────────
     // Material 3 Expressive's shape morph: the corners are part of the motion, not a
@@ -252,7 +286,7 @@ Surface {
     // there is nothing behind it to blur except the wallpaper, and Hyprland's blur
     // rules do not apply beneath the windows. A frosted look here would mean sampling
     // the wallpaper ourselves, which is a lot of machinery for a static image.
-    fillOpacity: frame.bare ? 0 : frame.effOpacity
+    fillOpacity: frame.bare ? 0 : frame.effOpacity * Tokens.glass
     // Not while the glass draws it: the shader strokes the same border itself, with light on
     // it (see "LIQUID GLASS"), and a second one underneath would show through a translucent body.
     borderWidth: (frame.bare || frame.refracting) ? 0 : Tokens.borderChrome
@@ -428,7 +462,7 @@ Surface {
 
     readonly property bool refracting:
         frame.effGlass && frame.backdrop !== null && !frame.bare
-        && frame.boundsW > 0 && frame.boundsH > 0
+        && frame.boundsW > 0 && frame.boundsH > 0 && frame.screenW > 0 && frame.screenH > 0
 
     // Wrapped in a Loader gated on `refracting`, so the sampler is NEVER bound to a
     // null texture. It is not merely tidiness: Qt logs
@@ -440,6 +474,8 @@ Surface {
     // while the preference is off.
     Loader {
         anchors.fill: parent
+        // Under the gradient plate, which tints what the glass shows.
+        z: -1
         active: frame.refracting
         sourceComponent: Component {
         ShaderEffect {
@@ -456,8 +492,8 @@ Surface {
             property vector2d size: Qt.vector2d(width, height)
             // The tile's RENDERED top-left, so the sampled region follows the hover grow
             // instead of sliding under it by `grow` pixels.
-            property vector2d tileOrigin: Qt.vector2d(frame.x - frame.grow, frame.y - frame.grow)
-            property vector2d screenSize: Qt.vector2d(frame.boundsW, frame.boundsH)
+            property vector2d tileOrigin: Qt.vector2d(frame.x - frame.grow + frame.insetX, frame.y - frame.grow + frame.insetY)
+            property vector2d screenSize: Qt.vector2d(frame.screenW, frame.screenH)
             property real radius:     frame.radius
             property real thickness:  Math.max(8, frame.radius * 0.85)
             property real strength:   14
@@ -484,9 +520,9 @@ Surface {
             property color rimShade:   Colors.of(QsWindow.window).shadow
             // The tile's own container tone (see "a tonal container"), so glass and plain
             // tiles are the same colour and only the refraction tells them apart.
-            property vector4d tint: Qt.vector4d(Colors.of(QsWindow.window).surfaceContainer.r,
-                                                Colors.of(QsWindow.window).surfaceContainer.g,
-                                                Colors.of(QsWindow.window).surfaceContainer.b,
+            property vector4d tint: Qt.vector4d(Colors.of(QsWindow.window).frameFill.r,
+                                                Colors.of(QsWindow.window).frameFill.g,
+                                                Colors.of(QsWindow.window).frameFill.b,
                                                 1.0)
         }
 
@@ -654,6 +690,12 @@ Surface {
                 const i = opts.indexOf(frame.model.size)
                 DesktopWidgets.setSize(frame.model.id, opts[(i + 1) % opts.length])
             }
+        }
+
+        WidgetChip {
+            visible: frame.calmAvailable
+            label: Translation.tr("Calm")
+            onActivated: frame.calmRequested()
         }
 
         WidgetChip {

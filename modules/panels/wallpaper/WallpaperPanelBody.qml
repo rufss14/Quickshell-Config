@@ -89,15 +89,52 @@ Item {
         }
     }
 
+    // ── On an island ──────────────────────────────────────────────────
+    // The gallery stands on a flat card of its own, as every part of an island page does (`plate`,
+    // behind everything here), and its cells are WallpaperCard: the picture is the card, with no
+    // caption row under it, two across, so each picture is large.
+    readonly property bool island: panel.island === true
+    readonly property int inset: body.island ? Tokens.spacingSm : 0
+    readonly property color ground: body.island ? Colors.of(QsWindow.window).section : Colors.of(QsWindow.window).surface
+    Rectangle {
+        id: plate
+        anchors.fill: parent
+        visible: body.island
+        radius: Tokens.radiusXl
+        color: body.ground
+    }
+    Component {
+        id: tileCell
+        WallpaperTile {
+            panel:  body.panel
+            width:  grid.cellWidth
+            height: grid.cellHeight
+        }
+    }
+    Component {
+        id: cardCell
+        WallpaperCard {
+            panel:  body.panel
+            width:  grid.cellWidth
+            height: grid.cellHeight
+        }
+    }
+
     // ── Grid ──────────────────────────────────────────────────────────
     GridView {
         id: grid
         anchors.fill: parent
+        anchors.margins: body.inset
         clip: true
-        // Three columns across the whole width. The scrollbar is an overlay (4px, only while
-        // scrolling), so it needs no gutter: the margins stay even on both sides.
-        cellWidth:  Math.floor(grid.width / 3)
-        cellHeight: Math.round(grid.cellWidth * 0.64)
+        // The bar's panel: three across. An island page: two, so each picture is big enough to judge and
+        // the rest is a scroll away (`WallpaperPanel.kbCols` says the same to the keyboard). The scrollbar is
+        // an overlay (4px, only while scrolling), so it needs no gutter: the margins stay even on both sides.
+        cellWidth:  Math.floor(grid.width / panel.gridCols)
+        // On an island the picture is the cell, at the screen's own 16:9 (a card stands
+        // spacingXs in from its cell all round, and its picture `cardMat` in from the card).
+        cellHeight: body.island ? Math.round((grid.cellWidth - Tokens.spacingXs * 2 - panel.cardMat * 2) * 9 / 16)
+                                  + Tokens.spacingXs * 2 + panel.cardMat * 2
+                                : Math.round(grid.cellWidth * 0.64)
         // A ScriptModel, so a change to the list (starring or removing one) is applied as
         // inserts, removes and moves to the delegates that are there — and the view keeps
         // its place. Handing the GridView a fresh array each time replaced the whole model,
@@ -113,11 +150,7 @@ Item {
 
         // A little air under the last row, so a tile never ends on the panel's edge.
 footer: Item { width: 1; height: Tokens.spacingLg }
-delegate: WallpaperTile {
-            panel:  body.panel
-            width:  grid.cellWidth
-            height: grid.cellHeight
-        }
+        delegate: body.island ? cardCell : tileCell
     }
     Scrollbar { flickable: grid }
 
@@ -125,6 +158,7 @@ delegate: WallpaperTile {
     ListView {
         id: list
         anchors.fill: parent
+        anchors.margins: body.inset
         clip: true
         spacing: Tokens.spacingSm
         model: ScriptModel { values: panel.galleryModel }
@@ -186,28 +220,30 @@ delegate: WallpaperRow {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
+        anchors.margins: body.inset
         height: Tokens.spacingXxl
         readonly property Flickable fl: panel.listView ? list : grid
         opacity: panel.inGallery && fl.contentY > 1 ? 1 : 0
         visible: opacity > 0.005
         Behavior on opacity { NumberAnimation { duration: Motion.fast } }
         gradient: Gradient {
-            GradientStop { position: 0.0; color: Colors.of(QsWindow.window).surface }
-            GradientStop { position: 1.0; color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).surface, 0) }
+            GradientStop { position: 0.0; color: body.ground }
+            GradientStop { position: 1.0; color: Colors.of(QsWindow.window).alpha(body.ground, 0) }
         }
     }
     Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
+        anchors.margins: body.inset
         height: Tokens.spacingXxl
         readonly property Flickable fl: panel.listView ? list : grid
         opacity: panel.inGallery && fl.contentY + fl.height < fl.contentHeight - 1 ? 1 : 0
         visible: opacity > 0.005
         Behavior on opacity { NumberAnimation { duration: Motion.fast } }
         gradient: Gradient {
-            GradientStop { position: 0.0; color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).surface, 0) }
-            GradientStop { position: 1.0; color: Colors.of(QsWindow.window).surface }
+            GradientStop { position: 0.0; color: Colors.of(QsWindow.window).alpha(body.ground, 0) }
+            GradientStop { position: 1.0; color: body.ground }
         }
     }
 
@@ -266,7 +302,8 @@ delegate: WallpaperRow {
     Loader {
         id: browseLoader
         anchors.fill: parent
-        anchors.rightMargin: Tokens.spacingMd
+        anchors.margins: body.inset
+        anchors.rightMargin: body.island ? body.inset : Tokens.spacingMd
         active: panel.view === "browse" && !panel.showProgress
         sourceComponent: panel.browseComponent
     }
@@ -290,7 +327,7 @@ delegate: WallpaperRow {
     // ── The Material Wallpaper: its preview and its style ──────────────
     Loader {
         anchors.fill: parent
-        anchors.rightMargin: Tokens.spacingMd
+        anchors.rightMargin: body.island ? 0 : Tokens.spacingMd
         active: panel.isMaterial
         sourceComponent: panel.materialComponent
     }

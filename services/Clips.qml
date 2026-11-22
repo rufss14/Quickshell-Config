@@ -1000,6 +1000,8 @@ Singleton {
         if (path) root._showIn(path.substring(0, path.lastIndexOf("/")), path)
     }
     function openFolder() { root._showIn(root.saveDir, "") }
+    // Any folder in the file manager the user picked (the Captures page's screenshots).
+    function showFolder(dir) { if (dir) root._showIn(dir, "") }
     // As files, the way a file manager copies them: a paste into a chat attaches it.
     function copyClip(path) {
         if (!path) return

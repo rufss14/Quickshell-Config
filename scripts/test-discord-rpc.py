@@ -70,7 +70,7 @@ def reader(conn):
 
             if op == 0:                                    # HANDSHAKE
                 send(conn, 1, {"cmd": "DISPATCH", "evt": "READY",
-                               "data": {"v": 1, "user": {"id": "me"}}})
+                               "data": {"v": 1, "user": {"id": "me", "username": "meuser", "global_name": "Me", "avatar": "zz9"}}})
                 continue
 
             cmd, nonce = msg.get("cmd"), msg.get("nonce")
@@ -136,6 +136,8 @@ s = wait(lambda s: s["channel"]["guild"] == "Gaming Lounge", "guild name resolve
 ok("guild name resolved via async GET_GUILD")
 assert s["inputVolume"] == 78 and s["outputVolume"] == 120, s
 ok("voice settings applied (input 78, output 120)")
+assert s["me"] == {"id": "me", "name": "Me", "avatar": "https://cdn.discordapp.com/avatars/me/zz9.png?size=128"}, s["me"]
+ok("the logged-in account's name and picture are published (so the shell can wear them outside a call)")
 names = [u["name"] for u in s["users"]]
 assert names == ["Alice", "bob"], names
 ok("participants sorted, nick preferred over username: %s" % names)

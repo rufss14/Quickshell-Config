@@ -5,6 +5,7 @@ import QtQuick.Effects
 import Quickshell
 import "../config"
 import "../services"
+import "../state"
 import "../services/cookie.js" as Cookie
 
 // ── CookieCover ───────────────────────────────────────────────────────────────
@@ -37,6 +38,19 @@ Item {
     id: root
 
     property url    source: ""
+    // A looping clip (an absolute file path) played in the cookie over the picture, or "" for the picture alone. The
+    // caller decides WHEN; this plays it muted, while the track does. A host that sets it must have checked
+    // `Media.available`: the player is built through that probe's component.
+    property string canvas: ""
+    // The clip is drawn at this fraction of the cookie's width, in a box of its own 9:16 that the clip FILLS (cropped, so a
+    // clip of another shape cannot leave an edge). Over 1 on purpose: the petals reach the box's edge, so anything under
+    // 1.0 shows a sliver of ground at a petal's tip as it turns past (0.88 and 0.96 both did: "it still doesn't fill the sides").
+    readonly property real canvasZoom: 1.03
+    // Where the clip sits up and down, set by the host (a drag): -1 shows the bottom of the clip, 1 the top, 0 the middle.
+    // `canvasSlack` is how many pixels of clip lie beyond the cookie on each side at 0, so a drag of that many pixels
+    // takes the clip all the way.
+    property real panY: 0
+    readonly property real canvasSlack: Math.max(1, (root.coverSize * root.canvasZoom * 16 / 9 - root.coverSize) / 2)
     property bool   playing: false
     // On screen and awake: gates every piece of per-frame work.
     property bool   live: true
@@ -50,8 +64,14 @@ Item {
 
     // ── The ring ──────────────────────────────────────────────────────────────
     readonly property int  barCount: Math.max(8, Cava.barCount)
-    readonly property real gap:   Tokens.spacingSm       // edge → shortest bar
-    readonly property real reach: Tokens.spacingXl       // longest bar
+    // Grown (a clip playing), the cookie takes room from the ring: the gap halves and the bars get half as long, so
+    // the whole stays inside the same box. Eased over `Motion.slow`.
+    property bool grown: false
+    property real _grow: root.grown ? 1 : 0
+    Behavior on _grow { NumberAnimation { duration: Motion.slow; easing.type: Motion.travel } }
+
+    readonly property real gap:   Tokens.spacingSm * (1 - 0.5 * root._grow)   // edge → shortest bar
+    readonly property real reach: Tokens.spacingXl * (1 - 0.5 * root._grow)   // longest bar
     readonly property real thick: Tokens.spacingXs * 1.5
 
     // What is left for the cover once the ring has its room all the way round.
@@ -71,6 +91,16 @@ Item {
         running: true
         paused: !(root.live && root.playing)
     }
+
+    readonly property bool clipOn: clip.active && clip.item !== null && clip.item.showing && clip.item.error === ""
+    // The clip stops with the track (or the panel) and goes on from where it was.
+    function _syncClip() {
+        if (!clip.item) return
+        if (root.live && root.playing) clip.item.play()
+        else clip.item.pause()
+    }
+    onPlayingChanged: root._syncClip()
+    onLiveChanged:    root._syncClip()
 
     // ── The spectrum ──────────────────────────────────────────────────────────
     readonly property bool wantsCava: root.live && root.playing && root.nodeName !== ""
@@ -146,7 +176,28 @@ Item {
                 sourceSize: Qt.size(root.coverSize * 2, root.coverSize * 2)
                 // Fades in once decoded, so a track change is a dissolve rather than a
                 // blank flash.
-                opacity: status === Image.Ready ? 1 : 0
+                opacity: status === Image.Ready && !root.clipOn ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: Motion.slow } }
+            }
+            // The Canvas clip, dissolving in over the cover once it is drawing frames (never a blank flash while it
+            // loads) and out again when it is switched off. Built only while wanted; a failed player leaves the cover.
+            Loader {
+                id: clip
+                // Sized to the clip's own 9:16 (a clip of another shape is cropped to it), centred, then moved by panY.
+                width: parent.width * root.canvasZoom
+                height: width * 16 / 9
+                x: (parent.width - width) / 2
+                y: (parent.height - height) / 2 + Math.max(-1, Math.min(1, root.panY)) * root.canvasSlack
+                active: root.canvas !== ""
+                source: Media.playerUrl
+                onLoaded: {
+                    item.muted = true
+                    item.crop = true
+                    item.loopAll = true
+                    item.source = Qt.binding(() => root.canvas)
+                    item.autoplay = Qt.binding(() => root.live && root.playing)
+                }
+                opacity: root.clipOn ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: Motion.slow } }
             }
         }

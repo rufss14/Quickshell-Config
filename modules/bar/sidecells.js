@@ -22,7 +22,7 @@ var FILES = {
     tasks: "SideTasks.qml", brightness: "SideBrightness.qml", window: "SideWindow.qml",
     layout: "SideLayout.qml", locks: "SideLocks.qml", nowplaying: "SideNowPlaying.qml",
     clock: "SideClock.qml", workspaces: "SideWorkspaces.qml", tray: "SideTray.qml",
-    visualizer: "SideVisualizer.qml"
+    visualizer: "SideVisualizer.qml", spacer: "SideSpacer.qml"
 };
 
 // The bar's one-click modules, as cells — one file, keyed by id.

@@ -62,6 +62,19 @@ Singleton {
     property int    ping:      0
     property string status:    "DISCONNECTED"
 
+    // The account Discord is logged in as — { id, name, avatar } while the helper is connected, null otherwise. The
+    // last one seen is kept on disk (`discord-me.json` under the state dir: a name and a CDN URL, nothing secret), so
+    // `meAvatar` still answers with Discord shut or not yet connected, until the account changes.
+    property var    me:        null
+    readonly property string meAvatar: root.enabled ? (root.me?.avatar ?? root._seen.avatar ?? "") : ""
+    readonly property string meName:   root.enabled ? (root.me?.name   ?? root._seen.name   ?? "") : ""
+    readonly property var _seen: _seenStore.value ?? ({})
+    JsonStore {
+        id: _seenStore
+        path: Quickshell.statePath("discord-me.json")
+        defaults: ({ avatar: "", name: "" })
+    }
+
     // "" | "awaiting-consent" | "no-credentials"
     property string authStage: ""
     property string lastError: ""
@@ -253,6 +266,15 @@ Singleton {
         root.connected = !!s.connected
         root.inCall    = !!s.inCall
         root.channel   = s.channel ?? null
+        // The call's real connect time (Discord's own log, via the helper) beats when this shell first saw it.
+        if (s.callStart > 0 && root.channel && s.callStart !== root.callStartedAt) root.callStartedAt = s.callStart
+        // Only a pictured account is remembered, and only when it differs (the file is rewritten per change).
+        const me = s.me && typeof s.me.avatar === "string" ? s.me : null
+        if (JSON.stringify(me) !== JSON.stringify(root.me)) {
+            root.me = me
+            if (me && (me.avatar !== root._seen.avatar || me.name !== root._seen.name))
+                _seenStore.value = { avatar: me.avatar, name: me.name }
+        }
         root.ping      = s.ping ?? 0
         root.status    = s.status ?? "DISCONNECTED"
         root.inputVolume  = s.inputVolume  ?? root.inputVolume
@@ -296,10 +318,11 @@ Singleton {
     property string _usersStamp: ""
 
     // ── Call duration ─────────────────────────────────────────────────────────
-    // Discord's RPC does not report when a call started, so it's timed from when this
-    // shell first saw the channel. That makes it "how long you've had this call open
-    // here", which is the same number in every normal case and honestly can't be
-    // better without data Discord doesn't send.
+    // Discord's RPC does not report when a call started. The helper reads it from the
+    // client's own log instead (`callStart`, scripts/discordlog.py: the RTC_CONNECTED line
+    // of this channel), so a shell started mid-call shows the real time. A client that
+    // writes no such log (Vesktop, WebCord) leaves it 0, and then it's timed from when
+    // this shell first saw the channel, "how long you've had this call open here".
     //
     // Keyed on the CHANNEL ID rather than on `inCall`, for two reasons:
     //   · hopping channels restarts the clock, which is what you'd expect;

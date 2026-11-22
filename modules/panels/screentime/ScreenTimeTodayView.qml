@@ -164,7 +164,7 @@ ColumnLayout {
                         anchors.fill: parent
                         shape: now.live ? "cookie9" : "circle"
                         fillColor: now.live ? Colors.of(QsWindow.window).alpha(panel.accent, 0.22)
-                                            : Colors.of(QsWindow.window).surfaceHigh
+                                            : Colors.of(QsWindow.window).plate
                     }
                     Image {
                         anchors.centerIn: parent

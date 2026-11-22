@@ -1,6 +1,9 @@
 Surface     1.0 Surface.qml
+GroundCard  1.0 GroundCard.qml
+Dumbbell    1.0 Dumbbell.qml
 Elevation   1.0 Elevation.qml
 SurfaceShadow 1.0 SurfaceShadow.qml
+ReloadCard  1.0 ReloadCard.qml
 StateLayer  1.0 StateLayer.qml
 MaterialIcon 1.0 MaterialIcon.qml
 GlassOverlay 1.0 GlassOverlay.qml
@@ -42,8 +45,6 @@ RadialGauge 1.0 RadialGauge.qml
 StatCard    1.0 StatCard.qml
 QuickToggleTile 1.0 QuickToggleTile.qml
 ShapeTile 1.0 ShapeTile.qml
-ChannelCard 1.0 ChannelCard.qml
-DeviceCard 1.0 DeviceCard.qml
 GlanceCard  1.0 GlanceCard.qml
 SpectrumPicker 1.0 SpectrumPicker.qml
 ConcaveCorner 1.0 ConcaveCorner.qml
@@ -70,6 +71,9 @@ SettingsPage 1.0 SettingsPage.qml
 SectionColumn 1.0 SectionColumn.qml
 BentoGrid 1.0 BentoGrid.qml
 ToggleChip  1.0 ToggleChip.qml
+ToggleOrb   1.0 ToggleOrb.qml
+WallEnergy  1.0 WallEnergy.qml
+PickOrderList 1.0 PickOrderList.qml
 MediaPosition 1.0 MediaPosition.qml
 MonthGrid   1.0 MonthGrid.qml
 RollText    1.0 RollText.qml
@@ -139,3 +143,14 @@ PanelHero   1.0 PanelHero.qml
 PanelRow    1.0 PanelRow.qml
 PanelEmpty  1.0 PanelEmpty.qml
 TipBubble   1.0 TipBubble.qml
+SourceRail 1.0 SourceRail.qml
+OptionCard 1.0 OptionCard.qml
+CardTool 1.0 CardTool.qml
+SearchPill 1.0 SearchPill.qml
+LitTool 1.0 LitTool.qml
+GroupHeader 1.0 GroupHeader.qml
+MediaLink 1.0 MediaLink.qml
+MediaArtists 1.0 MediaArtists.qml
+LyricsTiming 1.0 LyricsTiming.qml
+GradientFill 1.0 GradientFill.qml
+GradientPlate 1.0 GradientPlate.qml

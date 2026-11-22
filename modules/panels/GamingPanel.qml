@@ -9,6 +9,7 @@ import "../../components"
 import "../../services"
 import "../../services/gamemodewatch.js" as Watch
 import "gaming"
+import "../../services/gamefx.js" as Fx
 
 // ── GamingPanel ───────────────────────────────────────────────────────────────
 // The gamemode pill's panel, redone 2026-11-07 in the shell's Material 3 Expressive dialect, on five pages of
@@ -42,10 +43,21 @@ Item {
     property alias pagesBox: pagesBox
     property alias pg: pg
 
+    // ── As an island page ─────────────────────────────────────────────────────
+    // The same panel, laid out for the island's width (IslandCard): no title row, no outer padding
+    // (the rail names it, the card has its gutter), and Play stands on the LEFT for good — the mode,
+    // the session, today — while the other four pages take turns on the right. As tall as the taller
+    // of the two, so the card follows it.
+    // Since 2026-11-15 the left column is GamingIslandHero (the loud upright card the other pages have) and
+    // the four pages stand on a plate beside it, scrolling when one is taller than the island.
+    property bool island: false
+    readonly property int playW: Tokens.spacingXl * 14 + Tokens.spacingSm
+
     implicitWidth: Tokens.sideCardUnit * 13
-    readonly property int margin: Tokens.spacingXl
+    readonly property int margin: root.island ? 0 : Tokens.spacingXl
     readonly property int cardPad: Tokens.spacingMd + Tokens.spacingXs
-    implicitHeight: mainCol.implicitHeight + root.margin * 2
+    implicitHeight: root.island ? Math.max(playPage.implicitHeight, mainCol.implicitHeight)
+                                : mainCol.implicitHeight + root.margin * 2
 
     readonly property color accent: Colors.of(QsWindow.window).primary
 
@@ -57,6 +69,7 @@ Item {
     // Sampling runs only while the panel exists — the Loader in BarPanelDock destroys
     // it on close. Same pattern as AboutPage.
     Component.onCompleted: {
+        if (root.island) root.page = "effects"
         SysInfo.acquire()
         Gamemode.refreshGovernor()
         Gamemode.refreshGpuLevel()
@@ -102,37 +115,8 @@ Item {
     // wallpaper effect its own row had hidden). `on`/`off` are the tile's second line — what the setting does
     // right now. `blocker` is "" when the effect can do something here, else why not: the tile dims with that
     // reason as its line, and doesn't count (a missing optional tool DISABLES the control with a reason).
-    readonly property var _effects: [
-        { key: "gamemodeSession",    label: "Performance",          symbol: "speed",
-          on: "Governor, GPU clocks, priority",   off: "CPU and GPU left as they are",
-          shape: "burst", hint: "A gamemoderun session: the CPU governor, GPU clocks and priority for games" },
-        { key: "gamemodeQuiet",      label: "Silence notifications", symbol: "notifications_off",
-          on: "Held until the mode ends",         off: "Notifications stay on",
-          shape: "clover", hint: "Notifications are held until the mode ends" },
-        { key: "gamemodeIdle",       label: "Keep screen awake",    symbol: "visibility",
-          on: "The screen won't blank or lock",   off: "The screen may blank",
-          shape: "sunny", hint: "Holds an idle inhibitor while the mode is on" },
-        { key: "gamemodeWallpaper",  label: "Pause wallpaper",      symbol: "wallpaper",
-          on: "Scene stopped, back afterwards",   off: "Scene keeps running",
-          shape: "squircle", hint: "Stops the live wallpaper scene and brings it back afterwards" },
-        { key: "gamemodeVisualizer", label: "Hide visualiser",      symbol: "equalizer",
-          on: "The visualiser stops drawing",     off: "The visualiser keeps drawing",
-          shape: "cookie7", hint: "The desktop audio visualiser stops drawing" },
-        { key: "gamemodeKeys",       label: "Mute typing sounds",   symbol: "keyboard",
-          on: "No key sounds from other apps",    off: "Typing sounds stay on",
-          shape: "pentagon", hint: "A game's WASD isn't typing" },
-        { key: "gamemodeClips",      label: "Record clips",         symbol: "videocam",
-          on: "Replay buffer runs with the mode", off: "Buffer follows its own switch",
-          shape: "hexagon", hint: "Keeps the Clips replay buffer running while the mode is on" },
-        { key: "gamemodeCompositor", label: "Lighter desktop",      symbol: "blur_on",
-          on: "Blur, shadows, animations off",    off: "Desktop untouched",
-          shape: "cookie12", hint: "Blur, shadows and animations off in Hyprland, then put back as they were" },
-    ]
-    function _blocker(key) {
-        if (key === "gamemodeWallpaper") return WallpaperEngine.installed ? "" : "linux-wallpaperengine isn't installed"
-        if (key === "gamemodeClips")     return !Config.clips ? "Clips is turned off in Settings" : Clips.blocker()
-        return ""
-    }
+    readonly property var _effects: Fx.EFFECTS
+    function _blocker(key) { return Gamemode.effectBlocker(key) }
     // The wallpaper tile is the one that hides outright: the scene renderer is an optional AUR build.
     function _shown(key) { return key !== "gamemodeWallpaper" || WallpaperEngine.installed }
     // The tile's second line: why not, else what it does now (the performance one names the live governor).
@@ -193,18 +177,39 @@ Item {
         off:     "No overlay in games"
     })
 
+    Loader {
+        id: playBox
+        active: root.island
+        visible: root.island
+        width: root.playW
+        height: root.height
+        // Not `panel: root` inside a component whose own property is `panel`: the id is unambiguous.
+        sourceComponent: GamingIslandHero { panel: root }
+    }
+    Rectangle {
+        id: rightPlate
+        visible: root.island
+        x: root.playW + Tokens.spacingMd
+        width: root.width - x
+        height: root.height
+        radius: Tokens.radiusXl
+        color: Colors.of(QsWindow.window).section
+    }
+
     ColumnLayout {
         id: mainCol
+        parent: root.island ? rightPlate : root
         anchors.top:   parent.top
         anchors.left:  parent.left
         anchors.right: parent.right
-        anchors.margins: root.margin
+        anchors.bottom: root.island ? parent.bottom : undefined
+        anchors.margins: root.island ? Tokens.spacingMd : root.margin
         spacing: Tokens.spacingSm
 
         // ── Header (Settings › Bar › Game mode hides it) ──────────────────────
         PanelHeader {
             Layout.fillHeight: false
-            visible: Config.gamemodePanelHeader()
+            visible: Config.gamemodePanelHeader() && !root.island
             symbol:    "sports_esports"
             title:     Translation.tr("Game")
             titleTail: Translation.tr("Mode")
@@ -214,6 +219,60 @@ Item {
                 if (l !== "") return l
                 return (root._follows ? "Follows games" : "By hand") + " · "
                        + root._effectCount + " of " + root._effectTotal + " effects"
+            }
+        }
+
+        // ── Memory: what to close first (island; the Play page has its own) ──
+        // Only when RAM is getting full and something big is open. Close asks the window politely.
+        Rectangle {
+            id: hogStrip
+            readonly property var rows: Gamemode.hogs.filter(h => h.rssMb >= 400).slice(0, 2)
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            visible: root.island && SysInfo.memFraction > 0.8 && hogStrip.rows.length > 0
+            implicitHeight: hogCol.implicitHeight + Tokens.spacingSm * 2
+            radius: Tokens.radiusCard
+            color: Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceHigh, Colors.of(QsWindow.window).warning, 0.18)
+            ColumnLayout {
+                id: hogCol
+                anchors.fill: parent
+                anchors.margins: Tokens.spacingSm
+                anchors.leftMargin: Tokens.spacingMd
+                spacing: Tokens.spacingXs
+                StyledText {
+                    text: Translation.tr("RAM %1% used. Close something big?").arg(Math.round(SysInfo.memFraction * 100))
+                    variant: "caption"
+                    font.weight: Font.DemiBold
+                }
+                Repeater {
+                    model: hogStrip.rows
+                    delegate: RowLayout {
+                        id: hog
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.fillHeight: false
+                        spacing: Tokens.spacingSm
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: hog.modelData.class
+                            variant: "label"
+                            elide: Text.ElideRight
+                        }
+                        StyledText {
+                            text: hog.modelData.rssMb >= 1024 ? Translation.tr("%1 GB").arg((hog.modelData.rssMb / 1024).toFixed(1))
+                                                              : Translation.tr("%1 MB").arg(Math.round(hog.modelData.rssMb))
+                            variant: "caption"
+                            font.features: ({ tnum: 1 })
+                        }
+                        ChipButton {
+                            symbol: "close"
+                            label: Translation.tr("Close")
+                            tonal: true
+                            tint: root.accent
+                            onActivated: Gamemode.closeHog(hog.modelData)
+                        }
+                    }
+                }
             }
         }
 
@@ -231,15 +290,27 @@ Item {
                 { value: "tune",    label: "Tune",    icon: "tune" },
                 { value: "history", label: "History", icon: "history" },
                 { value: "setup",   label: "Setup",   icon: "settings_suggest", lit: root._stalled },
-            ]
+            ].filter(p => !root.island || p.value !== "play")
             current: root.page
             onPicked: function (value) { root.page = value }
         }
 
+        // On an island the pages scroll inside the plate when one is taller than it.
+        Flickable {
+            id: pageScroll
+            Layout.fillWidth: true
+            Layout.fillHeight: root.island
+            Layout.preferredHeight: root.island ? -1 : pagesBox.implicitHeight
+            contentWidth: width
+            contentHeight: pagesBox.implicitHeight
+            interactive: root.island && contentHeight > height + 1
+            clip: root.island
+            boundsBehavior: Flickable.StopAtBounds
+
         Item {
             id: pagesBox
-            Layout.fillWidth: true
-            Layout.fillHeight: false
+            width: pageScroll.width
+            height: pagesBox.implicitHeight
             clip: true
             // As tall as the page you are on, not the tallest: the surface grows and shrinks with it on a
             // spring (no overshoot — a panel that bounces its own size reads as a glitch), so there is never
@@ -251,9 +322,11 @@ Item {
             Component.onCompleted: hv.jump(pagesBox.wanted)
 
             // ══ PLAY ══════════════════════════════════════════════════════════
+            // On an island GamingIslandHero stands in for it, and the pager never shows it.
             GamingPlayView {
                 id: playPage
                 panel: root
+                enabled: !root.island
             }
 
             // ══ EFFECTS ═══════════════════════════════════════════════════════
@@ -280,5 +353,6 @@ Item {
                 panel: root
             }
         }
+        } // end pageScroll
     }
 }

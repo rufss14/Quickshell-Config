@@ -28,3 +28,5 @@ DevicesWidget 1.0 DevicesWidget.qml
 TogglesWidget 1.0 TogglesWidget.qml
 StackWidget 1.0 StackWidget.qml
 HabitsWidget 1.0 HabitsWidget.qml
+GaugeFace           1.0 GaugeFace.qml
+GaugeWidget         1.0 GaugeWidget.qml

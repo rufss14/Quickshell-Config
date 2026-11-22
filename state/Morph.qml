@@ -37,6 +37,9 @@ QtObject {
     // …and whether that plugin draws the cookie field in the material (MorphCookieProbe): false for
     // one built before BlobGroup.cookies existed — then the cookies stay QML windows (services/Drift).
     property bool cookies: false
+    // …and whether it draws a gradient fill (MorphGradientProbe): false for one built before
+    // BlobGroup.gradMid existed. The gradient control says so instead of doing nothing.
+    property bool gradient: false
 
     // ── The blob's join geometry, in ONE place ────────────────────────────────
     // caelestia's border.smoothing default, verified in their
@@ -68,6 +71,9 @@ QtObject {
             const probe = Qt.createComponent(Qt.resolvedUrl("../components/blob/MorphCookieProbe.qml"))
             root.cookies = probe.status === Component.Ready
             probe.destroy()
+            const grad = Qt.createComponent(Qt.resolvedUrl("../components/blob/MorphGradientProbe.qml"))
+            root.gradient = grad.status === Component.Ready
+            grad.destroy()
             comp.destroy()
         } else if (comp.status === Component.Error) {
             // Expected on any machine that hasn't built the plugin — not an

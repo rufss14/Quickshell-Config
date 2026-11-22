@@ -417,7 +417,7 @@ ColumnLayout {
                     StyledText {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: Qt.formatDate(panel.now, "ddd, d MMM")
-                            + (Weather.hasLocation && !Config.clockPanelHeader() ? "  ·  " + Weather.place : "")
+                            + (Weather.hasLocation && !Config.clockPanelHeader() ? "  ·  " + StreamMode.mask(Weather.place) : "")
                         variant: "caption"
                         emphasis: "dim"
                     }
@@ -950,7 +950,7 @@ ColumnLayout {
                                 x: Math.max(0, Math.min(range.width - width, at * range.width - width / 2))
                                 color: Colors.of(QsWindow.window).fg
                                 border.width: Tokens.borderWidth
-                                border.color: Colors.of(QsWindow.window).surfaceContainer
+                                border.color: Colors.of(QsWindow.window).plateLow
                                 opacity: range.grow >= 1 ? 1 : 0
                                 Behavior on opacity { NumberAnimation { duration: Motion.standard } }
                             }

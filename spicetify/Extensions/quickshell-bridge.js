@@ -139,7 +139,7 @@
     // coming up, and waitForTrack() calls this at load.
     function trackInfo() {
         try { return readTrack(); } catch (e) {
-            return { trackUri: "", title: "", artist: "", album: "", durationMs: 0 };
+            return { trackUri: "", title: "", artist: "", album: "", albumUri: "", artists: [], durationMs: 0 };
         }
     }
     function readTrack() {
@@ -152,11 +152,21 @@
             ? artists.map(a => a.name || a.title || "").filter(Boolean).join(", ")
             : (meta.artist_name || "");
 
+        // The ids the media page's links need (the album, each artist). They are on the item in the
+        // shape Spotify's own queue and album pages use; absent ones stay "" / [] and the shell falls back
+        // to a search for the names.
+        const credits = Array.isArray(artists)
+            ? artists.map(a => ({ name: String((a && (a.name || a.title)) || ""), uri: String((a && a.uri) || "") }))
+                     .filter(a => a.name !== "").slice(0, 8)
+            : [];
+
         return {
             trackUri:   item.uri || meta.uri || "",
             title:      item.name || meta.title || "",
             artist:     artist,
             album:      (item.album && item.album.name) || meta.album_title || "",
+            albumUri:   String((item.album && item.album.uri) || meta.album_uri || ""),
+            artists:    credits,
             durationMs: (item.duration && item.duration.milliseconds)
                         || Number(meta.duration) || 0
         };
@@ -195,6 +205,8 @@
             title:      info.title,
             artist:     info.artist,
             album:      info.album,
+            albumUri:   info.albumUri,
+            artists:    info.artists,
             durationMs: info.durationMs,
             positionMs: positionMs,
             playing:    playing,
@@ -210,6 +222,239 @@
                 keepalive: true
             }).catch(() => {});     // shell not running is the normal case, not an error
         } catch (e) { /* never let the bridge break playback */ }
+    }
+
+    // ── The queue, and the Jam it may belong to ───────────────────────────────
+    // What the media page's Queue tab draws. Read from Spotify's own queue state (`Spicetify.Queue`: the
+    // current track, `nextTracks` with a provider each: "queue" is what someone added, "context" what the
+    // album or playlist goes on with, "autoplay" Spotify's own) and the Jam (`Platform.SocialConnectAPI`'s
+    // current session: its members, who hosts). Sent as a snapshot when it CHANGES (a signature of the
+    // revision and the first rows), and re-stated every QUEUE_REPOST_MS so a restarted shell gets it back.
+    // Capped: the shell shows QUEUE_ROWS rows and is told how many more there are.
+    //
+    // Checked from `onprogress` (playback-driven, so it survives the throttling that flattens timers, see 6
+    // above) and from the heartbeat; Spotify's own queue events are listened to as well where they exist.
+    // `queued_by` on a row is the username of whoever added it in a Jam; names are resolved in the shell
+    // from the members sent here.
+    const QUEUE_ROWS = 40;
+    const QUEUE_REPOST_MS = 15000;
+    let queueSig = "";
+    let queuePostAt = 0;
+
+    function queueRow(t) {
+        const c = (t && t.contextTrack) || {};
+        const m = c.metadata || {};
+        const uri = String(c.uri || "");
+        if (!uri || uri.indexOf("spotify:delimiter") === 0) return null;
+        return {
+            uid: String(c.uid || ""),
+            uri: uri,
+            title: String(m.title || m.name || ""),
+            artist: String(m.artist_name || ""),
+            album: String(m.album_title || ""),
+            image: String(m.image_small_url || m.image_url || m.image_large_url || ""),
+            by: String(m.queued_by || ""),
+            provider: String(t.provider || ""),
+            durationMs: Number(m.duration) || 0
+        };
+    }
+    function readJam() {
+        const api = Spicetify.Platform && Spicetify.Platform.SocialConnectAPI;
+        const sess = api && api.getCurrentSession && api.getCurrentSession();
+        if (!sess || !sess.sessionId) return null;
+        const members = (sess.sessionMembers || []).slice(0, 32).map(u => ({
+            id: String(u.id || ""),
+            username: String(u.username || ""),
+            name: String(u.displayName || u.username || ""),
+            image: String(u.imageUrl || u.largeImageUrl || ""),
+            you: !!u.isCurrentUser,
+            host: u.id === sess.sessionOwnerId
+        }));
+        return {
+            active: sess.active !== false,
+            youHost: !!sess.isSessionOwner,
+            queueOnly: !!sess.queueOnlyMode,
+            volumeControl: sess.participantVolumeControl === "ENABLED",
+            // Spotify offers the switch only when the session can have one (its own panel hides it on UNAVAILABLE).
+            volumeAvailable: sess.participantVolumeControl !== undefined && sess.participantVolumeControl !== "UNAVAILABLE",
+            link: jamInvite.sid === sess.sessionId ? jamInvite.link : "",
+            members: members
+        };
+    }
+    // The invite link of the Jam we are in (Spotify's own short link), fetched once per session.
+    let jamInvite = { sid: "", link: "", busy: false };
+    function fetchInvite() {
+        const api = Spicetify.Platform && Spicetify.Platform.SocialConnectAPI;
+        const sess = api && api.getCurrentSession && api.getCurrentSession();
+        if (!sess || !sess.sessionId || jamInvite.busy || jamInvite.sid === sess.sessionId) return;
+        jamInvite = { sid: sess.sessionId, link: "", busy: true };
+        Promise.resolve(api.getShortInviteLinks(sess.joinSessionToken, sess.joinSessionUri)).then(r => {
+            // Spotify answers each invite as { shareableUrl, shareId, spotifyUri }; the first is the share link.
+            const first = Array.isArray(r) ? r[0] : null;
+            const l = first && typeof first.shareableUrl === "string" ? first.shareableUrl : "";
+            jamInvite = { sid: sess.sessionId, link: l.indexOf("https://") === 0 ? l : "", busy: false };
+            setTimeout(postQueue, 0);
+        }).catch(() => { jamInvite = { sid: "", link: "", busy: false }; });
+    }
+    // The raw queue reply Spotify holds: { track, nextTracks, prevTracks, queueRevision }. The player keeps it one level
+    // down, in `_queue._queue` (its `_queue` is the wrapper that owns the reply, and the wrapper has no nextTracks).
+    const DJ_URI = "spotify:playlist:37i9dQZF1EYkqdzj48dyYq";
+    function isDjContext(d) {
+        const c = d && d.context;
+        return !!(c && c.uri === DJ_URI);
+    }
+    function queueOf() {
+        const o = Spicetify.Player && Spicetify.Player.origin;
+        const w = o && o._queue;
+        return (w && (w._queue || w)) || null;
+    }
+    function readQueue() {
+        const q = queueOf();
+        if (!q) return null;
+        const all = Array.isArray(q.nextTracks) ? q.nextTracks : [];
+        const next = [];
+        for (let i = 0; i < all.length && next.length < QUEUE_ROWS; i++) {
+            const r = queueRow(all[i]);
+            if (r) next.push(r);
+        }
+        const d = readPlayer(() => Spicetify.Player.data, null) || {};
+        const ctx = (d.context && d.context.metadata && d.context.metadata.context_description) || "";
+        // The track that plays now is the player's current item, in the same shape as a queue row.
+        const it = d.item || d.track || null;
+        const cur = it ? queueRow({ provider: "context", contextTrack: {
+            uri: it.uri || "", uid: it.uid || "", metadata: Object.assign({}, it.metadata || {}, {
+                title: it.name || "", artist_name: (it.artists || []).map(a => a.name).join(", "),
+                album_title: (it.album && it.album.name) || "", image_url: (it.images && it.images[0] && it.images[0].url) || "",
+                duration: (it.duration && it.duration.milliseconds) || 0 }) } }) : null;
+        return {
+            type: "queue",
+            rev: String(q.queueRevision || ""),
+            current: cur,
+            next: next,
+            more: Math.max(0, all.length - next.length),
+            context: String(ctx),
+            liked: !!readPlayer(() => Spicetify.Player.getHeart(), false),
+            // Playing Spotify's DJ: it picks the songs as it goes, so there is no queue to show.
+            dj: isDjContext(d),
+            jam: readJam()
+        };
+    }
+    function queueSignature() {
+        const q = queueOf();
+        if (!q) return "";
+        const n = Array.isArray(q.nextTracks) ? q.nextTracks : [];
+        const first = i => (n[i] && n[i].contextTrack && n[i].contextTrack.uid) || "";
+        const j = readPlayer(() => Spicetify.Platform.SocialConnectAPI.getCurrentSession(), null);
+        return [readPlayer(() => Spicetify.Player.getHeart(), false), isDjContext(Spicetify.Player.data || {}), q.queueRevision, Spicetify.Player.data && Spicetify.Player.data.item && Spicetify.Player.data.item.uid,
+                n.length, first(0), first(1), first(2),
+                j ? (j.sessionId + ":" + (j.sessionMembers || []).length) : ""].join("|");
+    }
+    function postQueue() {
+        let snap = null;
+        try { snap = readQueue(); } catch (e) { snap = null; }
+        if (!snap) return;
+        queuePostAt = performance.now();
+        queueSig = queueSignature();
+        try {
+            fetch(URL, {
+                method: "POST", mode: "no-cors", keepalive: true,
+                headers: { "Content-Type": "text/plain" },
+                body: JSON.stringify(snap)
+            }).catch(() => {});
+        } catch (e) { /* never let the bridge break playback */ }
+    }
+    function maybePostQueue() {
+        let sig = "";
+        try { sig = queueSignature(); } catch (e) { return; }
+        if (readJam()) fetchInvite();
+        if (sig === "") return;
+        if (sig !== queueSig || performance.now() - queuePostAt >= QUEUE_REPOST_MS) postQueue();
+    }
+    // Spotify's own queue events, where this build has them; the checks above cover it when it does not.
+    try {
+        const ev = Spicetify.Player.origin && Spicetify.Player.origin._events;
+        if (ev && ev.addListener) {
+            ev.addListener("queue_update", () => setTimeout(postQueue, 50));
+            ev.addListener("queue_action_complete", () => setTimeout(postQueue, 50));
+        }
+    } catch (e) { /* the revision check still runs */ }
+
+    // The shell's request to change the queue (the bridge's mailbox `queueop`): move a row, or remove one.
+    // Spotify's own PlayerAPI does it, as its queue panel does: `reorderQueue(items, {before|after: anchor})`
+    // and `removeFromQueue(items)`, each item `{ uri, uid }`. The report goes back as `queue-done`, and a
+    // fresh snapshot follows at once so the page shows what Spotify now holds.
+    async function queueOp(cmd) {
+        let ok = false, error = "", link = "";
+        try {
+            const api = Spicetify.Player.origin || (Spicetify.Platform && Spicetify.Platform.PlayerAPI);
+            if (!api) throw new Error("no player api");
+            const item = { uri: String(cmd.uri || ""), uid: cmd.uid ? String(cmd.uid) : null };
+            if (cmd.op === "reorder") {
+                if (typeof api.reorderQueue !== "function") throw new Error("this Spotify cannot reorder");
+                const anchor = { uri: String(cmd.anchorUri || ""), uid: cmd.anchorUid ? String(cmd.anchorUid) : null };
+                await api.reorderQueue([item], cmd.where === "after" ? { after: anchor } : { before: anchor });
+            } else if (cmd.op === "lyrics") {
+                // The shell asks again for this track's lyrics (its empty card was tapped): a fresh request, no cooldown.
+                fetchLyrics(String(cmd.uri || ""), true);
+            } else if (cmd.op === "open") {
+                // Navigates the app itself (its own router), so the page opens in Spotify and nothing plays.
+                const u = String(cmd.uri || "");
+                const m = /^spotify:(album|artist|playlist):([A-Za-z0-9]{22})$/.exec(u);
+                const path = m ? "/" + m[1] + "/" + m[2]
+                    : u.indexOf("spotify:search:") === 0 ? "/search/" + encodeURIComponent(u.slice(15)) : "";
+                if (!path) throw new Error("nothing to open");
+                const H = Spicetify.Platform && Spicetify.Platform.History;
+                if (!H || typeof H.push !== "function") throw new Error("this Spotify cannot navigate");
+                H.push(path);
+            } else if (cmd.op === "jamset") {
+                // The Jam's settings and members, through the same session API Spotify's own Jam panel uses.
+                const soc2 = Spicetify.Platform && Spicetify.Platform.SocialConnectAPI;
+                if (!soc2) throw new Error("this Spotify has no Jam API");
+                if (cmd.what === "queueOnly") await soc2.setQueueOnlyMode(!cmd.value);       // "let others change what's playing"
+                else if (cmd.what === "volume") await soc2.setParticipantVolumeControl(!!cmd.value);
+                else if (cmd.what === "remove") await soc2.removeSessionMember(String(cmd.member || ""));
+                else throw new Error("unknown Jam setting");
+            } else if (cmd.op === "jam") {
+                // A Jam, through Spotify's own social session API. "start" makes one and returns its invite link; "end" is
+                // for the host (ends it for everyone); "leave" is for a guest. Refused where the API is not there.
+                const soc = Spicetify.Platform && Spicetify.Platform.SocialConnectAPI;
+                if (!soc) throw new Error("this Spotify has no Jam API");
+                if (cmd.value === "start") {
+                    const s = await soc.createSession();
+                    if (!s || !s.joinSessionShortLink) throw new Error("Spotify did not start a Jam");
+                    link = String(s.joinSessionShortLink);
+                } else if (cmd.value === "end") {
+                    if (!(await soc.deleteSession())) throw new Error("Spotify did not end the Jam");
+                } else {
+                    if (!(await soc.leaveSession())) throw new Error("Spotify did not leave the Jam");
+                }
+            } else if (cmd.op === "play") {
+                // Only the DJ (the bridge allowlists the uri); the client starts its own station.
+                if (cmd.uri !== "spotify:playlist:37i9dQZF1EYkqdzj48dyYq") throw new Error("not the DJ");
+                await Spicetify.Player.playUri(cmd.uri);
+            } else if (cmd.op === "like") {
+                // Saves or unsaves the track that is playing, as Spotify's own heart does. Refused for any other track.
+                if (trackInfo().trackUri !== cmd.uri) throw new Error("that is not the song playing now");
+                if (typeof Spicetify.Player.setHeart !== "function") throw new Error("this Spotify cannot save songs");
+                await Spicetify.Player.setHeart(!!cmd.value);
+            } else if (cmd.op === "remove") {
+                if (typeof api.removeFromQueue !== "function") throw new Error("this Spotify cannot remove");
+                await api.removeFromQueue([item]);
+            } else {
+                throw new Error("unknown op");
+            }
+            ok = true;
+        } catch (e) {
+            error = String((e && e.message) || e).slice(0, 160);
+        }
+        try {
+            fetch(URL, {
+                method: "POST", mode: "no-cors", keepalive: true,
+                headers: { "Content-Type": "text/plain" },
+                body: JSON.stringify({ type: "queue-done", seq: cmd.seq, ok: ok, error: error, link: link })
+            }).catch(() => {});
+        } catch (e) { /* the bridge times the request out */ }
+        setTimeout(postQueue, 150);
     }
 
     // ── Lyrics ────────────────────────────────────────────────────────────────
@@ -277,9 +522,14 @@
 
     const MAX_ATTEMPTS = 3;
 
-    async function fetchLyrics(uri) {
+    // The lyrics service sometimes answers HTTP 200 with { error } in the payload (a rate limit: "Too Many Requests").
+    // That is a failure, not a payload; and it must not be retried at once, or every heartbeat hits the limit again.
+    let lyricsCooldownUntil = 0;
+    async function fetchLyrics(uri, force) {
         if (!uri || !uri.startsWith("spotify:track:")) return;
-        if (uri === lyricsHaveFor) return;                 // already have them
+        if (!force && uri === lyricsHaveFor) return;       // already have them
+        if (!force && Date.now() < lyricsCooldownUntil) return;
+        if (force) { lyricsCooldownUntil = 0; lyricsTriedFor = null; lyricsAttempts = 0; }
 
         if (uri === lyricsTriedFor) {
             // Retrying the same track: bounded, so a track their database genuinely does
@@ -339,6 +589,11 @@
             }
             if (!payload && jobs.length > 0) payload = jobs[0].result && jobs[0].result.data;
 
+            if (payload && typeof payload.error === "string") {
+                if (/too many/i.test(payload.error)) lyricsCooldownUntil = Date.now() + 120000;
+                postLyrics(uri, null, "lyrics service: " + payload.error.slice(0, 80));
+                return;
+            }
             postLyrics(uri, payload, payload ? "" : "no payload");
         } catch (e) {
             postLyrics(uri, null, String(e && e.message ? e.message : e));
@@ -386,6 +641,7 @@
             lastUri = uri;
             post("songchange");
             fetchLyrics(uri);
+            setTimeout(postQueue, 250);
         }, 80);
     });
 
@@ -398,6 +654,8 @@
         const now = performance.now();
         const posMs = (e && typeof e.data === "number") ? e.data
                                                         : (Spicetify.Player.getProgress() || 0);
+
+        maybePostQueue();
 
         // A track change can land here before songchange does; treat it as an anchor.
         const uri = trackInfo().trackUri;
@@ -492,6 +750,7 @@
     let beats = 0;
     setInterval(function () {
         post("heartbeat");
+        maybePostQueue();
 
         // The restyle poll rides the heartbeat too (see pollEvents): requests made as
         // the page loads were measured to vanish in Spotify — not even the "init"
@@ -601,7 +860,7 @@
     // to be seen. So the extension reports on itself through the one path measured to
     // work (an anchor-shaped POST): which build is running, and every way the poll
     // fails. The bridge logs it; SpotifyBridge prints it. States and error names only.
-    const EXT_BUILD = "mailbox-10";     // restyle-8 + the mailbox and "play X" via searchSuggestions (2026-10-24)
+    const EXT_BUILD = "mailbox-22";     // restyle-8 + the mailbox and "play X" via searchSuggestions (2026-10-24), + ids, the queue and queue ops (2026-11-14)
     let pollFailures = 0;
     function say(what) {
         try {
@@ -620,9 +879,10 @@
     // ── The mailbox: what the bridge wants, read through a stylesheet ─────────
     // A woken poll says only THAT something is waiting — its reply is opaque (no-cors). /mailbox.css sets
     // `#qs-mailbox::after { content: "<base64 JSON>" }`, and computed style is readable whatever origin the
-    // sheet came from, so this loads it and reads it back: { restyle: seq?, play: { seq, query, kind }? }.
+    // sheet came from, so this loads it and reads it back: { restyle: seq?, play: { seq, query, kind }?, queueop: { seq, op, uid, uri, … }? }.
     // An older bridge has no mailbox (the sheet fails to load) → null, and the caller restyles as before.
     let lastPlaySeq = 0;
+    let lastQopSeq = 0;
     function checkMail() {
         return new Promise(done => {
             let box = document.getElementById("qs-mailbox");
@@ -736,6 +996,10 @@
             if (mail && mail.play && mail.play.seq !== lastPlaySeq) {
                 lastPlaySeq = mail.play.seq;
                 jobs.push(playByName(mail.play));
+            }
+            if (mail && mail.queueop && mail.queueop.seq !== lastQopSeq) {
+                lastQopSeq = mail.queueop.seq;
+                jobs.push(queueOp(mail.queueop));
             }
             return Promise.all(jobs);
         });

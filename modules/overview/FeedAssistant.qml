@@ -6,7 +6,7 @@ import "../../components"
 import "../../services"
 
 // ── FeedAssistant ─────────────────────────────────────────────────────────────
-// The left face's AI page (OverviewFeed): a chat with the provider the launcher's `?` uses (Ai — a
+// The drawer's AI page (OverviewFeed): a chat with the provider the launcher's `?` uses (Ai — a
 // model on this machine by default, Claude Pro, or an API key) that OPERATES the shell — colours,
 // settings, wallpaper, sound, brightness, media, workspaces, apps, timers, the shell's own actions
 // (services/Assistant + assistant.js, which decide what's allowed). Changes happen as the reply lands,
@@ -205,8 +205,6 @@ Item {
                 clip: true
                 spacing: Tokens.spacingMd
                 boundsBehavior: Flickable.StopAtBounds
-                // Scrolled by the face's wheel and drag (OverviewFeed); a mouse drag here is the swipe.
-                interactive: false
                 model: thread
 
                 delegate: ChatMessage {
@@ -279,9 +277,7 @@ Item {
                             height: (root.pendingText !== "" ? live.height : hop.height) + (root.pendingActs ? prep.implicitHeight + Tokens.spacingXs : 0) + padV * 2
                             radius: Tokens.radiusPill
                             topLeftRadius: 5
-                            color: Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceContainer, 0.94)
-                            border.width: Tokens.borderWidth
-                            border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.07)
+                            color: Colors.of(QsWindow.window).surfaceHigh
                             Behavior on width { NumberAnimation { duration: Motion.standard; easing.type: Motion.travel } }
 
                             // Three dots that hop one after another.

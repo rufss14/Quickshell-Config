@@ -62,6 +62,15 @@ ConfigShell {
     // apps, shared by neighbours — two running apps side by side sit in ONE pill,
     // the way adjacent occupied workspaces merge in the workspaces pill.
     property bool   dockInnerPill:  false
+    // A quiet tile behind each app icon on the sidebar's dock, so icons of different
+    // shapes (a disc, a square, a logo) read as one set. Icons keep their own colours.
+    property bool   dockIconPlate:  true
+    // The bars' docks (the sidebar's and the top bar's) show this many app slots whatever is
+    // running, so they never change length; more apps scroll. Empty slots are dots, as in the
+    // workspace pill. 0 = grow with the apps.
+    property int    dockSlots:      5
+    readonly property int dockSlotsMax: 10
+    readonly property int dockSlotCount: Math.max(0, Math.min(root.dockSlotsMax, Math.round(root.dockSlots)))
     // Icons swell toward the pointer, growing out of the dock (DockIconStrip).
     property bool   dockMagnify:    false
     // How big the icon under the pointer gets, as a multiple of its size.
@@ -337,12 +346,16 @@ ConfigShell {
     // preference, only by a click in this session.
     //   karaokeWords               also match the words sung, when a speech model is there
     //                              (timing alone otherwise)
+    //   karaokeDiscord             while in a Discord call, also listen to the call's audio, so the friends in it
+    //                              can sing (a second helper on the call's playback stream; only runs while Karaoke
+    //                              is on AND Discord says you are in a call)
     //   karaokeSkipHeadphoneCheck  run without headphones. The mic then hears the song, so the
     //                              cell can light from the music itself; for a form factor
     //                              PipeWire reports wrong
     //   karaokeModelDir            a Vosk model directory. "" is the default places, resolved in
     //                              exactly one spot (Karaoke.modelDirs), never a literal home here
     property bool   karaokeWords: true
+    property bool   karaokeDiscord: true
     property bool   karaokeSkipHeadphoneCheck: false
     //   karaokeStayAtEnd           while Karaoke is on, pause the song at its end instead of letting the
     //                              player roll on into the next one — the results are on screen, and the

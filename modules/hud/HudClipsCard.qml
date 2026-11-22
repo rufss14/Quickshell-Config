@@ -8,18 +8,20 @@ import "../../components"
 import "../../services"
 import "../../state"
 import "../../services/clips.js" as ClipsJs
-
 import "../../services/clockfmt.js" as ClockFmt
+
 // ── HudClipsCard ──────────────────────────────────────────────────────────────
-// The clip recorder as the Clips panel draws it (2026-10-20, the user: "make it sort of like
-// the panel"), at the card's height: flat tiles on the section fill —
-//   · Clipping: the buffer as a ring (how much of its length it holds; "Off" when off), what
-//     it holds, its switch; washed with the accent while it runs;
-//   · Clip it (a scissors cookie — the whole buffer) and the shortest lengths it can cut,
-//     then Record (a cookie: record ↔ stop) with the running time; washed red while it records;
-// and, beside them, the last clips as a deck (play, drag out as a file, the gallery). Replaced
-// the timeline-with-notches card. Everything is services/Clips; a missing recorder disables the
-// controls and says why. Holds the seconds clock only while something is running.
+// The clip recorder, in the order you reach for it. Three things in a row:
+//   · Instant replay: the buffer as one plate, the loud one (accent container) while it runs: how
+//     long it holds in large figures, a bar for how full that is, its switch. It keeps the last few
+//     minutes of the screen in memory so a moment can be saved AFTER it happened.
+//   · Save last: one press per length (the shortest few the buffer allows, then all of it), and
+//     Record beside them, red while it records. A press waits the configured seconds first when
+//     "clip ahead" is on, and says so with a cancel.
+//   · The newest clip: play it, drag it out as a file, open the gallery. Rest on it and it plays,
+//     muted and looping.
+// Everything is services/Clips; a missing recorder disables the controls and says why. Holds the
+// seconds clock only while something is running.
 // ─────────────────────────────────────────────────────────────────────────────
 HudCard {
     id: root
@@ -46,82 +48,47 @@ HudCard {
         ? Math.max(0, (root.nowMs - Clips.recordSince) / 1000) : 0
     readonly property real aheadLeft: Clips.aheadWaiting
         ? Math.max(0, Clips.ahead.delay - (root.nowMs - Clips.ahead.at) / 1000) : 0
+    // How full the buffer is, 0..1.
+    readonly property real bufferFill: !Clips.buffering || Clips.since <= 0 ? 0
+        : Math.max(0, Math.min(1, (root.nowMs - Clips.since) / 1000 / Math.max(1, Clips.bufferSeconds)))
 
-    // Only what the tiles don't already say: why it can't run, or that it's recording.
+    // Only what the plates don't already say: why it can't run, or that it's recording.
     status: root.blocked !== "" ? root.blocked
         : Clips.mode === "record" ? (Clips.paused ? Translation.tr("Recording paused · %1") : Translation.tr("Recording · %1"))
                                     .arg(ClockFmt.clock(root.recordSecs))
         : ""
 
-    // How full the buffer is, 0..1 (the panel's ring).
-    readonly property real bufferFill: !Clips.buffering || Clips.since <= 0 ? 0
-        : Math.max(0, Math.min(1, (root.nowMs - Clips.since) / 1000 / Math.max(1, Clips.bufferSeconds)))
-
-    // ── The Clips panel's tiles, at the card's height ─────────────────────────
-    // Flat tiles on the section fill (the panel's Tile), the top one washed with the accent
-    // while the buffer runs.
-    ColumnLayout {
+    // ══ Instant replay: the buffer ═══════════════════════════════════════════
+    Rectangle {
+        id: replay
+        readonly property color ink: Clips.buffering ? root.pal.fgOnPrimaryContainer : root.pal.fg
+        readonly property color inkDim: Clips.buffering ? root.pal.alpha(root.pal.fgOnPrimaryContainer, 0.72) : root.pal.fgMuted
         Layout.fillWidth: true
         Layout.fillHeight: true
-        spacing: Tokens.spacingSm
+        Layout.minimumWidth: Tokens.sideCardUnit * 4
+        radius: Tokens.radiusCard
+        color: Clips.buffering ? root.pal.primaryContainer : root.pal.section
+        Behavior on color { ColorAnimation { duration: Motion.standard } }
         enabled: root.blocked === ""
 
-        // ══ Clipping: the buffer as a ring, its switch ═════════════════════════
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            radius: Tokens.radiusCard
-            color: Colors.of(QsWindow.window).section
-            Rectangle {
-                anchors.fill: parent
-                radius: parent.radius
-                color: Clips.buffering ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).focus, 0.07) : "transparent"
-                Behavior on color { ColorAnimation { duration: Motion.standard } }
-            }
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: Tokens.spacingMd
+            spacing: 0
+
             RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: Tokens.spacingSm
-                anchors.rightMargin: Tokens.spacingMd
-                spacing: Tokens.spacingMd
-                RadialGauge {
-                    readonly property int d: Math.max(Tokens.iconXl, parent.height - Tokens.spacingSm * 2)
-                    Layout.preferredWidth: d
-                    Layout.preferredHeight: d
-                    thickness: Tokens.spacingXs + 1
-                    value: root.bufferFill
-                    accent: Clips.buffering ? root.accent : Colors.of(QsWindow.window).fgFaint
-                    sampleInterval: 1000
-                    StyledText {
-                        anchors.centerIn: parent
-                        text: Clips.buffering ? ClockFmt.clock(root.heldSecs) : "Off"
-                        variant: "micro"
-                        font.weight: Font.DemiBold
-                        emphasis: Clips.buffering ? "normal" : "dim"
-                    }
-                }
-                ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+                spacing: Tokens.spacingSm
+                StyledText {
                     Layout.fillWidth: true
-                    Layout.fillHeight: false
-                    Layout.alignment: Qt.AlignVCenter
-                    spacing: 0
-                    // Named for what it does: it is an instant replay — the screen's last minutes, kept so a moment can be
-                    // saved AFTER it happened. ("Clipping" read as the verb for cutting.)
-                    StyledText {
-                        text: Translation.tr("Instant replay")
-                        variant: "label"
-                        font.weight: Font.DemiBold
-                        HoverTip {
-                            text: Translation.tr("Keeps the last few minutes of your screen in memory, so you can save a moment after it happens.")
-                        }
-                    }
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: Clips.buffering ? Translation.tr("On · remembering the last %1").arg(ClockFmt.clock(root.heldSecs))
-                            : Clips.clipping ? (Clips.gaveUp ? Translation.tr("Stopped — it kept failing") : Translation.tr("Starting…"))
-                            : Translation.tr("Off · turn on to keep the last %1").arg(ClipsJs.span(Clips.bufferSeconds))
-                        variant: "micro"
-                        emphasis: "dim"
-                        elide: Text.ElideRight
+                    text: Translation.tr("Instant replay")
+                    variant: "label"
+                    font.weight: Font.DemiBold
+                    color: replay.ink
+                    elide: Text.ElideRight
+                    HoverTip {
+                        text: Translation.tr("Keeps the last few minutes of your screen in memory, so you can save a moment after it happens.")
                     }
                 }
                 Toggle {
@@ -130,243 +97,212 @@ HudCard {
                     onToggled: Clips.toggleClipping()
                 }
             }
-        }
-
-        // ══ Clip it, the lengths it cuts; record ═══════════════════════════════
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            radius: Tokens.radiusCard
-            color: Colors.of(QsWindow.window).section
-            Rectangle {
-                anchors.fill: parent
-                radius: parent.radius
-                color: Clips.recording ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).danger, 0.09) : "transparent"
-                Behavior on color { ColorAnimation { duration: Motion.standard } }
+            Item { Layout.fillHeight: true }
+            // How long it holds right now; "Off" when it is not running.
+            StyledText {
+                Layout.fillWidth: true
+                text: Clips.buffering ? ClockFmt.clock(root.heldSecs) : Translation.tr("Off")
+                font.pixelSize: Math.round(Tokens.fontDisplay * 1.25)
+                font.weight: Font.Bold
+                font.features: { "tnum": 1 }
+                color: replay.ink
+                elide: Text.ElideRight
             }
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: Tokens.spacingSm
-                anchors.rightMargin: Tokens.spacingSm
-                spacing: Tokens.spacingSm
-                readonly property int d: Math.max(Tokens.iconXl, height - Tokens.spacingSm * 2)
-
-                CookieButton {
-                    Layout.preferredWidth: parent.d
-                    Layout.preferredHeight: parent.d
-                    name: "content_cut"
-                    primary: true
-                    tint: root.accent
-                    enabled: Clips.buffering && !Clips.aheadWaiting
-                    onActivated: Clips.clipIt(0)
-                    HoverTip { text: Clips.buffering ? Translation.tr("Save everything the replay holds as a clip.") : Translation.tr("Turn Instant replay on first: there is nothing to save yet.") }
-                }
-                StyledText {
-                    text: Clips.aheadWaiting ? Translation.tr("in %1s").arg(Math.ceil(root.aheadLeft)) : Translation.tr("Save last")
-                    variant: "label"
-                    font.weight: Font.DemiBold
-                    emphasis: Clips.buffering ? "normal" : "dim"
-                }
-                // The lengths it can cut (clips.js saveLengths), the shortest few.
-                ChipTray {
-                    groupShown: Clips.buffering && !Clips.aheadWaiting
-                    Repeater {
-                        model: ClipsJs.saveLengths(Clips.bufferSeconds).slice(0, 3)
-                        delegate: ChipButton {
-                            required property int modelData
-                            label: ClipsJs.span(modelData)
-                            tint: root.accent
-                            onActivated: Clips.clipIt(modelData)
-                        }
-                    }
-                }
-                ChipButton {
-                    visible: Clips.aheadWaiting
-                    symbol: "close"
-                    onActivated: Clips.cancelAhead()
-                }
-                Item { Layout.fillWidth: true }
-                StyledText {
-                    visible: Clips.recording
-                    text: Clips.paused ? Translation.tr("Paused") : ClockFmt.clock(root.recordSecs)
-                    variant: "label"
-                    font.weight: Font.DemiBold
-                    font.family: Tokens.fontMono
-                    color: root.pal.danger
-                }
-                StyledText {
-                    visible: !Clips.recording
-                    text: Translation.tr("Record")
-                    variant: "label"
-                    font.weight: Font.DemiBold
-                    emphasis: "muted"
-                }
-                CookieButton {
-                    Layout.preferredWidth: parent.d
-                    Layout.preferredHeight: parent.d
-                    HoverTip { text: Clips.recording ? Translation.tr("Stop recording and keep it.") : Translation.tr("Start recording your screen now, until you stop it.") }
-                    name: Clips.recording ? "stop" : "fiber_manual_record"
-                    primary: Clips.recording
-                    tint: root.pal.danger
-                    onActivated: Clips.toggleRecord()
+            StyledText {
+                Layout.fillWidth: true
+                text: Clips.buffering ? Translation.tr("held of %1").arg(ClipsJs.span(Clips.bufferSeconds))
+                    : Clips.clipping ? (Clips.gaveUp ? Translation.tr("Stopped, it kept failing") : Translation.tr("Starting…"))
+                    : Translation.tr("Turn on to keep the last %1").arg(ClipsJs.span(Clips.bufferSeconds))
+                variant: "caption"
+                color: replay.inkDim
+                elide: Text.ElideRight
+            }
+            // The buffer filling: a pill that grows to the length it keeps, then stays full.
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+                Layout.topMargin: Tokens.spacingSm
+                implicitHeight: Tokens.spacingSm
+                radius: height / 2
+                color: root.pal.alpha(replay.ink, 0.16)
+                Rectangle {
+                    width: parent.width * root.bufferFill
+                    height: parent.height
+                    radius: height / 2
+                    color: root.pal.primary
+                    Behavior on width { NumberAnimation { duration: Motion.standard; easing.type: Motion.travel } }
                 }
             }
         }
     }
 
-    // ── The last clips: a shelf ───────────────────────────────────────────────
-    // The newest three, stacked like a deck. Hover and they FAN out leftwards over the
-    // timeline (a spring, each a beat behind the one in front); hover one and it lifts with
-    // a play mark; click plays it; DRAG one out — into a chat, a file manager — as a file
-    // (Qt's drag, text/uri-list, as the gallery's handle does). The overview covers the
-    // screen, so while a clip is being dragged it LENDS the screen (UiState.overviewLending:
-    // its stage fades and its input mask empties, so the drop lands on the window beneath)
-    // and closes once the drop is taken, or comes back if it isn't.
-    // Rest on one and it plays, muted and looping, in its frame (with qt6-multimedia).
-    // Under it: how old the one under the pointer is (or the newest), and the gallery.
-    // Dropped when the card is too narrow to give it room (a short screen's grid, a wide island).
-    Item {
-        id: shelf
-        Layout.preferredWidth: Tokens.sideCardUnit * 2.8
+    // ══ Save last, and Record ════════════════════════════════════════════════
+    Rectangle {
+        id: save
         Layout.fillHeight: true
-        visible: Clips.latest !== null && root.width >= Tokens.sideCardUnit * 10
-        z: 2
+        implicitWidth: saveCol.implicitWidth + Tokens.spacingMd * 2
+        radius: Tokens.radiusCard
+        color: root.pal.section
+        enabled: root.blocked === ""
 
-        readonly property var deck: Clips.clips.slice(0, 3)
-        readonly property real thumbW: shelf.width
-        readonly property real thumbH: Math.round(shelf.thumbW * 9 / 16)
-        // Room above the front card for the two behind it to peek up.
-        readonly property real baseY: Tokens.spacingSm * 2
-        // The one under the pointer (-1: none), and whether the deck is fanned. Fanning
-        // outlives the pointer by a beat, so moving from one card to the next (a moment over
-        // neither) doesn't fold it.
-        property int hot: -1
-        readonly property bool wantFan: shelfHover.hovered || shelf.hot >= 0
-        property bool fanned: false
-        onWantFanChanged: if (shelf.wantFan) { fold.stop(); shelf.fanned = true } else fold.restart()
-        Timer { id: fold; interval: Motion.standard; onTriggered: shelf.fanned = false }
-        readonly property var shown: shelf.hot >= 0 ? (shelf.deck[shelf.hot] ?? Clips.latest) : Clips.latest
+        ColumnLayout {
+            id: saveCol
+            anchors.fill: parent
+            anchors.margins: Tokens.spacingMd
+            spacing: Tokens.spacingSm
 
-        HoverHandler { id: shelfHover }
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+                spacing: Tokens.spacingSm
+                StyledText {
+                    Layout.fillWidth: true
+                    text: Clips.aheadWaiting ? Translation.tr("Saving in %1s").arg(Math.ceil(root.aheadLeft)) : Translation.tr("Save last")
+                    variant: "label"
+                    font.weight: Font.DemiBold
+                    emphasis: Clips.buffering ? "normal" : "dim"
+                    elide: Text.ElideRight
+                }
+                ChipButton {
+                    visible: Clips.aheadWaiting
+                    symbol: "close"
+                    tonal: true
+                    onActivated: Clips.cancelAhead()
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: Tokens.spacingSm
 
-        Repeater {
-            model: shelf.deck
-
-            ClipThumb {
-                id: card
-                required property var modelData
-                required property int index
-                readonly property bool hot: shelf.hot === card.index
-
-                entry: card.modelData
-                decodeWidth: 240
-                showDuration: card.index === 0 || shelf.fanned
-                width: shelf.thumbW
-                height: shelf.thumbH
-                z: shelf.deck.length - card.index
-                // At rest a deck (each one behind peeking up and left, smaller); fanned, a
-                // spread to the left with a slight turn, the front one where the deck was.
-                x: shelf.fanned ? -card.index * shelf.thumbW * 0.62 : -card.index * Tokens.spacingSm
-                y: shelf.baseY + (shelf.fanned ? card.index * Tokens.spacingXs : -card.index * Tokens.spacingSm)
-                   + (card.hot ? -Tokens.spacingSm : 0)
-                rotation: shelf.fanned ? -card.index * 4 : -card.index * 3
-                scale: (shelf.fanned ? 1 : 1 - card.index * 0.07) * (cardTap.pressed ? 0.95 : 1)
-                opacity: shelf.fanned || card.index === 0 ? 1 : 0.7 - card.index * 0.15
-                Behavior on x { NumberAnimation { duration: Motion.spatial + card.index * Motion.stagger * 2; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spring } }
-                Behavior on y { NumberAnimation { duration: Motion.standard; easing.type: Motion.travel } }
-                Behavior on rotation { NumberAnimation { duration: Motion.spatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spring } }
-                Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.travel } }
-                Behavior on opacity { NumberAnimation { duration: Motion.standard } }
-
-                HoverHandler {
-                    cursorShape: Qt.PointingHandCursor
-                    onHoveredChanged: {
-                        if (hovered) shelf.hot = card.index
-                        else if (shelf.hot === card.index) shelf.hot = -1
+                // The shortest few the buffer allows, then all of it (0 = everything it holds).
+                Repeater {
+                    model: ClipsJs.saveLengths(Clips.bufferSeconds).slice(0, 3).concat([0])
+                    delegate: HudTile {
+                        required property int modelData
+                        Layout.fillHeight: true
+                        symbol: "content_cut"
+                        label: modelData > 0 ? ClipsJs.span(modelData) : Translation.tr("All")
+                        tint: root.accent
+                        enabled: Clips.buffering && !Clips.aheadWaiting
+                        onActivated: Clips.clipIt(modelData)
                     }
                 }
-                TapHandler { id: cardTap; onTapped: Clips.playClip(card.modelData.path) }
-                DragHandler { id: dragOut; target: null }
-                Drag.active: dragOut.active
-                Drag.dragType: Drag.Automatic
-                Drag.supportedActions: Qt.CopyAction
-                Drag.mimeData: ({ "text/uri-list": Clips.uriList([card.modelData.path]) })
-                Drag.imageSource: card.modelData.thumb ? "file://" + card.modelData.thumb : ""
-                Drag.onDragStarted: UiState.overviewLending = true
-                Drag.onDragFinished: function (action) {
-                    UiState.overviewLending = false
-                    if (action !== Qt.IgnoreAction) UiState.overviewOpen = false
-                }
-
-                // ── The hover preview ─────────────────────────────────────────────
-                // Rest on a clip and it plays, muted and looping, in its own frame — after a
-                // dwell, so sweeping across the deck doesn't start three decoders. The player is
-                // ClipPlayer by URL (Media's probe: qt6-multimedia is optional, and naming it
-                // would make this file fail to exist without it); the thumbnail stays under it
-                // until the first frame is up.
-                readonly property bool wantPreview: card.hot && root.running && Media.available && !dragOut.active
-                property bool previewing: false
-                onWantPreviewChanged: if (card.wantPreview) dwell.restart(); else { dwell.stop(); card.previewing = false }
-                Timer { id: dwell; interval: 400; onTriggered: card.previewing = true }
-                Loader {
-                    id: preview
-                    anchors.fill: parent
-                    active: card.previewing
-                    source: Media.playerUrl
-                    opacity: preview.item && preview.item.showing ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: Motion.standard } }
-                    onLoaded: {
-                        preview.item.crop = true
-                        preview.item.muted = true
-                        preview.item.autoplay = true
-                        preview.item.loopAll = true
-                        preview.item.source = card.modelData.path
-                    }
-                }
-
-                // A ring and a play mark on the one under the pointer.
-                Rectangle {
-                    anchors.fill: parent
-                    // `card`, not `parent`: inside a ClippingRectangle (ClipThumb) the parent is its content item, which
-                    // has no radius ("Unable to assign [undefined] to double", 10x per overview open).
-                    radius: card.radius
-                    color: root.pal.alpha(root.pal.base, card.hot && !(preview.item && preview.item.showing) ? 0.25 : 0)
-                    border.width: card.hot ? Tokens.borderChrome : 0
-                    border.color: root.accent
-                    Behavior on color { ColorAnimation { duration: Motion.respond } }
-                }
-                MaterialIcon {
-                    anchors.centerIn: parent
-                    name: "play_arrow"
-                    fill: 1
-                    color: root.pal.fg
-                    font.pixelSize: Tokens.iconXl
-                    // Gives way to the preview once it plays: it's already playing.
-                    opacity: card.hot && !(preview.item && preview.item.showing) ? 1 : 0
-                    scale: card.hot ? 1 : 0.7
-                    Behavior on opacity { NumberAnimation { duration: Motion.respond } }
-                    Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spring } }
+                HudTile {
+                    Layout.fillHeight: true
+                    symbol: Clips.recording ? "stop" : "fiber_manual_record"
+                    label: Clips.recording ? (Clips.paused ? Translation.tr("Paused") : ClockFmt.clock(root.recordSecs)) : Translation.tr("Record")
+                    lit: Clips.recording
+                    tint: root.pal.danger
+                    onActivated: Clips.toggleRecord()
+                    HoverTip { text: Clips.recording ? Translation.tr("Stop recording and keep it.") : Translation.tr("Start recording your screen now, until you stop it.") }
                 }
             }
         }
+    }
 
-        RowLayout {
+    // ══ The newest clip ══════════════════════════════════════════════════════
+    // Play it with a click, DRAG it out as a file (Qt's drag, text/uri-list, as the gallery's handle
+    // does). The overview covers the screen, so while it is dragged it LENDS the screen
+    // (UiState.overviewLending: the stage fades and the input mask empties, so the drop lands on the
+    // window beneath); the overview closes once the drop is taken and comes back if it isn't.
+    // Dropped when the card is too narrow to give it room (a short screen, a wide island).
+    Item {
+        id: shelf
+        Layout.preferredWidth: Math.round(root.bodyHeight * 16 / 9)
+        Layout.fillHeight: true
+        visible: Clips.latest !== null && root.width >= Tokens.sideCardUnit * 14
+
+        readonly property var clip: Clips.latest
+        property bool hot: false
+
+        ClipThumb {
+            id: thumb
+            anchors.fill: parent
+            entry: shelf.clip
+            decodeWidth: 480
+            radius: Tokens.radiusCard
+            scale: tap.pressed ? 0.97 : 1
+            Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.travel } }
+
+            HoverHandler {
+                cursorShape: Qt.PointingHandCursor
+                onHoveredChanged: shelf.hot = hovered
+            }
+            TapHandler { id: tap; onTapped: if (shelf.clip) Clips.playClip(shelf.clip.path) }
+            DragHandler { id: dragOut; target: null }
+            Drag.active: dragOut.active
+            Drag.dragType: Drag.Automatic
+            Drag.supportedActions: Qt.CopyAction
+            Drag.mimeData: ({ "text/uri-list": shelf.clip ? Clips.uriList([shelf.clip.path]) : "" })
+            Drag.imageSource: shelf.clip && shelf.clip.thumb ? "file://" + shelf.clip.thumb : ""
+            Drag.onDragStarted: UiState.overviewLending = true
+            Drag.onDragFinished: function (action) {
+                UiState.overviewLending = false
+                if (action !== Qt.IgnoreAction) UiState.overviewOpen = false
+            }
+
+            // Rest on it and it plays, muted and looping, after a dwell so sweeping past does not start a
+            // decoder. ClipPlayer by URL (Media's probe: qt6-multimedia is optional, and naming it would make
+            // this file fail to exist without it); the thumbnail stays under it until the first frame is up.
+            readonly property bool wantPreview: shelf.hot && root.running && Media.available && !dragOut.active
+            property bool previewing: false
+            onWantPreviewChanged: if (thumb.wantPreview) dwell.restart(); else { dwell.stop(); thumb.previewing = false }
+            Timer { id: dwell; interval: 400; onTriggered: thumb.previewing = true }
+            Loader {
+                id: preview
+                anchors.fill: parent
+                active: thumb.previewing
+                source: Media.playerUrl
+                opacity: preview.item && preview.item.showing ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: Motion.standard } }
+                onLoaded: {
+                    preview.item.crop = true
+                    preview.item.muted = true
+                    preview.item.autoplay = true
+                    preview.item.loopAll = true
+                    preview.item.source = shelf.clip.path
+                }
+            }
+            // The play mark gives way to the preview once it plays: it is already playing.
+            MaterialIcon {
+                anchors.centerIn: parent
+                name: "play_arrow"
+                fill: 1
+                color: root.pal.fg
+                font.pixelSize: Tokens.iconXl
+                opacity: shelf.hot && !(preview.item && preview.item.showing) ? 1 : 0
+                scale: shelf.hot ? 1 : 0.7
+                Behavior on opacity { NumberAnimation { duration: Motion.respond } }
+                Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spring } }
+            }
+        }
+
+        // How old it is, and the gallery: pills on the picture (the thumbnail keeps its length at the bottom right).
+        Rectangle {
             anchors.left: parent.left
-            anchors.right: parent.right
             anchors.bottom: parent.bottom
-            spacing: Tokens.spacingXs
+            anchors.margins: Tokens.spacingSm
+            implicitWidth: age.implicitWidth + Tokens.spacingMd
+            implicitHeight: age.implicitHeight + Tokens.spacingXs
+            radius: height / 2
+            color: root.pal.fade(root.pal.surfaceHigh, 0.85)
             StyledText {
-                Layout.fillWidth: true
-                text: shelf.shown ? ClipsJs.age(shelf.shown.mtime ?? 0, Date.now()) : ""
+                id: age
+                anchors.centerIn: parent
+                text: shelf.clip ? ClipsJs.age(shelf.clip.mtime ?? 0, Date.now()) : ""
                 variant: "caption"
-                emphasis: "dim"
-                elide: Text.ElideRight
+                font.weight: Font.DemiBold
             }
-            ChipButton {
-                symbol: "video_library"
-                onActivated: Clips.openGallery()
-                HoverTip { text: Translation.tr("Open all your clips: watch, trim and share them.") }
-            }
+        }
+        ChipButton {
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: Tokens.spacingSm
+            symbol: "video_library"
+            tonal: true
+            onActivated: Clips.openGallery()
+            HoverTip { text: Translation.tr("Open all your clips: watch, trim and share them.") }
         }
     }
 }

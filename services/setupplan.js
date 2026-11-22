@@ -406,7 +406,7 @@ function health(f, x) {
     if (x.barOpacity !== undefined && x.barOpacity < 0.999 && x.barBlur && x.barBlur !== "on")
         add("blur", "info", "The bar is translucent but no Hyprland rule blurs behind it", 3)
     compat(f).forEach(function (c) {
-        if (c.state === "warn") add("ver-" + c.id, "info", c.label + " " + c.have + " isn't the version this was tested on (" + c.want + ") — very likely fine", -1)
+        if (c.state === "warn") add("ver-" + c.id, "info", c.label + " " + c.have + " isn't the version this was tested on (" + c.want + "), very likely fine", -1)
     })
     var rank = { bad: 0, warn: 1, info: 2 }
     return out.sort(function (a, b) { return rank[a.level] - rank[b.level] })

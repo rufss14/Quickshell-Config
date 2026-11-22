@@ -4,17 +4,16 @@ import "../../config"
 import "../../components"
 
 // ── OverviewHints ─────────────────────────────────────────────────────────────
-// The keys that do something RIGHT NOW, as keycaps and one word each, beside the filter chips. It replaces the
-// header's long subtitle ("Hold Ctrl: F float · P pin · Enter fullscreen…"), which elided, was the same size as the
-// count, and said the same thing whatever you were doing. `mode` follows the overview's state:
+// The keys that do something RIGHT NOW, as keycaps and one word each, in the workspaces' footer.
+// `mode` follows the overview's state:
 //
 //   idle    nothing picked, nothing typed
+//   switch  Alt+Tab is being held
 //   search  there is a query
 //   pick    a window is picked (the inspector's keys, with Ctrl held)
 //   marks   a selection (Ctrl+click / Ctrl+A)
 //
-// The row clips at its own width rather than reflowing: the strip it sits in is fixed, and what does not fit is the
-// last, least important hint.
+// The row clips at its own width rather than reflowing: what does not fit is the last, least important hint.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
@@ -25,6 +24,7 @@ Item {
 
     readonly property var sets: ({
         idle:   [["Right-click", "inspect"], ["Ctrl+click", "select"], ["Shift", "all ten"]],
+        switch: [["Tab", "next"], ["Let go of Alt", "go"], ["Esc", "stay"]],
         search: [["Enter", "go"], ["Tab", "next"], ["Esc", "clear"]],
         pick:   [["Ctrl+F", "float"], ["Ctrl+P", "pin"], ["Ctrl+1–0", "send"], ["Ctrl+W", "close"]],
         marks:  [["Drag", "move all"], ["Ctrl+F", "float"], ["Esc", "clear"]]
@@ -42,6 +42,8 @@ Item {
 
     Row {
         id: row
+        // Against the footer's right edge.
+        x: Math.max(0, root.width - row.width)
         anchors.verticalCenter: parent.verticalCenter
         spacing: Tokens.spacingMd
 

@@ -5,8 +5,8 @@ Moved from CLAUDE.md; the project rules there still apply.
 ## Overview
 
 A full-screen overlay on the focused monitor (`modules/overview/Overview`): window search
-(top left), PowerPanel (top right), the workspace grid (`WorkspaceGrid`) with Alt+Tab and
-search working INSIDE it, volume + brightness (`OverviewControls`, bottom centre). Everything
+(top, centred), the tray with PowerPanel (top right), the workspace grid (`WorkspaceGrid`) with Alt+Tab and
+search working INSIDE it, the island (`OverviewIsland`: now playing, volume + brightness, the pick's inspector; bottom centre). See "The rework (2026-11-11)" for the current layout. Everything
 in it is built on open and destroyed on close — see "Open the overlay" under Checking your
 work. A `TypeError` in a row delegate isn't a load failure; the surface just renders blank.
 
@@ -41,6 +41,95 @@ work. A `TypeError` in a row delegate isn't a load failure; the surface just ren
   (shell.qml `Connections`) so it follows focus from launch. The live `~/.config/hypr`
   needs the binds by hand. `qs ipc … call switcher status|next|prev|commit|cancel`.
 
+
+## Visual rework (2026-11-17): the island pages' dialect
+
+Supersedes every VISUAL statement of the rounds below (outlines, shadows, the cookie field inside a card, the cells' chrome borders and `OverviewGlow` bloom). Layout, sizes and behaviour are unchanged: the user asked for a
+restyle only. Their call: every card stands on a **flat translucent ground**.
+
+- **`components/GroundCard`** is the one ground (workspaces, drawer, HUD cards, island): `surface` at `Tokens.surfaceOpacity`
+  in the FILL (the compositor blur still shows through; an item opacity would fade the contents), `radiusXl`, no border, no
+  shadow, no field. `popup: true` is a card that floats over another (the peek, the "?" card, Sessions): one tone up with a
+  touch of the accent, since a shadow is not how this language says "above". `fillAlpha` is the knob if the cards read too thin
+  against the dim. The full-screen cookie field stays on the dim only.
+- **Cells are plates**: empty = `section`, busy or hovered = `surfaceHigh`, the workspace you are on = `primaryContainer` (its
+  number in `fgOnPrimaryContainer`), a drop target = the accent mixed in plus a ring (an action in progress). No hairlines on
+  cells, the screen tab or the "+ New" pill; no halo behind a picked window (its ring says it). Previews keep their hairline
+  (a picture's canvas).
+- **HUD cards**: `HudCard` is a `GroundCard`; the badge is a plain disc that blooms into the widget's own shape when pinned
+  (clips cookie9, input squircle); pin / move / tune are a `CardTool` capsule that opens under the pointer. Clips' buffer
+  tile is the loud `primaryContainer` plate while the buffer runs; Key display has the live overlay on a canvas plate
+  (hairline) and the knobs on a `section` plate. `HudCap` / `HudFace` are shared with the over-games overlay and unchanged.
+- **Island**: ground = `GroundCard` (the playing cover tints it lightly); the controls face is two plates, now playing on the
+  loud one (the accent container, or the cover's colour in the same tone with "Tint media cards") and the levels + quick switches
+  on a `section` plate. The window inspector keeps its rows (the island must not grow) with flat fact pills and snap zones.
+- **Drawer and top row**: the search is a flat `surfaceHigh` pill with a "N of M" count while it has text; the tray, filters,
+  Shift/Ctrl chips, inspector actions and `SlidingTabs` are flat plates (`ChipTray` with `border.width: 0` and `surfaceHigh`);
+  What's new's hero is the drawer's loud plate; chat bubbles, action cards, the local-AI setup and model rows lost their hairlines.
+- **Two functional gradients stay**: the drawer pages' fade into the card at the bottom (without it a page is cut mid-line) and
+  the News hero's scrim over its photo (legibility). Everything else is flat.
+- **Not exercised** (no pointer here): the tools capsule, hover tones on cells and snap zones, the drop ring, dragging, the
+  entrance and exit motion with the new grounds, a light theme, high contrast, a second monitor.
+
+## The HUD row keeps two cards (2026-11-17)
+
+The user: "actually remove the cards and think of something better", then, after a Today row (next event, timer, weather,
+screen time) was rejected twice ("too simple", then "adding stuff just to fill instead of it being useful") and deleted:
+"you can keep the surface for clips and kbm". So the Replay clips and Key display cards stay (restyled as `GroundCard`s, see
+above), half the stage wide each, in the row under the workspaces; the Performance and Voice cards are gone. Offered and not
+taken: a launch shelf (drag an app onto a workspace cell to start it there, reusing `WorkspaceSessions`).
+
+- **Redesigned, same day** ("redesign them though"): `HudCard`'s body is 2.8 card units tall. Replay clips is three things in a
+  row: the **Instant replay** plate (the loud `primaryContainer` one while the buffer runs: the held time as a large tabular
+  figure, "held of 5 min", a bar for how full it is, its switch), **Save last** (`HudTile`s: the shortest three lengths the
+  buffer allows, All, and Record, red while it records; disabled until the replay is on; "Saving in Ns" with a cancel while a
+  clip-ahead waits) and the **newest clip** (click plays, drag out as a file, rest on it and it plays; the gallery chip). The
+  deck that fanned out is gone. Key display is the live overlay on a canvas plate, and a controls plate: the On screen switch,
+  Games only / Always, the six keyboard layouts as chips (`Hud.setOpt layout`), what the layout names on the event socket (danger
+  tone for 60%, TKL and Full), and size and opacity as expressive sliders. The mouse and the rates stay on the island's Keys page.
+  **Not exercised**: the replay running (the loud plate, the bar filling), a save, a record, the clip preview and drag out, a
+  layout press, the sliders, any hover.
+- **More** adds the drawer beside the card and the two-card row under it (`stage.hudFull`, the Clips card's height).
+- **Performance and Voice** are only reachable through the HUD now: the tray's `widgets` chip (`OverviewChips`) starts arranging,
+  and `HudArrange` tags have pin, where and a tune chip that puts the widget in the island. `hud open` opens the island on a
+  widget's options. The Performance card's Max FPS and Game mode column went with it (the Gaming panel owns both).
+- **Not exercised**: hover, the tools capsule, the clip shelf drag-out, the HUD chip into arranging, the tune chip, cards at
+  half width on other screen sizes (the cards were laid out for a quarter).
+
+## The rework (2026-11-11): the current layout
+
+Supersedes the layout statements of every round below (they stay as history: the zoom, Alt+Tab, search operators,
+selection, undo, inspector actions and the feed pages' own contents are unchanged). The user asked for "clean,
+simple and intuitive", picked "simplify hard", and kept the extras folded behind More.
+
+- **Folded (the default)**: a slim top row, the workspaces' card, the island. The top row is the search pill (centred
+  over the card; operator chips inside it; the flag chips `Floating / Pinned / Fullscreen / Audio` hang under it only
+  while you search or rest the pointer on it, as an overlay, so nothing shifts) and, at the right, the tray: the live
+  chips (timer, reminders due, Undo, Sessions), **More / Less**, and the power tray. The `PanelHeader`, its counts
+  subtitle, the watermark and the always-on filter/hint rows are gone: the count is the search placeholder, the Alt+Tab
+  line ("Let go of Alt to go") is the footer's hint.
+- **The card's footer**: `OverviewModifiers` (All spaces / Select / "?") on the left, `OverviewHints` (the keys that act
+  now: idle, switch, search, pick, marks) on the right; both fade out while a workspace's peek card hangs over them.
+  The grid's room is the card less that footer band (`middle.footerBand`).
+- **More** (`Config.overviewMore`, Ctrl+M, `qs ipc call overview more`) springs in on ONE factor (`stage.more`): the
+  **drawer** (`OverviewFeed`, rewritten: one page at a time, `SlidingTabs` rail; 0 What's new, 1 Ask, 2 News,
+  3 Notifications — the notification centre is the bar panel's own body) as its own card BESIDE the workspaces' card,
+  and the **HUD row** (four equal cards; two since 2026-11-17) UNDER it. The grid's room follows the TARGET (`midWTarget/midHTarget`), the
+  cards follow the spring, so the cells glide once. `WorkspaceGrid` no longer knows about side faces (`notesOn`,
+  `sideTop`, `feedPage` are gone). The swipe/drag/wheel-glide of the old left face is gone with it; pages scroll
+  natively. Page indexes are kept because `Config.overviewFeedPage` and VoiceOrb's jump to Ask (page 1) name them.
+- **One inspector design**: `InspectorActions` (float, pin, fullscreen when it is one window, close with the ArmLatch)
+  is shared by `WindowInspector` and `BulkInspector`; the bulk face now has the window face's two rows (who + actions,
+  then the `WorkspaceMap` and Clear). The island is content-sized: nothing beside it follows its width any more.
+- **A gotcha met**: a `ChipTray` built while hidden never measures its chips (an invisible item is not laid out, so
+  `row.implicitWidth > 1` stays false after they show). `OverviewChips` is therefore a Loader `active: root.visible`.
+  Anything of that shape (a tray whose chips show only later) needs the same.
+- **Hot reloads are slow here** (about 45–60 s with the shell busy; the file watcher on a file replaced by `sed -i`
+  is lost until another watched file changes — write in place).
+- **Verified**: static checkers, `scripts/overview-shots.sh` (all 16 states at 1920×1080, looked at), log clean.
+  **Not exercised**: drag/drop, Ctrl+click, Shift+click send, Ctrl+Z, the zoom in and out, hover tips, a real wheel in the
+  drawer, an AI turn, HUD arranging, the entrance and exit motion (frames not watched), a second monitor, a
+  screen other than 1920×1080 (a short one gives its height up from the workspaces' card; not looked at).
 
 ## The redesign (2026-10-17): the panels' look, and a window inspector
 

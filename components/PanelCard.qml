@@ -26,8 +26,8 @@ Rectangle {
     radius: Tokens.radiusPill
 
     color: root.active   ? Colors.of(QsWindow.window).alpha(root.accent, hover.hovered ? 0.20 : 0.13)
-         : hover.hovered ? Colors.of(QsWindow.window).surfaceHigh
-         : Colors.of(QsWindow.window).surfaceContainer
+         : hover.hovered ? Colors.of(QsWindow.window).plate
+         : Colors.of(QsWindow.window).plateLow
 
     border.width: Tokens.borderWidth
     border.color: root.active   ? Colors.of(QsWindow.window).alpha(root.accent, 0.45)

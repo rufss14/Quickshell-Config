@@ -123,7 +123,7 @@ ColumnLayout {
                         shape: panel._stalled ? "burst" : Gamemode.active ? "cookie9" : "circle"
                         fillColor: panel._stalled ? Colors.of(QsWindow.window).warning
                                  : Gamemode.active ? panel.accent
-                                 :                   Colors.of(QsWindow.window).surfaceHigh
+                                 :                   Colors.of(QsWindow.window).plate
                     }
                 }
                 MaterialIcon {

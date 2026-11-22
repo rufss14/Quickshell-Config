@@ -5,13 +5,11 @@ import QtQuick
 // ── Cava ──────────────────────────────────────────────────────────────────────
 // One audio spectrum, shared by everything that draws one.
 //
-// The shell previously ran up to three `cava` processes at once: the status bar
-// pill started one unconditionally at 60fps and *never stopped it*, and because
-// the bar builds both its split and merged layouts, that pill exists twice — so
-// two of them. The desktop background visualizer ran a third. All three analyzed
-// the same audio, at the same time, to draw the same spectrum.
+// A `cava` each for the status bar's pill (which exists twice, because the bar builds both
+// its split and merged layouts) and the desktop background visualizer would analyze the
+// same audio, at the same time, to draw the same spectrum.
 //
-// Now: one process, started only while something is actually watching, stopped
+// So: one process, started only while something is actually watching, stopped
 // the moment nothing is.
 //
 // ── Refcounting ───────────────────────────────────────────────────────────────
@@ -86,10 +84,15 @@ Singleton {
         root._sourceRefs = Math.max(0, root._sourceRefs - 1)
     }
 
+    // The stream's serial, "" while the name has no live stream. It runs only with one: a capture
+    // aimed at a name nothing answers to would be linked to the microphone (CavaStream.serial).
+    readonly property string sourceSerial: Audio.serialOf(root.sourceName)
+
     CavaStream {
         id: sourceStream
         source:  root.sourceName
-        running: root._sourceRefs > 0 && root.sourceName !== ""
+        serial:  root.sourceSerial
+        running: root._sourceRefs > 0 && root.sourceSerial !== ""
     }
 
     // ── Shaping ───────────────────────────────────────────────────────────────
@@ -150,7 +153,7 @@ Singleton {
     // exponent, computed here once.
     readonly property var shaped: root.shape(root.bars, 1.25)
     readonly property var shapedMirrored: root.mirrored(root.shaped)
-    // The same for the player's own stream (CavaBG's "music only", 2026-10-31), here for the
+    // The same for the player's own stream (CavaBG's "music only"), here for the
     // same reason: one copy per frame, not one per screen.
     readonly property var sourceShaped: root.shape(root.sourceBars || [], 1.25)
     readonly property var sourceShapedMirrored: root.mirrored(root.sourceShaped)

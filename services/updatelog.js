@@ -238,3 +238,42 @@ function failureHint(lines) {
         return "A package signature didn't verify. Refreshing the keyring (sudo pacman -S archlinux-keyring) usually fixes it."
     return ""
 }
+
+// ── Arch news ─────────────────────────────────────────────────────────────────
+// The newest post of a news feed: { title, url, date: "YYYY-MM-DD" (local) } or null. archlinux.org/feeds/news/
+// is RSS 2.0 (<item>, <link>url</link>, <pubDate>RFC 822</pubDate>); until 2026-11-15 the service read it as
+// Atom (<entry>, <link href>, <updated>), matched nothing, and the headline and "news since your last upgrade"
+// never showed. Both shapes are read, so a feed that moves to Atom keeps working.
+function parseNewsFeed(text) {
+    const s = String(text || "")
+    const rss = s.split("<item>")[1]
+    const first = rss !== undefined ? rss : (s.split("<entry>")[1] || "")
+    if (first === "") return null
+    function unescape(x) {
+        return x.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+                .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+                .replace(/&#(\d+);/g, function (_, n) { return String.fromCodePoint(+n) })
+                .replace(/&#x([0-9a-f]+);/gi, function (_, n) { return String.fromCodePoint(parseInt(n, 16)) })
+                .replace(/&amp;/g, "&")
+    }
+    const t = first.match(/<title[^>]*>([\s\S]*?)<\/title>/)
+    const l = first.match(/<link>\s*([^<\s]+)\s*<\/link>/) || first.match(/<link[^>]*href="([^"]+)"/)
+    let date = ""
+    const iso = first.match(/<(?:updated|published)>(\d{4}-\d{2}-\d{2})/)
+    if (iso) date = iso[1]
+    else {
+        const p = first.match(/<pubDate>([^<]+)<\/pubDate>/)
+        const ms = p ? new Date(p[1].trim()).getTime() : NaN
+        if (isFinite(ms)) {
+            const d = new Date(ms)
+            const p2 = function (x) { return (x < 10 ? "0" : "") + x }
+            date = d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate())
+        }
+    }
+    const url = l ? unescape(l[1]) : ""
+    return {
+        title: t ? unescape(t[1]).replace(/<[^>]+>/g, "").trim() : "",
+        url: /^https:\/\//.test(url) ? url : "",
+        date: date
+    }
+}

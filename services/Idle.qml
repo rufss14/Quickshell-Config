@@ -69,6 +69,18 @@ Singleton {
 
     function toggleManual() { root.manual = !root.manual }
 
+    // Staying awake for a while: `manual` on, then off by itself. Not persisted, like `manual` (a timed
+    // hold is the kind you forget). A plain toggle or `manual = false` cancels the expiry.
+    property double manualUntil: 0
+    function keepFor(minutes) {
+        root.manualUntil = Date.now() + minutes * 60000
+        expiry.interval = minutes * 60000
+        expiry.restart()
+        root.manual = true
+    }
+    onManualChanged: if (!root.manual) { expiry.stop(); root.manualUntil = 0 }
+    Timer { id: expiry; onTriggered: root.manual = false }
+
     // ── The answer ────────────────────────────────────────────────────────────
     readonly property bool inhibited: root.manual || root.holds.length > 0
 

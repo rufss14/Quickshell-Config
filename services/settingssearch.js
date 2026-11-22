@@ -18,6 +18,9 @@
 //   section  a card on a page, and
 //   row      one setting inside a card. Both come from settings-index.json, which
 //            is generated from the page sources by scripts/build-settings-index.py.
+//   elsewhere  a setting that lives only in a panel or an island page, hand-written
+//            in SettingsIndex (`elsewhere`). Same scorer, so "romanize" ranks the
+//            Now Playing switch by the same rules as any settings row.
 //
 // A page match and a row match answer different questions ("where do I go" vs
 // "where is this one thing"), and which the user meant is not knowable from the
@@ -76,6 +79,13 @@ function scoreField(field, q, qSquashed) {
 // every record, so a normal search for "s" returned two dozen equal-scored hits in
 // alphabetical order — a list that reads as random. One letter is someone starting
 // to type a NAME, so it only counts where a word of the title begins.
+// `values` is a list (a row's choice labels): the best-scoring one counts.
+function scoreValues(values, t, tSquashed) {
+    let best = 0;
+    for (const v of values || []) best = Math.max(best, scoreField(v, t, tSquashed));
+    return best;
+}
+
 function scoreEntry(entry, tokens, titleOnly) {
     // Weights, not raw scores: a title hit is worth more than the same hit in a
     // detail line, and keywords sit between (they are deliberate synonyms, so a
@@ -99,6 +109,8 @@ function scoreEntry(entry, tokens, titleOnly) {
             const s = raw * weight;
             if (s > best) best = s;
         }
+        // A choice label ("Celsius", "Auto") on the row it belongs to.
+        if (!titleOnly && entry.values) best = Math.max(best, scoreValues(entry.values, t, tSquashed) * 0.4);
         // One token matched nothing at all — the entry is not a result.
         if (best === 0) return 0;
         total += best;
@@ -106,7 +118,10 @@ function scoreEntry(entry, tokens, titleOnly) {
 
     // A row is a more specific answer than the page containing it, so when both
     // match equally the row wins. Sections sit between.
-    const kindBonus = entry.kind === "row" ? 6 : entry.kind === "section" ? 3 : 0;
+    // An elsewhere result sits just under a row: on an equal match, the control inside
+    // the settings app is the nearer answer than one that opens a panel.
+    const kindBonus = entry.kind === "row" ? 6 : entry.kind === "elsewhere" ? 4
+                    : entry.kind === "section" ? 3 : 0;
     return total / tokens.length + kindBonus;
 }
 
@@ -141,21 +156,46 @@ function search(entries, query, limit) {
     return out;
 }
 
+// A page's key: `file`, or `file#anchor` when one file holds several rail pages.
+function pageKey(p) {
+    if (p.key) return p.key;
+    return p.anchor ? p.file + "#" + p.anchor : p.file;
+}
+
+// Which of a file's pages a generated entry belongs to. A page claims entries by the
+// card they sit in (`sections`: card titles) or by the source file they came from
+// (`parts`: file stems, the builder's `part`). The card is the narrower claim, so it
+// is asked first; an entry nobody claims lands on the file's first page, which is
+// what a bare file key means everywhere else.
+function pageOfEntry(filePages, e) {
+    if (!filePages || filePages.length === 0) return undefined;
+    const card = e.kind === "section" ? e.title : e.section;
+    if (card)
+        for (const p of filePages)
+            if ((p.sections || []).indexOf(card) >= 0) return p;
+    if (e.part)
+        for (const p of filePages)
+            if ((p.parts || []).indexOf(e.part) >= 0) return p;
+    return filePages[0];
+}
+
 // Merge the page catalogue with the generated index into one flat list, resolving
-// each generated entry's `file` to the page's display name and section.
+// each generated entry to the rail page that shows it: its `key`, display name and
+// section. A Scenes row of WallpaperPage.qml gets the key WallpaperPage.qml#scenes.
 //
 // The join is here rather than in the generator on purpose: the page's NAME lives
 // in the catalogue, and baking it into the JSON would make a rename require
 // regenerating the index — two sources of truth for one string, which is the drift
-// the generator exists to prevent.
+// the generator exists to prevent. The same goes for which page claims which part.
 function buildEntries(pages, indexEntries) {
     const byFile = {};
     const out = [];
 
     for (const p of pages || []) {
-        byFile[p.file] = p;
+        (byFile[p.file] = byFile[p.file] || []).push(p);
         out.push({
             kind: "page",
+            key: pageKey(p),
             file: p.file,
             title: p.label,
             detail: p.detail,
@@ -167,22 +207,47 @@ function buildEntries(pages, indexEntries) {
     }
 
     for (const e of indexEntries || []) {
-        const p = byFile[e.file];
         // A generated entry for a page that is not currently available — the Wi-Fi
         // rows on a machine with no adapter — must not be searchable, or the result
         // navigates to a page the rail does not have.
+        const p = pageOfEntry(byFile[e.file], e);
         if (!p) continue;
         out.push({
             kind: e.kind,
+            key: pageKey(p),
             file: e.file,
             title: e.title,
             detail: e.detail,
             section: e.section,
+            part: e.part,
+            values: e.values,
             page: p.label,
             group: p.page || p.section,
         });
     }
 
+    return out;
+}
+
+// The hand-written list of settings that live outside the app (SettingsIndex
+// `elsewhere`) as search records. `where` (the place's human name) is scored as the
+// page, so "gaming" finds the Gaming island's switches; `open` is passed through
+// untouched for whoever opens it (UiState.openElsewhere).
+function elsewhereEntries(list) {
+    const out = [];
+    for (const x of list || []) {
+        if (!x || !x.title || !x.where || !x.open) continue;
+        out.push({
+            kind: "elsewhere",
+            key: "elsewhere",
+            title: x.title,
+            keywords: x.keywords,
+            detail: x.detail,
+            page: x.where,
+            where: x.where,
+            open: x.open,
+        });
+    }
     return out;
 }
 
@@ -194,20 +259,27 @@ function buildEntries(pages, indexEntries) {
 //
 // A page-kind result doesn't become a row — it marks the group (`pageHit`), since
 // "this page matched" is what the group header already is.
+//
+// Folded by page KEY, not file: the four Wallpaper pages share one file and are four
+// groups. Every elsewhere result folds into one group (`elsewhere: true`), whose rows
+// each say where they live.
 function groupResults(results) {
     const groups = [];
-    const byFile = {};
+    const byKey = {};
     for (const r of results || []) {
-        let g = byFile[r.file];
+        const k = r.key || r.file;
+        let g = byKey[k];
         if (!g) {
             g = {
+                key: k,
                 file: r.file,
-                page: r.kind === "page" ? r.title : r.page,
+                page: r.kind === "page" ? r.title : r.kind === "elsewhere" ? "" : r.page,
                 group: r.group,
                 pageHit: false,
+                elsewhere: r.kind === "elsewhere",
                 rows: [],
             };
-            byFile[r.file] = g;
+            byKey[k] = g;
             groups.push(g);
         }
         if (r.kind === "page") g.pageHit = true;
@@ -239,5 +311,5 @@ function splitMatch(text, query) {
 // a QML `.import` (the service), which uses the bare names.
 if (typeof module !== "undefined" && module.exports) {
     module.exports = { norm, squash, scoreField, scoreEntry, search, buildEntries,
-                       groupResults, splitMatch };
+                       pageKey, pageOfEntry, elsewhereEntries, groupResults, splitMatch };
 }

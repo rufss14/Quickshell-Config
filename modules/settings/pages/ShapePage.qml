@@ -7,29 +7,27 @@ import "../../../config"
 import "../../../components"
 import "../../../services"
 
-// ── ShapePage — Appearance › Type & shape ─────────────────────────────────────
-// The shell-wide design tokens: type, density, corner roundness, surface opacity and
-// shadows. Everything here reaches Tokens itself, not one widget's slice of it — an
-// untouched slider changes nothing, because every scale defaults to 1.0 / "" and
+// ── ShapePage — Appearance › Type, shape & motion ────────────────────────────
+// The shell-wide design tokens: type, density, corner roundness, surface opacity,
+// shadows and motion. Everything here reaches Tokens itself, not one widget's slice of it:
+// an untouched slider changes nothing, because every scale defaults to 1.0 / "" and
 // Tokens' baseline constants are exactly what they were before this page existed.
 //
-// ── The specimen earns its place now ──────────────────────────────────────────
-// A preview card was removed from this page once, on the reasoning that the settings
-// window is ITSELF built from these tokens and therefore already the preview. That
-// is true of type and spacing and false of the two that matter most: surface opacity
-// and shadow are invisible against more of the same surface. On the checkered stage
-// they are obvious, and the specimen answers "what does 0.7 actually look like"
-// without you having to apply it to the whole shell to find out.
+// ── The specimen is the page's subject ────────────────────────────────────────
+// The settings window is itself built from these tokens, so it already previews type and
+// spacing. It cannot preview the two that matter most: surface opacity and shadow are
+// invisible against more of the same surface. On the checkered stage they are obvious, and
+// the specimen answers "what does 0.7 actually look like" without applying it to the whole
+// shell. It is built from the REAL components (Surface, StyledText, PanelButton, Toggle),
+// so it cannot drift from what the shell will do.
 //
-// It is built from the REAL components (Surface, StyledText, PanelButton, Toggle), so
-// it cannot drift from what the shell will do — a hand-drawn mock would be a second
-// implementation to keep in step.
+// Beside the card, the three faces in use, set in their own fonts. Under it, grouped rows in
+// two balanced columns: Type and Surfaces on one side, Shape and Motion on the other (the
+// card's source order is Type, Shape, Surfaces, Motion, so the masonry pairs them that way).
+// Each control says its name; why it exists is its `help` tip.
 //
-// ── Fits the window ───────────────────────────────────────────────────────────
-// Preview across the top, then two rows of two cards matched in height (Type beside
-// Shape's four sliders, Motion beside the window mode), so the page ends at the
-// window's edge at 1200×740 instead of scrolling. Each control says its name; why it
-// exists is its `help` tip.
+// The settings window's own mode (window or docked panel) is not here: it is set with the
+// islands, where the panel opens.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
@@ -60,10 +58,10 @@ Item {
     SettingsPage {
         anchors.fill: parent
 
-        bento:     true
+        grouped:   true
         glyph:     "󰛖"
-        title:     Translation.tr("Type")
-        titleTail: Translation.tr("& shape")
+        title:     Translation.tr("Type, shape")
+        titleTail: Translation.tr("& motion")
         accent:    Colors.of(QsWindow.window).primary
         subtitle:  root.changed
 
@@ -95,78 +93,124 @@ Item {
 
         // ══ The specimen ══════════════════════════════════════════════════════
         Section {
-            span:   3
-            glyph:  "󰛐"
-            title:  Translation.tr("Preview")
-            help:   Translation.tr("A card drawn at your settings, from the shell's real components. Everything on this page changes it.")
-            accent: Colors.of(QsWindow.window).primary
+            id: specimenCard
+            hero:  true
+            title: Translation.tr("Preview")
+            help:  Translation.tr("A card drawn at your settings, from the shell's real components. Everything on this page changes it.")
 
-            // Small on purpose — it only has to answer "what does 0.7 opacity look
-            // like", not stand in for the whole card gallery.
-            PreviewStage {
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 112
+                Layout.fillHeight: false
+                spacing: Tokens.spacingLg
 
-                // The real thing, not a drawing of it: a Surface at the same
-                // elevation a settings card uses, so its fill, corner, shadow and
-                // opacity are literally the ones the shell will draw.
-                Surface {
-                    anchors.centerIn: parent
-                    width:  Math.min(parent.width, 300)
-                    implicitHeight: specimen.implicitHeight + Tokens.spacingMd * 2
-                    elevation: Tokens.elevationNested
-                    cornerRadius: Tokens.radiusCard
+                // Small on purpose: it only has to answer "what does 0.7 opacity look
+                // like", not stand in for the whole card gallery.
+                PreviewStage {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 0
+                    Layout.preferredHeight: 112
 
-                    ColumnLayout {
-                        id: specimen
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.margins: Tokens.spacingMd
-                        spacing: Tokens.spacingXs
+                    // The real thing, not a drawing of it: a Surface at the same
+                    // elevation a settings card uses, so its fill, corner, shadow and
+                    // opacity are literally the ones the shell will draw.
+                    Surface {
+                        anchors.centerIn: parent
+                        width:  Math.min(parent.width, 300)
+                        implicitHeight: specimen.implicitHeight + Tokens.spacingMd * 2
+                        elevation: Tokens.elevationNested
+                        cornerRadius: Tokens.radiusCard
 
-                        RowLayout {
-                            Layout.fillHeight: false
-                            Layout.fillWidth: true
-                            spacing: Tokens.spacingSm
+                        ColumnLayout {
+                            id: specimen
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.margins: Tokens.spacingMd
+                            spacing: Tokens.spacingXs
 
-                            ScallopChip {
-                                implicitWidth: 22
-                                implicitHeight: 22
-                                glyph: "󰛖"
-                                tint:  Colors.of(QsWindow.window).primary
-                            }
-                            ColumnLayout {
+                            RowLayout {
+                                Layout.fillHeight: false
                                 Layout.fillWidth: true
-                                spacing: 0
-                                StyledText {
-                                    text: Translation.tr("A card, at this scale")
-                                    variant: "body"
-                                    font.weight: Font.DemiBold
+                                spacing: Tokens.spacingSm
+
+                                ScallopChip {
+                                    implicitWidth: 22
+                                    implicitHeight: 22
+                                    glyph: "󰛖"
+                                    tint:  Colors.of(QsWindow.window).primary
                                 }
-                                StyledText {
-                                    text: Translation.tr("Caption text runs at this size")
-                                    variant: "micro"
-                                    emphasis: "dim"
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 0
+                                    StyledText {
+                                        text: Translation.tr("A card, at this scale")
+                                        variant: "body"
+                                        font.weight: Font.DemiBold
+                                    }
+                                    StyledText {
+                                        text: Translation.tr("Caption text runs at this size")
+                                        variant: "micro"
+                                        emphasis: "dim"
+                                    }
                                 }
+                                Toggle { accent: Colors.of(QsWindow.window).primary; checked: true }
                             }
-                            Toggle { accent: Colors.of(QsWindow.window).primary; checked: true }
+
+                            RowLayout {
+                                Layout.fillHeight: false
+                                Layout.fillWidth: true
+                                spacing: Tokens.spacingSm
+
+                                PanelButton {
+                                    capsule: true
+                                    variant: "primary"
+                                    accent: Colors.of(QsWindow.window).primary
+                                    label: Translation.tr("Primary")
+                                }
+                                PanelButton { capsule: true; variant: "normal"; label: Translation.tr("Normal") }
+                                PanelButton { capsule: true; variant: "ghost";  label: Translation.tr("Ghost") }
+                                Item { Layout.fillWidth: true }
+                            }
                         }
+                    }
+                }
+
+                // The three faces as set now, each in its own font and at the scale above.
+                ColumnLayout {
+                    Layout.preferredWidth: Tokens.fieldHeight * 8
+                    Layout.maximumWidth: Tokens.fieldHeight * 8
+                    Layout.fillHeight: false
+                    Layout.alignment: Qt.AlignVCenter
+                    spacing: Tokens.spacingSm
+
+                    Repeater {
+                        model: [
+                            { sample: "Aa Bb 123", name: Translation.tr("Text"),     face: Tokens.fontFamily },
+                            { sample: "0123 4567", name: Translation.tr("Numerals"), face: Tokens.fontMono },
+                            { sample: "12:34",     name: Translation.tr("Display"),  face: Tokens.fontBlock }
+                        ]
 
                         RowLayout {
-                            Layout.fillHeight: false
+                            id: faceRow
+                            required property var modelData
                             Layout.fillWidth: true
-                            spacing: Tokens.spacingSm
+                            Layout.fillHeight: false
+                            spacing: Tokens.spacingMd
 
-                            PanelButton {
-                                capsule: true
-                                variant: "primary"
-                                accent: Colors.of(QsWindow.window).primary
-                                label: Translation.tr("Primary")
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: faceRow.modelData.sample
+                                variant: "headline"
+                                font.family: faceRow.modelData.face
+                                font.features: ({ tnum: 1 })
+                                color: specimenCard.ink
+                                elide: Text.ElideRight
                             }
-                            PanelButton { capsule: true; variant: "normal"; label: "Normal" }
-                            PanelButton { capsule: true; variant: "ghost";  label: "Ghost" }
-                            Item { Layout.fillWidth: true }
+                            StyledText {
+                                text: faceRow.modelData.name
+                                variant: "caption"
+                                color: specimenCard.inkDim
+                            }
                         }
                     }
                 }
@@ -177,20 +221,22 @@ Item {
         // Picked from what is installed, never typed: Qt falls back to a system font
         // SILENTLY on a name it doesn't know, so a typo left the shell in the wrong
         // face with nothing saying so. (Each picker is also a labelled row, which is
-        // what puts it in the search index — scripts/build-settings-index.py reads
+        // what puts it in the search index: scripts/build-settings-index.py reads
         // labels, and a bare field dropped this setting out of search once.)
         //
         // Three, because they do three jobs and a mono or a display face cannot be
         // derived from a prose one. Icons are unaffected: Material Symbols draws them,
         // and the brand marks fall back to the Nerd Font per glyph.
         Section {
-            span:   1
-            glyph:  "󰛖"
-            title:  Translation.tr("Type")
-            accent: Colors.of(QsWindow.window).primary
+            grouped: true
+            symbol:  "text_fields"
+            title:   Translation.tr("Type")
+            subtitle: Config.fontFamily !== "" || Config.fontMonoFamily !== "" || Config.fontBlockFamily !== ""
+                ? Translation.tr("Custom fonts") : ""
 
             FontPicker {
                 label:    Translation.tr("Text")
+                detail:   Translation.tr("In use: %1").arg(Tokens.fontFamily)
                 help:     Translation.tr("The font for labels, titles and body copy everywhere in the shell.")
                 value:    Config.fontFamily
                 fallback: Tokens.defaultFamily
@@ -199,6 +245,7 @@ Item {
 
             FontPicker {
                 label:    Translation.tr("Numerals")
+                detail:   Translation.tr("In use: %1").arg(Tokens.fontMono)
                 help:     Translation.tr("The font for throughput, timers and other figures that must line up. A monospace face is best.")
                 value:    Config.fontMonoFamily
                 fallback: Tokens.defaultMono
@@ -207,6 +254,7 @@ Item {
 
             FontPicker {
                 label:    Translation.tr("Display")
+                detail:   Translation.tr("In use: %1").arg(Tokens.fontBlock)
                 help:     Translation.tr("The font for the big clock on the lock and login screens. Heavier faces read best.")
                 value:    Config.fontBlockFamily
                 fallback: Tokens.defaultBlock
@@ -226,13 +274,11 @@ Item {
         }
 
         // ══ Shape ═════════════════════════════════════════════════════════════
-        // Density, corners, opacity and shadow in one card: four sliders of the same
-        // kind, the same height as the Type card beside them, so the row is flush.
+        // Density, corners and the shape that holds an icon.
         Section {
-            span:   1
-            glyph:  "󰘇"
-            title:  Translation.tr("Shape")
-            accent: Colors.of(QsWindow.window).primary
+            grouped: true
+            symbol:  "rounded_corner"
+            title:   Translation.tr("Shape")
 
             Fader {
                 label:  Translation.tr("Spacing")
@@ -256,43 +302,80 @@ Item {
                 readout: Config.radiusScale.toFixed(2) + "×"
                 onCommit: function (v) { Config.radiusScale = v }
             }
-            // Which ladder the radius scales: the shell's own, or End-4's rounder one.
-            // Global: every panel, card, button and field — and the bar, flush to the edges.
-            QuickToggleTile {
-                Layout.fillWidth: true
-                roomy:  true
-                symbol: "square"
+            // Global: every panel, card, button and field, and the bar, flush to the edges. The
+            // one home of this switch (the bar's own style settings do not repeat it).
+            SettingRow {
+                rowTap: true
                 label:  Translation.tr("Square corners")
-                accent: Colors.of(QsWindow.window).primary
-                active: Config.barShape
-                subLabel: Config.barShape ? Translation.tr("Everywhere, and the bar edge to edge")
-                                          : Translation.tr("Rounded, at the radius set here")
-                onToggled: Config.toggleShape()
+                detail: Config.barShape ? Translation.tr("Everywhere, and the bar edge to edge")
+                                        : Translation.tr("Rounded, at the radius set here")
+                onTapped: Config.toggleShape()
+
+                Toggle {
+                    accent:  Colors.of(QsWindow.window).primary
+                    checked: Config.barShape
+                    onToggled: Config.toggleShape()
+                }
             }
-            TabStrip {
+            // Which ladder the radius scales: the shell's own, or End-4's rounder one.
+            SettingRow {
+                label:  Translation.tr("Corner style")
+                detail: Config.cornerStyle === "ii" ? Translation.tr("A rounder ladder of radii")
+                                                    : Translation.tr("The shell's own ladder of radii")
+
+                TabStrip {
+                    connected: true
+                    // A SettingRow's control slot is a plain Item: size by implicitWidth.
+                    implicitWidth: Tokens.fieldHeight * 7
+                    accent: Colors.of(QsWindow.window).primary
+                    model: [
+                        { value: "default", label: Translation.tr("Corners"),    icon: "crop_free" },
+                        { value: "ii",      label: Translation.tr("Rounder"),    icon: "rounded_corner" }
+                    ]
+                    current: Config.cornerStyle
+                    onPicked: function (v) { Config.cornerStyle = v }
+                }
+            }
+            // What holds an icon in a panel header and a settings section. Five values, so
+            // chips that wrap rather than a connected group.
+            ColumnLayout {
                 Layout.fillWidth: true
-                accent: Colors.of(QsWindow.window).primary
-                model: [
-                    { value: "default", label: Translation.tr("Corners"),    icon: "crop_free" },
-                    { value: "ii",      label: Translation.tr("Rounder"),    icon: "rounded_corner" }
-                ]
-                current: Config.cornerStyle
-                onPicked: function (v) { Config.cornerStyle = v }
+                Layout.fillHeight: false
+                spacing: Tokens.spacingSm
+
+                StyledText {
+                    text: Translation.tr("Icon shape")
+                    variant: "body"
+                    font.weight: Font.Medium
+                }
+                StyledText {
+                    text: Translation.tr("What holds an icon in a panel header")
+                    variant: "caption"
+                    emphasis: "dim"
+                }
+                ChipRow {
+                    Layout.fillHeight: false
+                    accent: Colors.of(QsWindow.window).primary
+                    model: [
+                        { value: "default",  label: Translation.tr("Default") },
+                        { value: "squircle", label: Translation.tr("Squircle") },
+                        { value: "cookie",   label: Translation.tr("Cookie") },
+                        { value: "clover",   label: Translation.tr("Clover") },
+                        { value: "circle",   label: Translation.tr("Circle") }
+                    ]
+                    current: Config.iconShape
+                    onPicked: function (v) { Config.iconShape = v }
+                }
             }
-            // What holds an icon in a panel header and a settings section.
-            TabStrip {
-                Layout.fillWidth: true
-                accent: Colors.of(QsWindow.window).primary
-                model: [
-                    { value: "default",  label: Translation.tr("Default"),  icon: "settings" },
-                    { value: "squircle", label: Translation.tr("Squircle"), icon: "square" },
-                    { value: "cookie",   label: Translation.tr("Cookie"),   icon: "sunny" },
-                    { value: "clover",   label: Translation.tr("Clover"),   icon: "star" },
-                    { value: "circle",   label: Translation.tr("Circle"),   icon: "circle" }
-                ]
-                current: Config.iconShape
-                onPicked: function (v) { Config.iconShape = v }
-            }
+        }
+
+        // ══ Surfaces ══════════════════════════════════════════════════════════
+        Section {
+            grouped:  true
+            symbol:   "layers"
+            title:    Translation.tr("Surfaces")
+            subtitle: Config.highContrast ? Translation.tr("High contrast") : ""
+
             Fader {
                 label:  Translation.tr("Opacity")
                 help:   Translation.tr("How much of the desktop shows through the shell's surfaces.")
@@ -308,10 +391,15 @@ Item {
             // Overrides the opacity above (and the bar's and widgets'): every surface solid,
             // text and accents at 7:1, 2px solid borders. PaletteRoles and Tokens read it.
             SettingRow {
-                label: Translation.tr("High contrast")
-                help:  Translation.tr("Stronger text and accent colours, solid borders and fully opaque surfaces. The opacity sliders keep their values for when you switch it off.")
+                rowTap: true
+                label:  Translation.tr("High contrast")
+                detail: Config.highContrast ? Translation.tr("Solid surfaces, stronger text")
+                                            : Translation.tr("Surfaces keep the opacity above")
+                help:   Translation.tr("Stronger text and accent colours, solid borders and fully opaque surfaces. The opacity sliders keep their values for when you switch it off.")
+                onTapped: Config.highContrast = !Config.highContrast
+
                 Toggle {
-                    accent: Colors.of(QsWindow.window).primary
+                    accent:  Colors.of(QsWindow.window).primary
                     checked: Config.highContrast
                     onToggled: Config.highContrast = !Config.highContrast
                 }
@@ -325,7 +413,7 @@ Item {
                 step:   0.05
                 value:  Config.shadowScale
                 // At 0 the shell stops drawing shadows at all, not just faintly.
-                readout: Config.shadowScale === 0 ? "Off" : Config.shadowScale.toFixed(2) + "×"
+                readout: Config.shadowScale === 0 ? Translation.tr("Off") : Config.shadowScale.toFixed(2) + "×"
                 onCommit: function (v) { Config.shadowScale = v }
             }
         }
@@ -337,22 +425,29 @@ Item {
         //
         // One wrinkle worth knowing: a BAR PRESET snapshots these along with the bar's
         // own settings (Config's preset writer takes motionEnabled/motionScale), so
-        // loading a preset can change the whole shell's motion. Left as it is — the
+        // loading a preset can change the whole shell's motion. Left as it is: the
         // shipped presets round-trip through that shape.
         //
-        // The switch is the card's own (its heading), so the body is just the speed.
+        // The master is the group's first row, named, so the switch is never a bare control.
         Section {
-            span:     1
-            glyph:    "󰓞"
+            grouped:  true
+            symbol:   "animation"
             title:    Translation.tr("Motion")
-            subtitle: Config.motionEnabled ? "" : "Off — every change is instant"
-            help:     Translation.tr("Every animation in the shell — panels, notifications, the lock screen, the bar — runs through these two.")
-            accent:   Colors.of(QsWindow.window).primary
+            help:     Translation.tr("Every animation in the shell (panels, notifications, the lock screen, the bar) runs through these two.")
 
-            actions: Toggle {
-                accent: Colors.of(QsWindow.window).primary
-                checked: Config.motionEnabled
-                onToggled: Config.motionEnabled = !Config.motionEnabled
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Animations")
+                detail: Config.motionEnabled ? Translation.tr("Every change plays out")
+                                             : Translation.tr("Every change is instant")
+                onTapped: Config.motionEnabled = !Config.motionEnabled
+
+                Toggle {
+                    accent: Colors.of(QsWindow.window).primary
+                    accessibleName: Translation.tr("Animations")
+                    checked: Config.motionEnabled
+                    onToggled: Config.motionEnabled = !Config.motionEnabled
+                }
             }
 
             Fader {
@@ -371,52 +466,21 @@ Item {
 
             // Between full and off: fades stay, bounce / parallax / drifting shapes / the colour
             // wave / idle spinning go (Motion.reduced, Motion.ambientOn). Not part of a bar
-            // preset or a look bundle — it is the user's accessibility choice.
+            // preset or a look bundle: it is the user's accessibility choice.
             SettingRow {
-                label: Translation.tr("Reduced motion")
-                help:  Translation.tr("Keeps fades and state changes, drops bounce, parallax, drifting shapes, the colour-change wave and idle spinning.")
+                rowTap: true
                 enabled: Config.motionEnabled
+                opacity: enabled ? 1 : 0.4
+                label:  Translation.tr("Reduced motion")
+                detail: Config.motionReduced ? Translation.tr("Fades only") : Translation.tr("Full motion")
+                help:   Translation.tr("Keeps fades and state changes, drops bounce, parallax, drifting shapes, the colour-change wave and idle spinning.")
+                onTapped: Config.motionReduced = !Config.motionReduced
+
                 Toggle {
-                    accent: Colors.of(QsWindow.window).primary
+                    accent:  Colors.of(QsWindow.window).primary
                     checked: Config.motionReduced
                     onToggled: Config.motionReduced = !Config.motionReduced
                 }
-            }
-        }
-
-        // ══ This window ═══════════════════════════════════════════════════════
-        Section {
-            span:   1
-            glyph:  "󰗋"
-            title:  Translation.tr("Settings window")
-            help:   Translation.tr("Window: a floating window the compositor places, like any other app. Panel: pinned to the bottom edge and merged into the frame, so it never covers the bar.")
-            accent: Colors.of(QsWindow.window).primary
-
-            TabStrip {
-                Layout.fillWidth: true
-                accent: Colors.of(QsWindow.window).primary
-                model: [
-                    { value: false, label: "Window", icon: "desktop_mac" },
-                    { value: true,  label: "Panel",  icon: "dashboard" }
-                ]
-                current: Config.settingsPanel
-                onPicked: function (v) { Config.settingsPanel = v }
-            }
-
-            TabStrip {
-                Layout.fillWidth: true
-                visible: Config.settingsPanel
-                accent: Colors.of(QsWindow.window).primary
-                // Every icon name needs an icons.js entry or a machine without the
-                // Material Symbols font renders "?" — the align_horizontal_* family
-                // has none, so these say the same thing with mapped glyphs.
-                model: [
-                    { value: "left",   label: "Left",   icon: "chevron_left" },
-                    { value: "center", label: "Centre", icon: "circle" },
-                    { value: "right",  label: "Right",  icon: "chevron_right" }
-                ]
-                current: Config.settingsPanelSide
-                onPicked: function (v) { Config.settingsPanelSide = v }
             }
         }
     }

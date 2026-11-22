@@ -190,6 +190,20 @@ Singleton {
         return true
     }
 
+    // A quick toggle as a switch (the desktop toggles tile, the hot corner): one answer for
+    // all of them, so they can't disagree. Bluetooth's switch is the adapter's power;
+    // run("bluetooth") opens the panel instead (Bt.qml says why there is no wrapper).
+    function switchOn(id) {
+        if (id === "bluetooth") return Bt.powered
+        const s = root.stateOf(id)
+        return s === "On" || s === "Muted" || s === "Light"
+    }
+    function switchFlip(id) {
+        if (root.blockerOf(id) !== "") return
+        if (id === "bluetooth") { if (Bt.adapter) Bt.adapter.enabled = !Bt.adapter.enabled }
+        else root.run(id)
+    }
+
     // One surface-close's worth of time, so the launcher's card is gone before a
     // region picker or a colour picker freezes the screen.
     function _later(fn) {

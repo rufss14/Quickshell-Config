@@ -26,7 +26,7 @@ Rectangle {
     implicitHeight: body.implicitHeight + Tokens.spacingSm * 2
     radius: Tokens.radiusSm
     color: root._alert ? Colors.of(QsWindow.window).alpha(root._accent, 0.10)
-                       : Colors.of(QsWindow.window).surfaceContainer
+                       : Colors.of(QsWindow.window).plateLow
     border.width: Tokens.borderWidth
     border.color: root._alert ? Colors.of(QsWindow.window).alpha(root._accent, 0.32)
                               : Colors.of(QsWindow.window).outline

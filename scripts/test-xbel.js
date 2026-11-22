@@ -15,8 +15,8 @@ import { fileURLToPath } from "url";
 const here = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(here, "..", "services", "xbel.js"), "utf8")
     .replace(/^\s*\.pragma\s+library\s*$/m, "");
-const { parse, appsOf, byApp, decode } =
-    new Function(src + "\nreturn { parse, appsOf, byApp, decode };")();
+const { parse, appsOf, byApp, decode, recent } =
+    new Function(src + "\nreturn { parse, appsOf, byApp, decode, recent };")();
 
 let pass = 0, fail = 0;
 function check(name, got, want) {
@@ -74,6 +74,20 @@ check("byApp: unknown apps dropped", Object.keys(byApp(entries, () => "", 5)), [
 
 check("decode: numeric entities", decode("a&#38;b&#x41;"), "a&bA");
 check("parse: garbage in, nothing out", parse("<not xbel>"), []);
+
+// recent(): every local file once, newest use first, across apps.
+const rx = [
+    { href: "file:///a/old.txt", apps: [{ name: "x", exec: "x", time: 10 }] },
+    { href: "file:///a/new%20one.png", apps: [{ name: "x", exec: "x", time: 30 }, { name: "y", exec: "y", time: 50 }] },
+    { href: "https://example.com/", apps: [{ name: "x", exec: "x", time: 99 }] },
+    { href: "file:///a/mid.pdf", apps: [{ name: "z", exec: "z", time: 20 }] },
+    { href: "file:///a/old.txt", apps: [{ name: "z", exec: "z", time: 40 }] }
+];
+check("recent: newest first, once each, local only", recent(rx, 10).map(r => r.path), ["/a/new one.png", "/a/old.txt", "/a/mid.pdf"]);
+check("recent: a file's latest use counts", recent(rx, 10)[0].time, 50);
+check("recent: limit", recent(rx, 2).length, 2);
+check("recent: name is the last part", recent(rx, 1)[0].name, "new one.png");
+check("recent: nothing in, nothing out", recent([], 5), []);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

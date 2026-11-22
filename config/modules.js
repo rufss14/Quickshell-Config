@@ -58,6 +58,14 @@ var MODULES = [
       side: { home: "start", small: true, cells: 1, glyph: "\u{F059F}",
           description:
             "Moves the top bar between floating and on the frame." } },
+    { id: "spacer", label: "Spacer",
+      category: "look", blurb: "Empty room between modules, sized by you or by another module",
+      bar: { home: "left", opts: ["spacer"],
+          description:
+            "<b>Nothing, on purpose.</b> Put it between modules to space them. Give it a width, or let it <b>follow a module</b>: it grows with it, or fills what is left of a width as it grows. <i>It shows as a module while you arrange the bar.</i>" },
+      side: { home: "end", opts: ["spacer"], small: true, cells: 1, glyph: "\u{F04E1}",
+          description:
+            "<b>Nothing, on purpose.</b> Put it between modules to space them along the edge. Give it a length, or let it <b>follow a module</b>: it grows with it, or fills what is left of a length as it grows. <i>It shows as a module while you arrange the sidebar.</i>" } },
     { id: "palette", label: "Colour scheme",
       category: "look", blurb: "The colour scheme drawn from your wallpaper",
       bar: { home: "left", opts: ["spacing"],
@@ -76,10 +84,10 @@ var MODULES = [
             "Opens the wallpaper picker (in the top bar's dock). <i>Choosing one re-derives the whole palette.</i>" } },
     { id: "volume", label: "Volume",
       category: "media", blurb: "Output level: scroll to change it, click for the mixer",
-      bar: { home: "left", opts: ["rightClick", "panelHeader"],
+      bar: { home: "left", opts: ["rightClick"],
           description:
             "<b>Scroll</b> to change volume, <b>click</b> for the mixer, <b>right-click</b> for the slider." },
-      side: { home: "end", opts: ["panelHeader"], small: true, cells: 1, glyph: "\u{F057E}",
+      side: { home: "end", small: true, cells: 1, glyph: "\u{F057E}",
           description:
             "The output level under the speaker; scroll to change it, click for the mixer beside it. <i>Middle-click: mute.</i>" } },
     { id: "keyboard", label: "Keyboard layout",
@@ -218,6 +226,11 @@ var MODULES = [
       side: { home: "end", small: true, cells: 1, glyph: "\u{F0594}",
           description:
             "Warms the screen; click again to clear it." } },
+    { id: "stream", label: "Stream mode",
+      category: "status", blurb: "Shows while the screen is being captured",
+      bar: { home: "right", opts: ["spacing"],
+          description:
+            "Appears as <b>Streaming</b>, with the capturing app's icon, only while something is <b>capturing your screen</b> (OBS, Discord share). Stream mode turns itself on for as long as that lasts: notifications and the overview are black in the capture and normal on your monitor. <i>Needs the stream-mode block in your Hyprland rules.lua; the tooltip says when it is missing.</i>" } },
     { id: "clips", label: "Clips",
       category: "tools", blurb: "Clip the last moments, or record the screen", native: "side",
       bar: { home: "right",
@@ -407,12 +420,13 @@ var CATEGORIES = [
 //   dndOnly      notifications: show only while Do Not Disturb
 //   panelHeader  the module's panel has a switchable title row
 //   peek         an event card beside the cell (Config.peek*)
-var OPTS = ["spacing", "rightClick", "dndOnly", "panelHeader", "peek"];
+//   spacer       the spacer's size and the module it follows (Config.spacerSize / spacerFollow)
+var OPTS = ["spacing", "rightClick", "dndOnly", "panelHeader", "peek", "spacer"];
 
 // The modules whose panel has a switchable title row (Config.panelHeader): each honours `panelHeader` on
 // either form, so it isn't repeated in every `opts`. Not the panels whose header IS their controls
-// (colours, wallpaper, Bluetooth, notifications, clips, media, voice, updates): hiding it would hide what they do.
-var PANELS = ["volume", "wifi", "gamemode", "clock", "stats", "clipboard", "timer", "claude",
+// (colours, wallpaper, the mixer, Bluetooth, notifications, clips, media, voice, updates): hiding it would hide what they do.
+var PANELS = ["wifi", "gamemode", "clock", "stats", "clipboard", "timer", "claude",
               "brightness", "window", "layout", "screentime", "inactivity", "tasks"];
 
 // One module, whole: its module-level facts plus both forms as they are (null when it

@@ -230,17 +230,6 @@ Item {
 
     HoverHandler { id: hover }
 
-    // The pick's halo — the grid cell's own glow, hugging this window.
-    OverviewGlow {
-        anchors.centerIn: parent
-        circular: false
-        contentWidth: root.width
-        contentHeight: root.height
-        contentRadius: root.cornerRadius
-        accent: Colors.of(QsWindow.window).primary
-        active: root.picked && !root.dragging
-    }
-
     // A lift of `f` of the size, but never more than a few px a side: a preview as big as its cell
     // would otherwise grow into the next one (the gap is the grid's `gap`).
     function lift(f) { return 1 + Math.min(f, (Tokens.spacingSm * 2) / Math.max(1, Math.min(root.width, root.height))) }
@@ -295,6 +284,33 @@ Item {
                 live: !shot.hasContent || hover.hovered || root.picked || root.marked || root.dragging
                       || root.workspaceId === Hypr.focusedWorkspaceId
             }
+
+            // Stream mode: a tile stands over the capture (which keeps running, so nothing that
+            // waits on its first frame stalls) and the app's icon below is dropped, so neither
+            // the window nor which app it is gets out. Inside the masked item: same rounded corners.
+            Rectangle {
+                anchors.fill: parent
+                visible: StreamMode.active
+                color: Colors.of(QsWindow.window).primaryContainer
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: Tokens.spacingXs
+                    MaterialIcon {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        name: "visibility_off"
+                        color: Colors.of(QsWindow.window).fgOnPrimaryContainer
+                        font.pixelSize: content.iconPx
+                    }
+                    StyledText {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        visible: Math.min(root.width, root.height) >= 90
+                        text: Translation.tr("Hidden")
+                        variant: "caption"
+                        color: Colors.of(QsWindow.window).fgOnPrimaryContainer
+                    }
+                }
+            }
         }
 
         Item {
@@ -332,7 +348,7 @@ Item {
         // warning for another.
         Image {
             anchors.centerIn: parent
-            visible: content.iconPath !== ""
+            visible: content.iconPath !== "" && !StreamMode.active
             source:  content.iconPath
             width:   content.iconPx
             height:  content.iconPx
@@ -344,7 +360,7 @@ Item {
 
         MaterialIcon {
             anchors.centerIn: parent
-            visible: content.iconPath === ""
+            visible: content.iconPath === "" && !StreamMode.active
             glyph: "󰣆"
             color: Colors.of(QsWindow.window).fgMuted
             font.pixelSize: content.iconPx
@@ -447,11 +463,10 @@ Item {
         // Never narrower than the label, never wider than a grid cell's worth of room.
         width:  Math.min(360, tipRow.implicitWidth + Tokens.spacingLg * 2)
         height: 28
-        radius: Tokens.radiusSm
+        radius: height / 2
 
-        color: root.picked ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceHigh, Colors.of(QsWindow.window).focus, 0.12) : Colors.of(QsWindow.window).surfaceHigh
-        border.width: root.picked ? Tokens.borderWidth + 1 : Tokens.borderWidth
-        border.color: root.picked ? Colors.of(QsWindow.window).focus : Colors.of(QsWindow.window).outlineFocus
+        color: root.picked ? Colors.of(QsWindow.window).primaryContainer : Colors.of(QsWindow.window).surfaceHigh
+        Behavior on color { ColorAnimation { duration: Motion.respond } }
 
         visible: opacity > 0.01
         opacity: tip.shown ? 1 : 0
@@ -470,7 +485,7 @@ Item {
 
             Image {
                 anchors.verticalCenter: parent.verticalCenter
-                visible: content.iconPath !== ""
+                visible: content.iconPath !== "" && !StreamMode.active
                 source:  content.iconPath
                 width:   Tokens.iconSm
                 height:  Tokens.iconSm
@@ -482,10 +497,11 @@ Item {
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.min(implicitWidth, 230)
-                text: root.window.title !== "" ? root.window.title
-                                               : Icons.nameForAppId(root.geom.appClass)
+                text: StreamMode.mask(root.window.title !== "" ? root.window.title
+                                                               : Icons.nameForAppId(root.geom.appClass))
                 variant: "label"
                 font.weight: root.picked ? Font.DemiBold : Font.Normal
+                color: root.picked ? Colors.of(QsWindow.window).fgOnPrimaryContainer : Colors.of(QsWindow.window).fg
                 elide: Text.ElideRight
             }
             StyledText {
@@ -493,7 +509,7 @@ Item {
                 visible: root.ago !== ""
                 text: "·  " + root.ago
                 variant: "caption"
-                emphasis: "dim"
+                color: root.picked ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fgOnPrimaryContainer, 0.72) : Colors.of(QsWindow.window).fgDim
             }
         }
     }

@@ -39,6 +39,8 @@ ListView {
     property bool selecting: false
     property var  selected: ({})
     signal toggled(var rec)
+    // On an island page: tiles are lifted cards and the app's name is a small caps label.
+    property bool plated: false
     // The centre's accent: the new-dot, the actions, the chips.
     property color accent: Colors.of(QsWindow.window).primary
     // The cards' entrance — opt-in, so the lock screen's list (which never opens) just shows.
@@ -123,9 +125,11 @@ ListView {
 
                 // The app's name, then how many as a small tonal count — a label to read, not a dim aside.
                 StyledText {
-                    text: grp.modelData.app
-                    variant: "body"
-                    font.weight: Font.DemiBold
+                    text: groupList.plated ? grp.modelData.app.toUpperCase() : grp.modelData.app
+                    variant: groupList.plated ? "caption" : "body"
+                    font.weight: groupList.plated ? Font.Bold : Font.DemiBold
+                    font.letterSpacing: groupList.plated ? 1 : 0
+                    color: groupList.plated ? Colors.of(QsWindow.window).fgMuted : Colors.of(QsWindow.window).fg
                     elide: Text.ElideRight
                     Layout.maximumWidth: groupList.width * 0.6
                 }
@@ -144,7 +148,17 @@ ListView {
                         color: Colors.of(QsWindow.window).fgOnPrimaryContainer
                     }
                 }
-                Item { Layout.fillWidth: true }
+                // Plated: a soft rule runs from the name to the edge, so a group reads as a section.
+                Rectangle {
+                    visible: groupList.plated
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.leftMargin: Tokens.spacingXs
+                    implicitHeight: 2
+                    radius: 1
+                    color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.08)
+                }
+                Item { visible: !groupList.plated; Layout.fillWidth: true }
                 // A muted app says so — its notifications land here without a toast.
                 MaterialIcon {
                     visible: grp.muted
@@ -184,6 +198,7 @@ ListView {
                     rec:        modelData
                     actionable: groupList.actionable
                     accent:     groupList.accent
+                    plated:     groupList.plated
                     fresh:      modelData.time > groupList.newSince
                     selecting:  groupList.selecting
                     selected:   groupList.selected[modelData.key] === true

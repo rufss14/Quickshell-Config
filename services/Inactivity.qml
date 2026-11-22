@@ -93,7 +93,7 @@ Singleton {
     // ── What the panel reads ──────────────────────────────────────────────────
     // The vocabulary lives in inactivity.js; these hand it over so the panel needs no
     // import of its own.
-    readonly property var actionChips: Ia.ACTION_ORDER.map(a => ({ value: a, label: Ia.ACTIONS[a].label }))
+    readonly property var actionChips: Ia.ACTION_ORDER.map(a => ({ value: a, label: Ia.ACTIONS[a].label, symbol: Ia.ACTIONS[a].symbol }))
     readonly property int warnSeconds: Ia.WARN_SECONDS
     readonly property int minMinutes: Ia.MIN_MINUTES
     readonly property int maxMinutes: Ia.MAX_MINUTES

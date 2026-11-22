@@ -473,7 +473,7 @@ Singleton {
         case "findsetting": {
             const hit = SettingsIndex.search(act.query, 1)[0]
             if (!hit) return fail("No setting matches “" + act.query + "”")
-            UiState.openSettingsTo(hit.file)
+            UiState.openSettingsTo(hit.key || hit.file)
             return done(null, hit.title || "")
         }
         case "remember": {

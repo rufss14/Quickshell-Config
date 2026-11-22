@@ -18,6 +18,19 @@ ConfigSystem {
     // flag; the wallpaper itself is untouched.
     property string themeMode: "dark"
 
+    // ── The gradient the bar and islands wear ─────────────────────────────────
+    // { on, angle, strength, mid, stops, from } (services/gradient.js `clean` is the one reader: it supplies
+    // every default, so `{}` is "off"). Drawn by the blob, so it shows where the blob owns the fill and
+    // nowhere else. Worn schemes bring their own (ColorScheme.wear), `from` names the one that did.
+    property var barGradient: ({})
+
+    // ── Glass: the shell as tinted glass instead of paint ─────────────────────
+    // 0 (solid) to 1: how far the bar, the islands' faces and the surfaces that wear the gradient let the
+    // desktop show through. Not Config.barOpacity (a plain alpha of the grey): the material keeps its tint, the
+    // compositor blurs what is behind it (hypr/rules.lua), and what stands on it becomes a veil of its own.
+    // Tokens.glass is the alpha it means.
+    property real barGlass: 0
+
     // ── Which monitor image applies target ────────────────────────────────────
     // "" = every screen; otherwise a screen name (DP-2, HDMI-A-1…). Static
     // images only — awww sets outputs natively. The palette stays global: the
@@ -51,6 +64,9 @@ ConfigSystem {
     //                                              switching to it puts it back.
     property var  audioDeviceCaps:     ({})
     property var  audioDeviceLevels:   ({})
+    // Where each song's Canvas sits in the media page's cookie (dragged up or down by the user): { "<spotify track uri>": -1..1 }.
+    // Absent = centred. Newest last, capped (IslandMedia saves it, on release of a drag, never during one).
+    property var  canvasPans:          ({})
     property bool audioRememberLevels: true
 
     // ── Who draws the static wallpaper ────────────────────────────────────────
@@ -329,6 +345,15 @@ ConfigSystem {
     // Warms the display after dark. See services/NightLight.qml for which backend
     // actually does it and why the shell owns the schedule rather than the tool.
     property bool nightLight: false
+
+    // ══ Stream mode ═══════════════════════════════════════════════════════════
+    // Hides parts of the shell from screen capture (viewers) while the monitor shows
+    // everything. Persisted on purpose: a shell reload mid-stream must not drop the
+    // hiding. See services/StreamMode.qml.
+    property bool streamMode: false
+    // The user turned stream mode off from the bar pill: it then stays off for the captures that
+    // follow, across shell loads, until they turn it back on (StreamMode.toggleSuspend / toggle).
+    property bool streamOff: false
     // The lens (services/Lens): which languages tesseract reads — "auto" (default: whatever is
     // installed, narrowed by the script it sees; scripts/lens.py), or a fixed "eng+jpn" (only
     // installed ones are used) — and what it translates into ("" = the lyrics' language).
@@ -345,6 +370,62 @@ ConfigSystem {
     // …and, off the zones, a floating window you SUPER-drag lands on the desktop widgets'
     // grid (`widgetGrid`) — the same dots, from the same monitor corner.
     property bool snapToGrid: false
+    // Hot corner (modules/panels/HotCorner): resting the pointer in a screen corner slides out a
+    // small panel of the things reached for most. Off by default: a corner that opens by itself is
+    // a surprise until it is wanted. `hotCornerEdge` is topLeft | topRight | bottomLeft |
+    // bottomRight; `hotCornerParts` is which sections the panel shows (sliders, toggles, media,
+    // apps, capture); `hotCornerToggles` is which switches the toggles section carries (the ids of
+    // desktop/widgets/toggles.js).
+    property bool   hotCorner: false
+    property string hotCornerEdge: "bottomRight"
+    property var    hotCornerParts: ["sliders", "toggles", "media", "apps", "capture"]
+    property var    hotCornerToggles: ["wifi", "bluetooth", "dnd", "nightlight", "gamemode", "awake"]
+    // How long the pointer rests before it opens (ms), how long it must be gone before it closes (ms), and
+    // the panel's size (1 = as designed).
+    property int    hotCornerDelay: 140
+    property int    hotCornerLinger: 450
+    property real   hotCornerScale: 1.0
+    // The desktop menu (modules/desktop/DeskMenu): right-click the desktop. `deskMenuWallpapers` is how many
+    // pictures its strip shows (0 = no strip), `deskMenuSwitches` the round buttons (toggles.js ids),
+    // `deskMenuTools` the icon row on top (deskmenu.js TOOLS ids, up to 6), `deskMenuPlaces` the lines
+    // under "Show more options" (deskmenu.js PLACES ids).
+    // The island (modules/island/IslandDock): a handle on the bar that opens a card of today, the music and the
+    // machine when the pointer rests on it. Off by default. `islandAlign` is left | centre | right along the bar;
+    // `islandDelay` / `islandLinger` (ms): how long the pointer rests before it opens and how long it must be gone
+    // before it closes; `islandTab`: the card's last tab.
+    property bool   island: false
+    property string islandAlign: "centre"
+    property int    islandDelay: 180
+    property int    islandLinger: 450
+    // The handle's length along the bar (px): the line on the bar's top edge you rest the pointer on.
+    property int    islandHandle: 56
+    property string islandTab: "today"
+    // Which of the middle island's own pages are shown (services/island.js TABS ids). Read only while `islandRails` is
+    // {} (a shell that never used the board), so an upgraded shell keeps its pages; the board writes `islandRails`.
+    property var    islandPages: ["today", "media", "system", "weather"]
+    // Every island's rail in order, and the pages taken off every rail:
+    // { left, center, right, bottomLeft, bottomCenter, bottomRight: [ids], off: [ids] }. {} = never arranged (config/islands.js layoutOf:
+    // the defaults, or the older islandPages + panelPlacement). Written by Settings › Desktop › Island's board.
+    property var    islandRails: ({})
+    // Per-island options over the shared ones below: { side: { openBy, delay, linger, handle, scale, effects } },
+    // a name an island does not set is the shared value (config/islands.js optionOf keeps each to its range).
+    property var    islandOverrides: ({})
+    // The Dashboard's round switches (desktop/widgets/toggles.js ids, at most six).
+    property var    islandSwitches: ["dnd", "nightlight", "awake", "mute", "lock"]
+    // `islandOpenBy`: "hover" (rest the pointer on the handle) or "click". `islandLive`: the handle shows a running
+    // timer or the song playing as a small pill under the bar (a recording always shows); `islandFollow`: opened from
+    // that pill, the card lands on the matching page. `islandScale`: the whole card (0.8–1.25). `islandEffects`: the
+    // weather drifting behind the cards and the shapes turning and breathing with the music.
+    property string islandOpenBy: "hover"
+    property bool   islandLive: true
+    property bool   islandFollow: true
+    property real   islandScale: 1.0
+    property bool   islandEffects: true
+    property bool   deskMenu: true
+    property int    deskMenuWallpapers: 4
+    property var    deskMenuSwitches: ["shuffle", "nightlight", "dnd", "gamemode", "lock"]
+    property var    deskMenuTools: ["region", "copy", "colour", "text", "record"]
+    property var    deskMenuPlaces: ["launcher", "clipboard", "notifications", "keys", "settings", "power"]
     property bool screenTime: false
     property int  screenTimeKeepDays: 30
     property int  screenTimeIdleMinutes: 5
@@ -408,6 +489,11 @@ ConfigSystem {
     // it. The plugin is a separate, optional install (see services/CursorEffects.qml);
     // with it missing the controls say so and nothing here does anything.
     property bool cursorEffects: false
+
+    // ── Drawing tablet ─────────────────────────────────────────────────────────
+    // Off, services/Tablet.qml does not exist: no probe, no helper, nothing sent to Hyprland. On, it finds
+    // the tablet, applies its active profile and listens to the pen and the express keys.
+    property bool tabletOn: false
 
     // "tilt" | "rotate" | "stretch" | "none" (shake-to-find only). Validated in
     // services/cursoreffects.js before it reaches Hyprland.
@@ -715,6 +801,9 @@ ConfigSystem {
     property string weatherPlace: ""
     property real   weatherLat:   0
     property real   weatherLon:   0
+    // The places the Weather page switches between: [{ name, lat, lon, countryCode }]. The current one is always
+    // offered too (services/weather.js cityList), so a place chosen before this list existed is already in it.
+    property var    weatherCities: []
     // Display only. The service always stores metric, so this can flip with no refetch.
     property bool   weatherMetric: true
 

@@ -85,7 +85,7 @@ Singleton {
     readonly property bool busy: gen.running
     readonly property string statusText:
         root.lastError !== "" ? root.lastError
-        : !root.enabled       ? "Off — the system cursor is untouched"
+        : !root.enabled       ? "Off, the system cursor is untouched"
         : "Following the colour scheme"
 
     // ── Regenerate, debounced ─────────────────────────────────────────────────

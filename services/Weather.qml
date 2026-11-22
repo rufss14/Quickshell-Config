@@ -96,6 +96,32 @@ Singleton {
     property string place: Config.weatherPlace
     readonly property bool hasLocation: Config.weatherPlace !== ""
 
+    // ── Places to switch between ──────────────────────────────────────────────
+    // [{ name, lat, lon, countryCode }]: the saved ones, and this one if it is not among them. Choosing a place
+    // (from a search result or a saved one) saves it, and the one you leave stays on the list.
+    readonly property var cities: W.cityList(Config.weatherCities, root.here())
+    function here() {
+        return Config.weatherPlace !== "" ? { name: Config.weatherPlace, lat: Config.weatherLat, lon: Config.weatherLon,
+                                              countryCode: Config.weatherCountry || "" } : null
+    }
+    function isHere(city) { return W.sameCity(city, root.here()) }
+    function choose(city) {
+        if (!city || root.isHere(city)) return
+        const next = { name: city.name, lat: city.lat, lon: city.lon, countryCode: city.countryCode || "" }
+        Config.weatherCities = W.withCity(W.cityList(Config.weatherCities, root.here()), next, 8)
+        // The name first, so there is a place the moment the coordinates land.
+        Config.weatherPlace   = next.name
+        Config.weatherCountry = next.countryCode
+        Config.weatherLat     = next.lat
+        Config.weatherLon     = next.lon
+        root.results = []
+    }
+    // A saved place is forgotten; the one on show cannot be (it is offered anyway).
+    function forget(city) {
+        if (!city || root.isHere(city)) return
+        Config.weatherCities = W.withoutCity(Config.weatherCities, city)
+    }
+
     // Celsius unless told otherwise. Converted for DISPLAY only — the store always
     // holds metric, so flipping the unit can't lose precision or need a refetch.
     readonly property bool metric: Config.weatherMetric
@@ -151,8 +177,12 @@ Singleton {
         root.ready = false
         root.days  = []
         root.hours = []
+        // Latitude and longitude change one after the other: a fetch already out was asked for half the
+        // move. Ask again when it lands, and drop what it brings.
+        if (fetch.running) { root._stale = true; return }
         if (root._refs > 0) root.refresh()
     }
+    property bool _stale: false
 
     // ── The fetch ─────────────────────────────────────────────────────────────
     function refresh() {
@@ -170,9 +200,6 @@ Singleton {
         return "https://api.open-meteo.com/v1/forecast"
              + "?latitude="  + root.lat.toFixed(4)
              + "&longitude=" + root.lon.toFixed(4)
-             + "&current=temperature_2m,relative_humidity_2m,apparent_temperature"
-             + ",is_day,weather_code,wind_speed_10m"
-             + ",wind_direction_10m,wind_gusts_10m,precipitation,uv_index"
              // Three hours of quarter-hour precipitation, for the nowcast.
              + "&minutely_15=precipitation,snowfall&forecast_minutely_15=12"
              // Seven days, so the large tile's forecast list fills its height with real
@@ -188,7 +215,10 @@ Singleton {
              + "&hourly=temperature_2m,precipitation_probability"
              // The rest is for the clock panel's per-hour detail (Weather.hours).
              + ",weather_code,is_day,relative_humidity_2m,wind_speed_10m,apparent_temperature"
-             + ",uv_index,wind_direction_10m,wind_gusts_10m,precipitation"
+             + ",uv_index,wind_direction_10m,wind_gusts_10m,precipitation,cloud_cover"
+             // Several models, blended by W.blend into the middle of them (a multi-model request has
+             // no `current` of its own; blend builds it from the hours).
+             + "&models=" + W.MODELS.join(",")
              + "&timezone=auto&forecast_days=7"
     }
 
@@ -198,6 +228,7 @@ Singleton {
         stderr: StdioCollector { id: fetchErr }
         onExited: function (exitCode) {
             root.loading = false
+            if (root._stale) { root._stale = false; if (root._refs > 0) root.refresh(); return }
             if (exitCode !== 0) {
                 // Named plainly. "Weather unavailable" with no reason is the kind of
                 // dead widget you can't tell from a broken one — and the overwhelmingly
@@ -212,7 +243,7 @@ Singleton {
 
     function _parse(txt) {
         try {
-            const d = JSON.parse(txt)
+            const d = W.blend(JSON.parse(txt), Date.now())
             const c = d.current
             root.tempC      = c.temperature_2m
             root.feelsC     = c.apparent_temperature

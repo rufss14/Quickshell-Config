@@ -22,8 +22,11 @@ import "../../state"
 Surface {
     id: root
 
-    elevation:    Tokens.elevationCard
+    // A flat plate: no outline, no shadow.
     cornerRadius: Tokens.radiusXl
+    borderWidth: 0
+    castsShadow: false
+    color: Colors.of(QsWindow.window).surfaceHigh
 
     // The bar's own pills brighten their whole border on hover; a pending
     // Lock/Restart/Shutdown is exactly the moment this card most wants to say

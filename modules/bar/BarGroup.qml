@@ -224,11 +224,15 @@ Item {
             borderWidth:  0
             castsShadow:  false
             fillOpacity:  Tokens.barOpacity
+            // frameFill already carries the item's translucency; a second pass would make the pill fainter than the frame.
+            itemOpacity:  (Config.screenFrame || modelData.hero) && !(Colors.of(QsWindow.window).veiled && !modelData.hero) ? Tokens.surfaceOpacity : 1.0
             // The hero's chip is the accent's container; the module puts its text on it in
             // fgOnPrimaryContainer (BarGroupRow tells it).
-            color: Colors.of(QsWindow.window).fade(modelData.hero
-                       ? Colors.of(QsWindow.window).primaryContainer
-                       : Colors.of(QsWindow.window).surfaceFor(Tokens.elevationNested), Tokens.barOpacity)
+            // With the frame off, a pill wears the frame's own fill, so the bar reads as one material.
+            color: modelData.hero ? Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).primaryContainer, Tokens.barOpacity)
+                 : Colors.of(QsWindow.window).veiled ? Colors.of(QsWindow.window).wash
+                 : !Config.screenFrame ? Colors.of(QsWindow.window).frameFill
+                 : Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceFor(Tokens.elevationNested), Tokens.barOpacity)
             Behavior on color { ColorAnimation { duration: Motion.respond } }
 
             // The settings cards' light, quieter and tighter: a soft glow under the pointer

@@ -88,6 +88,7 @@ Item {
     IconButton {
         id: pill
         tipProvider: Config.barTooltips ? function () { return ModuleGlance.tip("wifi") } : null
+        quickId: "wifi"
         container: false
         height: Config.barPillHeight
         width:  root.collapsed ? collapsedW : expandedW

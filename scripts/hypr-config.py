@@ -354,6 +354,7 @@ POINTER = [
     ("clickfinger_behavior",   ("input", "touchpad"),  "clickfinger_behavior", "bool",  False),
     ("tap_and_drag",           ("input", "touchpad"),  "tap_and_drag",         "bool",  True),
     ("touchpad_scroll_factor", ("input", "touchpad"),  "scroll_factor",        "float", 1.0),
+    ("touchpad_natural_scroll", ("input", "touchpad"), "natural_scroll",       "bool",  False),
 ]
 # Hyprland 0.56's Lua config refuses "" ("allowed values are: adaptive, flat, custom*"),
 # measured with --verify-config; "custom" needs curve points this page doesn't offer.

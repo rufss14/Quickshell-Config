@@ -1,3 +1,9 @@
-ColorSchemeAlbum 1.0 ColorSchemeAlbum.qml
-ColorSchemeLibrary 1.0 ColorSchemeLibrary.qml
-ColorSchemeWorkbench 1.0 ColorSchemeWorkbench.qml
+SchemeWorn 1.0 SchemeWorn.qml
+SchemeEditor 1.0 SchemeEditor.qml
+SchemePresets 1.0 SchemePresets.qml
+SchemeCard 1.0 SchemeCard.qml
+SchemeAlbum 1.0 SchemeAlbum.qml
+SchemeProgress 1.0 SchemeProgress.qml
+SchemeApply 1.0 SchemeApply.qml
+SchemeField 1.0 SchemeField.qml
+SchemeGradient 1.0 SchemeGradient.qml

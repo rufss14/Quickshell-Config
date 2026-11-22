@@ -5,10 +5,10 @@ import "../../config"
 import "../../components"
 
 // ── FeedHeader ────────────────────────────────────────────────────────────────
-// The top of a page of the overview's left face (OverviewFeed): the compact notification card's
+// The top of a page of the overview's drawer (OverviewFeed): the compact notification card's
 // header shape (NotificationCentre `slim`) — a scalloped chip, a two-word title whose second word
 // wears the page's accent, a dim subtitle, and the page's chips on the right. Part of the PAGE,
-// so it travels with it when the face is swiped.
+// so it slides and fades with it when the drawer turns.
 // ─────────────────────────────────────────────────────────────────────────────
 RowLayout {
     id: root

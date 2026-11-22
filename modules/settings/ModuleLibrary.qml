@@ -11,11 +11,8 @@ import "../../config/modules.js" as Catalogue
 import "../bar/sidecells.js" as SideCells
 
 // ── ModuleLibrary ─────────────────────────────────────────────────────────────
-// Every module the shell has, on shelves by kind — what replaced the "Not on the bar"
-// card (2026-11-08). That card was a flat row of dimmed widgets with one hover caption
-// ("Point at one to see what it is"): it showed only what was missing from ONE surface,
-// named nothing until you hovered, and said nothing about what a module does. The user
-// found it boring and awkward.
+// Every module the shell has, on shelves by kind: the whole catalogue, not only what is
+// missing from one surface, and each tile names what it is and what it does.
 //
 // A tile says the four things you need to choose: what it LOOKS like (the real widget,
 // inert), what it's called, what it does (the catalogue's one-line `blurb`), and where
@@ -26,7 +23,7 @@ import "../bar/sidecells.js" as SideCells
 //
 //   click a tile   pick it — the inspector above edits it
 //   + Add          put it where it belongs (its catalogue `native` surface, at home)
-//   drag a tile    onto the real bar or sidebar (armed while the page is open)
+//   drag a tile    onto the real bar or sidebar (while Arrange is on)
 //   drop on here   take a module off whichever surface it's on
 //
 // Shelves, search and the filter are pure functions in config/modules.js
@@ -50,7 +47,11 @@ Item {
         return Catalogue.MODULES.filter(m => Config.surfaceOf(m.id) === "").length
     }
 
-    readonly property real tileW: 168
+    // Tiles share the row: as many as fit at about 168px, each widened so the last one ends flush.
+    readonly property real tileMin: 168
+    readonly property int  tileGap: Tokens.spacingSm
+    readonly property int  tileCols: Math.max(1, Math.floor((root.width + root.tileGap) / (root.tileMin + root.tileGap)))
+    readonly property real tileW: Math.floor((root.width - root.tileGap * (root.tileCols - 1)) / root.tileCols)
 
     implicitHeight: col.implicitHeight
 
@@ -98,8 +99,9 @@ Item {
                 placeholder: Translation.tr("Search modules")
                 onEdited: function (v) { root.query = v }
             }
-            SegmentSwitch {
-                implicitWidth: 220
+            TabStrip {
+                connected: true
+                implicitWidth: 240
                 accent: Colors.of(QsWindow.window).primary
                 model: [
                     { value: "all",    label: Translation.tr("All") },
@@ -149,16 +151,12 @@ Item {
                         variant: "caption"
                         emphasis: "dim"
                     }
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: Tokens.borderWidth
-                        color: Colors.of(QsWindow.window).outlineFor(Tokens.elevationNested)
-                    }
+                    Item { Layout.fillWidth: true }
                 }
 
                 Flow {
                     Layout.fillWidth: true
-                    spacing: Tokens.spacingSm
+                    spacing: root.tileGap
                     Repeater {
                         model: shelf.modelData.modules
                         delegate: Tile {}
@@ -185,10 +183,11 @@ Item {
         width: root.tileW
         height: body.implicitHeight + Tokens.spacingMd * 2
         radius: Tokens.radiusCard
-        color: tile.hot ? Colors.of(QsWindow.window).surfaceFor(Tokens.elevationPopup)
-                        : Colors.of(QsWindow.window).surfaceFor(Tokens.elevationNested)
-        border.width: tile.picked ? 2 : 0
-        border.color: Colors.of(QsWindow.window).primary
+        // The library sits on a section segment, so a tile is one step up (surfaceHigh); the picked one is
+        // the region's single loud thing.
+        color: tile.picked ? Colors.of(QsWindow.window).primaryContainer
+             : tile.hot    ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceHigh, Colors.of(QsWindow.window).primary, 0.12)
+             :               Colors.of(QsWindow.window).surfaceHigh
         Behavior on color { ColorAnimation { duration: Motion.respond } }
 
         ColumnLayout {
@@ -226,6 +225,7 @@ Item {
                         if (!m) return
                         if (m.vertical !== undefined) m.vertical = false
                         if (m.moduleId !== undefined) m.moduleId = tile.mid
+                        if (m.preview !== undefined) m.preview = true
                     }
                 }
             }
@@ -235,13 +235,16 @@ Item {
                 text: tile.modelData.label
                 variant: "label"
                 font.weight: Font.Medium
+                color: tile.picked ? Colors.of(QsWindow.window).fgOnPrimaryContainer : Colors.of(QsWindow.window).fg
                 elide: Text.ElideRight
             }
             StyledText {
                 Layout.fillWidth: true
                 text: tile.blocked !== "" ? tile.blocked : tile.modelData.blurb
                 variant: "caption"
-                color: tile.blocked !== "" ? Colors.of(QsWindow.window).warning : Colors.of(QsWindow.window).fgMuted
+                color: tile.blocked !== "" ? Colors.of(QsWindow.window).warning
+                     : tile.picked ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fgOnPrimaryContainer, 0.72)
+                     :               Colors.of(QsWindow.window).fgMuted
                 wrapMode: Text.WordWrap
                 maximumLineCount: 2
                 elide: Text.ElideRight
@@ -249,19 +252,22 @@ Item {
                 Layout.preferredHeight: Math.ceil(fontInfo.pixelSize * 1.35) * 2
             }
 
-            // Where it is now — or the way to put it somewhere.
+            // Where it is now — or the way to put it somewhere. As tall as the Add chip either way, so a
+            // tile that shows its place and one that shows the chip line up on a row.
             RowLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
+                Layout.preferredHeight: addChip.implicitHeight
                 spacing: Tokens.spacingXs
                 StyledText {
                     visible: tile.where !== ""
                     text: tile.where === "bar" ? Translation.tr("On the bar") : Translation.tr("On the sidebar")
                     variant: "caption"
-                    color: Colors.of(QsWindow.window).primary
+                    color: tile.picked ? Colors.of(QsWindow.window).fgOnPrimaryContainer : Colors.of(QsWindow.window).primary
                 }
                 Item { Layout.fillWidth: true }
                 ChipButton {
+                    id: addChip
                     visible: tile.where === "" && tile.blocked === ""
                     symbol: "add"
                     label: Translation.tr("Add")

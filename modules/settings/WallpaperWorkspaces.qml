@@ -9,17 +9,19 @@ import "../../components"
 import "../../services"
 
 // ── WallpaperWorkspaces — a wallpaper per workspace ───────────────────────────
-// The card at the end of the Wallpaper page's Appearance view: every workspace as a cell showing
-// what it shows now, the controls for giving one its own, and the way back.
+// The last group of Wallpaper › Placement & motion: every workspace as a cell showing
+// what it shows now, and the way back to the shared wallpaper for all of them.
 //
-//   [ 1 ][ 2 ][ 3 ][ 4 ][ 5 ][ 6 ][ 7 ][ 8 ][ 9 ][ 10 ]        Keep scenes running · Reset all
+//   Per workspace                                   3 of their own  [Reset all]
+//   [ 1 ][ 2 ][ 3 ][ 4 ][ 5 ][ 6 ][ 7 ][ 8 ][ 9 ][ 10 ]
 //
 // ── How you use it ────────────────────────────────────────────────────────────
-// Click a workspace (it lights up: "picking" — the page jumps to the Gallery), then click
-// a wallpaper there — that workspace gets it as ITS OWN. The gallery's right-click, which asks for
-// several workspaces at once (components/WorkspacePicker), still works; this is the
-// slower, more visible way for one. A cell that has its own wallpaper wears a dot, and
-// hovering it offers ↺ (back to the shared one). The workspace you are on has an outline.
+// Click a workspace (it lights up: "picking" — the settings shell goes to the Gallery),
+// then click a wallpaper there — that workspace gets it as ITS OWN, and the page comes
+// back here. The gallery's right-click, which asks for several workspaces at once
+// (components/WorkspacePicker), still works; this is the slower, more visible way for
+// one. A cell that has its own wallpaper wears a dot, and hovering it offers ↺ (back to
+// the shared one). The workspace you are on has an outline.
 //
 // The cell shows `Wallpaper.shownFor(n)`: the workspace's own picture, else the shared
 // one, so with no overrides every cell is the same picture and the strip says so.
@@ -35,15 +37,22 @@ Section {
     property int picking: 0
     signal pick(int n)
 
+    // A grouped row (SettingsPage grouped): the strip is the one segment, its state a note.
+    grouped: true
+    // The strip of ten cells wants the whole row; in a column each cell would be a sliver.
+    fullRow: true
     glyph:   "󰕮"
     title:   Translation.tr("Per workspace")
-    accent:  Colors.of(QsWindow.window).info
-    padding: Tokens.spacingMd
     subtitle: root.picking > 0
+        ? Translation.tr("Picking for workspace %1").arg(root.picking)
+        : Wallpaper.perWorkspace
+        ? Translation.tr("%1 of %2 have their own").arg(Wallpaper.marked.length).arg(Wallpaper.pickable)
+        : Translation.tr("All the same")
+    help: root.picking > 0
         ? "Pick a wallpaper in the Gallery for workspace " + root.picking + "."
         : Wallpaper.perWorkspace
         ? Wallpaper.marked.length + " of " + Wallpaper.pickable + " workspaces have their own wallpaper. Click one to choose its wallpaper in the Gallery."
-        : "Every workspace shows the same wallpaper. Click one to choose its own in the Gallery — or right-click a wallpaper there to choose several."
+        : "Every workspace shows the same wallpaper. Click one to choose its own in the Gallery, or right-click a wallpaper there to choose several."
 
     actions: [
         PanelButton {
@@ -56,12 +65,14 @@ Section {
         }
     ]
 
-    // One cell is a tenth of the row, 16:9 — the overview's own proportion.
+    // One cell is a tenth of the row, 16:9 — the overview's own proportion. Read off the
+    // strip's own width, which the segment sets (its height never feeds back into it).
     readonly property int gap: Tokens.spacingSm
-    readonly property real cellW: (root.width - root.padding * 2 - root.gap * (Wallpaper.pickable - 1)) / Wallpaper.pickable
+    readonly property real cellW: (cellRow.width - root.gap * (Wallpaper.pickable - 1)) / Wallpaper.pickable
     readonly property real cellH: Math.max(36, Math.round(root.cellW * 9 / 16))
 
     RowLayout {
+        id: cellRow
         Layout.fillWidth: true
         Layout.fillHeight: false
         spacing: root.gap

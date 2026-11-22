@@ -99,6 +99,9 @@ ShellRoot {
     // targets are `status` only). The binding creates one the moment it is switched on.
     Connections { target: Config.cursorTheme ? Services.Cursor : null }
     Connections { target: Config.cursorEffects ? Services.CursorEffects : null }
+    // The tablet's profile has to go back into Hyprland after every config reload and its express keys
+    // have to be heard with no page open, so it exists from launch once its switch is on.
+    Connections { target: Config.tabletOn ? Services.Tablet : null }
     // The Discord theme follows Settings → Type & Shape; it pushes once at launch and on every change.
     Connections { target: Services.DiscordTheme }
     // Sound effects hear the panels open and close with nothing on screen, so it must
@@ -290,6 +293,15 @@ ShellRoot {
         }
     }
 
+    // The hot corner (Config.hotCorner): a trigger in the chosen corner and the panel it opens,
+    // per screen; a closed one is an unmapped window and a Loader with nothing in it.
+    //     qs ipc -c ~/.config/quicktest call hotcorner toggle
+    Variants {
+        model: Quickshell.screens
+        // Declares its own `required property var modelData`, which Variants fills.
+        delegate: HotCorner {}
+    }
+
     // The polkit password dialog (services/AuthAgent) — one screen, content-light, so no
     // Loader: a closed one is an unmapped window holding a handful of items.
     Variants {
@@ -389,6 +401,22 @@ ShellRoot {
             required property var modelData
             screen: modelData
         }
+    }
+
+    // The desktop menu's right-click catcher (Config.deskMenu): a Bottom-layer window per screen that
+    // hears a right-click on the empty desktop. It MUST come before the widget layer below — both
+    // are on the Bottom layer, which stacks by map order, and the widgets have to sit on top of it.
+    Variants {
+        model: Quickshell.screens
+        // Declares its own `required property var modelData`, which Variants fills.
+        delegate: DeskMenuCatcher {}
+    }
+
+    // The desktop menu itself: the card that opens at the pointer (services/deskmenu.js places it).
+    //     qs ipc -c ~/.config/quicktest call deskmenu toggle
+    Variants {
+        model: Quickshell.screens
+        delegate: DeskMenu {}
     }
 
     // Desktop widgets — clock, calendar, weather, notes and reminders, on a

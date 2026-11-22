@@ -21,7 +21,7 @@ Item {
 
     readonly property bool ownsPanel: UiState.sidePanelScreen
         ? UiState.sidePanelScreen === root.screen : root.screen === Quickshell.screens[0]
-    readonly property bool open: UiState.sidePanel === "inactivity" && root.ownsPanel
+    readonly property bool open: UiState.sideShows("inactivity", root.screen)
 
     implicitWidth:  Config.sidebarCell
     implicitHeight: Config.sidebarCell

@@ -39,8 +39,6 @@ Column {
             color: Colors.of(QsWindow.window).fade(row.inUse
                        ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceContainer, root.accent, 0.16)
                        : rowHover.hovered ? Colors.of(QsWindow.window).surfaceHigh : Colors.of(QsWindow.window).surfaceContainer, 0.9)
-            border.width: row.inUse ? Tokens.borderWidth : 0
-            border.color: Colors.of(QsWindow.window).alpha(root.accent, 0.5)
             Behavior on color { ColorAnimation { duration: Motion.respond } }
             HoverHandler { id: rowHover }
 

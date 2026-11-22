@@ -23,7 +23,7 @@ Rectangle {
     implicitWidth:  row.implicitWidth + 6
     implicitHeight: 34
     radius: Tokens.radiusSm
-    color:  Colors.of(QsWindow.window).surfaceContainer
+    color:  Colors.of(QsWindow.window).plateLow
     border.width: Tokens.borderWidth
     border.color: Colors.of(QsWindow.window).outline
     visible: root.groupShown && row.implicitWidth > 1

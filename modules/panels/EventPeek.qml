@@ -214,7 +214,7 @@ Item {
             Layout.fillWidth: true
             Layout.maximumWidth: root.maxW - root.pad * 2
             Layout.preferredHeight: visible ? Math.round(width * 9 / 16) : 0
-            visible: root.kind === "clipboard" && !!root.held && root.held.image && root.held.file !== ""
+            visible: root.kind === "clipboard" && !!root.held && root.held.image && root.held.file !== "" && !StreamMode.active
             source: visible ? "file://" + root.held.file : ""
             sourceSize.width: root.maxW
             fillMode: Image.PreserveAspectFit
@@ -230,7 +230,7 @@ Item {
             elide: Text.ElideRight
             variant: "caption"
             font.family: Tokens.fontMono
-            text: root.kind === "clipboard" && root.held && !root.held.image ? root.held.preview : ""
+            text: root.kind === "clipboard" && root.held && !root.held.image ? StreamMode.mask(root.held.preview) : ""
         }
 
         // What you'd do next, as the panel's own chips.

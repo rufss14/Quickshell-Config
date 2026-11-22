@@ -39,6 +39,11 @@ layout(std140, binding = 0) uniform buf {
     // rimSweep: centre x, centre y, radius, width. rimColor: rgb, strength (0 = off).
     vec4 rimSweep;
     vec4 rimColor;
+    // ── The gradient (Quicktest addition; BlobGroup::gradAxis / gradMid / gradColor0-2) ──
+    // gradAxis: x0, y0, dx, dy. gradParams.x: where the middle colour sits (0 = off).
+    vec4 gradAxis;
+    vec4 gradParams;
+    vec4 gradColors[3];
 };
 
 float sdRoundedBox(vec2 p, vec2 center, vec2 halfSize, float radius) {
@@ -304,6 +309,17 @@ void main() {
     // border and how this shell's frame strokes sit in the innermost pixels of
     // their strips — so the blob's stroke lands where the old ones did.
     vec3 rgb = color.rgb;
+
+    // The fill along the gradient's line, when there is one. The few 8-bit steps a dark gradient has
+    // would band across a whole screen, so it is dithered by under one level.
+    if (gradParams.x > 0.0) {
+        float gt = clamp(dot(pixel - gradAxis.xy, gradAxis.zw) / max(dot(gradAxis.zw, gradAxis.zw), 1e-6), 0.0, 1.0);
+        float gm = gradParams.x;
+        rgb = gt < gm ? mix(gradColors[0].rgb, gradColors[1].rgb, gt / gm)
+                      : mix(gradColors[1].rgb, gradColors[2].rgb, (gt - gm) / (1.0 - gm));
+        float dither = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+        rgb += (dither - 0.5) / 255.0;
+    }
 
     // ── The cookies ──────────────────────────────────────────────────────────
     // Scallops (the shell's components/Scallop: a circle whose radius breathes in and out N times

@@ -43,7 +43,8 @@ const parse = o => L.parse(typeof o === "string" ? o : JSON.stringify(o));
     const r = parse(good());
     check("good file parses", r.ok, true);
     check("name", r.look.name, "Night market");
-    check("style kept", r.look.style, { fontScale: 1.05, cornerStyle: "ii", themeMode: "dark", accentRole: "tertiary" });
+    check("style kept", r.look.style, { fontScale: 1.05, cornerStyle: "ii", themeMode: "dark" });
+    check("a key the shell no longer has is ignored", "accentRole" in r.look.style, false);
     check("bar kept", r.look.bar.barThickness, 46);
     check("bar objects kept", r.look.bar.layout, { left: ["clock"] });
     check("palette lowercased", r.look.scheme.palette.special.foreground, "#c4c1c1");
@@ -98,7 +99,7 @@ check("null", L.parse(null).ok, false);
 {
     const doc = good();
     Object.assign(doc.style, { fontScale: 9, densityScale: "1", cornerStyle: "round", iconShape: null,
-                               shadowScale: NaN, dockIconSize: 30.5, accentRole: "a b", fontFamily: "x\ny",
+                               shadowScale: NaN, dockIconSize: 30.5, wallMaterialRole: "a b", fontFamily: "x\ny",
                                wallMaterialSeed: -1, colorizeIcons: 1 });
     const r = parse(doc);
     check("still ok", r.ok, true);
@@ -106,7 +107,7 @@ check("null", L.parse(null).ok, false);
     check("fontScale out of range dropped", "fontScale" in r.look.style, false);
     check("string for a number dropped", "densityScale" in r.look.style, false);
     check("fraction for an int dropped", "dockIconSize" in r.look.style, false);
-    check("role with a space dropped", r.look.style.accentRole, undefined);
+    check("role with a space dropped", r.look.style.wallMaterialRole, undefined);
     check("newline in a font dropped", "fontFamily" in r.look.style, false);
     check("number for a bool dropped", "colorizeIcons" in r.look.style, false);
     check("counted", r.skipped, 10);

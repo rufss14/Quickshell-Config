@@ -300,7 +300,7 @@ Item {
                     visible: split.parts.length === 0
                     radius: height / 2
                     color: root.upToDate ? Colors.of(QsWindow.window).alpha(root.tone, 0.35)
-                                         : Colors.of(QsWindow.window).surfaceHigh
+                                         : Colors.of(QsWindow.window).plate
                 }
                 Row {
                     anchors.fill: parent
@@ -342,7 +342,7 @@ Item {
                         implicitWidth: chipRow.implicitWidth + Tokens.spacingMd * 2
                         implicitHeight: chipRow.implicitHeight + Tokens.spacingXs * 2
                         radius: Tokens.corner(Config.barShape, Tokens.radiusSm)
-                        color: chipHover.hovered ? Colors.of(QsWindow.window).surfaceHigh : "transparent"
+                        color: chipHover.hovered ? Colors.of(QsWindow.window).plate : "transparent"
                         opacity: chip.modelData.count > 0 ? 1 : 0.45
                         Behavior on color { ColorAnimation { duration: Motion.respond } }
                         HoverHandler {

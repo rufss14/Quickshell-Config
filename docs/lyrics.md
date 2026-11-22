@@ -254,3 +254,75 @@ Everything here was written and checked with the static checkers and the pure te
   to fetch lyrics" (none or error), "Lyrics off", or the loading text while still looking. The spectrum,
   the track line, the seek bar and the cava stream they held are gone from OverviewLyrics; `scrubbing`
   stays for hosts and is always false.
+
+## Canvas on the island's media page (2026-11-18) — never loaded
+
+Clicking the cover's cookie on `IslandMedia` plays the track's Spotify Canvas (the looping clip) as the page's background, and stops it.
+
+- **Path:** the extension asks `Spicetify.GraphQL` for `trackUnion.canvas.url` per track (`fetchCanvas`, build `mailbox-23`;
+  the QuickSpice theme asks the same question) and puts it on the **anchor** as `canvas` — so a restarted shell gets it with the
+  next heartbeat and there is no separate re-send. `spotify-bridge.py` validates it (`canvas_source`: only `https://canvaz.scdn.co/….mp4`,
+  anything else becomes `""`), starts a **background** fetch of the untouched MP4 (`canvas_video_start`, same cache dir and
+  failure back-off as `/canvas`, no ffmpeg) and sends the shell its cache **path**, never the URL; the end of the fetch is a
+  `canvas-ready` line. `SpotifyBridge.canvasUrl` / `canvasPath` hold both; `_clipPath` accepts an absolute `.mp4` only.
+- **Two encodings, one cache dir:** `/canvas` re-encodes to AVIF because Spotify's own Chromium lacks H.264. The shell's player is Qt
+  Multimedia, which has it, so it plays the original MP4. Don't merge the two.
+- **Playing:** in the cover's own cookie (`CookieCover.canvas`, built through `Media.playerUrl` = `ClipPlayer`, muted, cropped,
+  looping, inside the turning mask; fades in over the cover once frames draw; follows `playing` / `live`). The ring of level bars
+  stays: it is the cookie's spectrum. With the clip on, `CookieCover.grown` halves its gap and its bars' reach and the cookie takes the room (about 10 % bigger, same box). Decoration: `hasCanvas` also needs
+  `Motion.ambientOn && UiState.islandEffectsOn`; the host gates on `Media.available` (qt6-multimedia). `IslandMedia.canvasOn`
+  outlives tracks and is not persisted. History, 2026-11-18 (user's words): in the cookie first; a full-page backdrop ("doesn't
+  look very good", then "barely noticeable" tinted); a cookie-bordered backdrop; "go back to the start" with a bigger cookie, no
+  ring and a small cover cookie; then "scrap the mini cookie and make the canvas cookie also have the cava". Back to the first.
+- **Zoom (2026-11-18):** the clip fills a box of its own 9:16 (`crop`, so another shape cannot leave an edge) at `canvasZoom` (1.03)
+  of the cookie's width. UNDER 1.0 does not work: the petals reach the box's edge, so 0.88 and 0.96 both showed ground at the sides
+  ("it still doesn't fill the sides"). A square window onto a tall clip is width-limited, so zooming out cannot show more. A pointer parallax was built and reverted
+  the same day ("revert the parallax"); don't rebuild it. What stayed, asked for by the user: **hold and drag the cookie up or down
+  to set where the clip sits** (`IslandMedia.canvasPan` -1 to 1 into `CookieCover.panY`; a drag of `canvasSlack` pixels spans it;
+  only while the clip plays; under a few pixels is still a click). **Remembered per song** in `Config.canvasPans` (`{ track uri: -1..1 }`,
+  persisted, newest last, capped at 300), saved on RELEASE only because config.json is rewritten on every change; a song never dragged
+  is centred. The on/off choice (`canvasOn`) is still one switch for all songs.
+- **Indicator:** a small `videocam` disc in the cover slot's empty bottom-right corner (the ring is round), shown when the song has a
+  cached clip, lit while it plays; the cookie's click toggles. It was a chip in the extras row first and CLIPPED: that row has no
+  room for a seventh chip (the user: "now it clips"). The cookie has no tooltip (the user asked for it gone).
+- **The click:** on a Spotify track WITH a clip the cookie turns the backdrop on and off; with none it still opens the album, as
+  before (the album pill always does).
+- **Needs the extension re-applied** (`spicetify apply`, restart Spotify): it lives in `~/.config/spicetify/Extensions/`, outside
+  the repo. Without it `canvas` never arrives and the cookie behaves as it did.
+- **Diagnose:** `qs ipc -c ~/.config/quicktest call spotify lyrics` prints `canvas: none | fetching | cached`; a failed fetch is
+  `SpotifyBridge: canvas —` in the log. `python3 scripts/test-spotify-bridge.py` covers the bridge half.
+- **Unverified live:** a `VideoOutput` inside the cookie's `layer.effect` mask (blank = the layer is the suspect); the ring's bars over the clip (they start a gap outside the cookie, so they should not cover it).
+
+## The scroll between lines is a spring (2026-11-18)
+
+The user: "the transition from one line to another is very abrupt when the panel slides". `OverviewLyricsSynced`'s strip was a 500 ms
+`NumberAnimation` on `Motion.emphasizedDecel`, which covers half the distance in its first ~35 ms (Motion.qml's own note on
+`zoomCurve`: it "reads as a snap when the whole screen is what is moving") and restarts from a standstill on every line, so two
+close lines were two snaps. Now `strip.y` is a `SpringValue` on `Motion.springScroll` (stiffness 140, damping 1: no overshoot, leaves
+rest with zero velocity, keeps its speed when the next line lands). One code path serves every surface (island, panel, overview,
+desktop widget); the wheel and Resync ride the same spring. `strip.wantY` is the old expression. **Unverified live.** Tune by
+`stiffness`: lower is slower and softer (about 0.5 s to settle at 140).
+
+### The rest of the same round (2026-11-18, the user: "do all of them") — never loaded
+
+All in `modules/overview/lyrics/OverviewLyricsSynced.qml` / `OverviewLyrics.qml` (so every surface gets them) unless named.
+Three are settings (Integrations › Lyrics, under Motion; `Config.lyricsStagger`, `lyricsSoftFocus`, `lyricsScrollAhead`).
+
+- **Ripple** (`lyricsStagger`): while the strip slides, the rows on the side it is moving TOWARD trail it by `min(0.6, 0.1 × distance)`
+  of what is left of the slide (`row.lagY`, a `Translate`). Only that side, so neighbours only ever move APART, never overlap; zero at
+  rest; off while the wheel drives.
+- **Slide ahead** (`lyricsScrollAhead`, 0.15 s): the strip centres `OverviewLyrics.scrollTarget` = `lineAt(clock + ahead)`; what is lit,
+  dim and what the dots do stay on `current`.
+- **Soft focus** (`lyricsSoftFocus`): a row two or more from `current` gets a cached-layer `MultiEffect` blur (`row.soft`, 0.3 per step
+  past 1, `blurMax` 14, eased). Never on a row that is live (a duet's second voice can be far from `current`).
+- **Interludes**: `dotsOpen` is a spring (`readonly`, `_dotsWant` 0/1, `Motion.springScroll`), no `Behavior`.
+- **Long jumps**: when `wantY` is more than 1.2 viewports from the slide, the spring `jump`s and the strip fades in (`landing`) instead
+  of gliding past the song: a far seek, a new song, the first layout.
+- **Tap a line**: it washes in the accent and fades (`row.tapFlash`) as it seeks; the seek comes back round through the player a beat later.
+- **"No lyrics found"** (`PanelLyrics` only; the overview's empty card is its own): the verdict waits. `wantsNone` (the fall-through of
+  `_words()`, flagged `none`) starts a 1.2 s timer that asks again ONCE per song (`retryLyrics`), then 4.5 s more before the message may
+  show (`noneSettled`); words arriving meanwhile cancel it. Loading and reason states still show at once. The user had seen it drawn over
+  lyrics that were already there (the fallback answered empty a beat before the bridge's lyrics landed).
+- **Long lines** were already right: they wrap, they are not shrunk (a stale "scaled to fit" comment said otherwise; fixed).
+- **To judge live:** the ripple's amount (is 0.1 per row too much or too little?), the blur on a narrow island, a seek across the song
+  (the fade), the dots' open/close, whether 0.15 s ahead feels early on line-only lyrics.

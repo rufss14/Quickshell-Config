@@ -34,7 +34,7 @@ Item {
         moduleId: "brightness"
         anchors.fill: parent
         symbol: "brightness_6"                                           // the bar pill's
-        active: UiState.sidePanel === "brightness" && root.ownsPanel
+        active: UiState.sideShows("brightness", root.screen)
         wheel: true
         onScrolled: function (d) {
             const i = root.index()

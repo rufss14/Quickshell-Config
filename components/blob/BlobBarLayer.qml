@@ -4,6 +4,7 @@ import Quicktest.Blobs
 import "../../config"
 import "../../services"
 import "../../state"
+import "../../services/gradient.js" as Grad
 
 // ── BlobBarLayer ──────────────────────────────────────────────────────────────
 // One BlobGroup for the whole bar window: the BAR ITSELF is a shape in it, and so
@@ -39,10 +40,14 @@ import "../../state"
 // a 700px/s slide hit the 0.35 stretch CAP instead of stretching about 1%. That
 // was most of the slime.
 //
-// The one file besides MorphProbe allowed to `import Quicktest.Blobs`.
+// One of the files allowed to `import Quicktest.Blobs` (with the three Morph probes).
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
+
+    // Glass (Config.barGlass): the whole material, tint and cookies in it, at the alpha it means. The shader
+    // writes coverage as alpha and the scene graph multiplies this in (qt_Opacity), so no plugin change.
+    opacity: Tokens.glass
 
     // ── The ring's geometry, in this Item's coordinates ───────────────────────
     // (0,0) here is the screen's top-left: the bar's window is anchored top/left/
@@ -109,6 +114,12 @@ Item {
     property real centerY: 0
     property real centerW: 0
     property real centerH: 0
+
+    // Each island's corner, the card's own (BarDock.cardRadius): a pill's round ends while it is
+    // short, the island's corner once it is open.
+    property real leftR:   Tokens.radiusCard
+    property real rightR:  Tokens.radiusCard
+    property real centerR: Tokens.radiusCard
 
     // The docked settings panel (Config.settingsPanel). Welds into the bottom
     // strip — and, at side "left"/"right", a side strip too, since the ring is one
@@ -183,6 +194,36 @@ Item {
     property real tipW: 0
     property real tipH: 0
 
+    // The island (modules/island/IslandDock): its card, melted out of the bar's underside. Zero W/H while nothing
+    // is out.
+    property real islandX: 0
+    property real islandY: 0
+    property real islandW: 0
+    property real islandH: 0
+    // …and the islands at the bar's left and right, one lobe each: closing one while another opens,
+    // two are out at once.
+    property real islandLX: 0
+    property real islandLY: 0
+    property real islandLW: 0
+    property real islandLH: 0
+    property real islandRX: 0
+    property real islandRY: 0
+    property real islandRW: 0
+    property real islandRH: 0
+    // The bottom row of islands, standing on the frame's bottom strip.
+    property real islandBLX: 0
+    property real islandBLY: 0
+    property real islandBLW: 0
+    property real islandBLH: 0
+    property real islandBCX: 0
+    property real islandBCY: 0
+    property real islandBCW: 0
+    property real islandBCH: 0
+    property real islandBRX: 0
+    property real islandBRY: 0
+    property real islandBRW: 0
+    property real islandBRH: 0
+
     // Arrange mode's hint cards (components/ArrangeHint): one under the bar, one off the sidebar's face.
     property real arrBarX: 0
     property real arrBarY: 0
@@ -217,6 +258,12 @@ Item {
     readonly property matrix4x4 sidePanelDeform: sidePanelRect.deformMatrix
     readonly property matrix4x4 osdDeform: osdRect.deformMatrix
     readonly property matrix4x4 powerDeform: powerRect.deformMatrix
+    readonly property matrix4x4 islandDeform: islandRect.deformMatrix
+    readonly property matrix4x4 islandLDeform: islandLRect.deformMatrix
+    readonly property matrix4x4 islandRDeform: islandRRect.deformMatrix
+    readonly property matrix4x4 islandBLDeform: islandBLRect.deformMatrix
+    readonly property matrix4x4 islandBCDeform: islandBCRect.deformMatrix
+    readonly property matrix4x4 islandBRDeform: islandBRRect.deformMatrix
 
     // ── Why a panel's blob is BIGGER than its card ────────────────────────────
     // The shader draws the outline in the innermost `borderWidth` of the material,
@@ -302,6 +349,27 @@ Item {
     Binding { target: blobGroup; property: "rimColor"; when: root.rimOk
               value: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, root._rimA) }
 
+    // ── The gradient: the fill as three colours along a line (Config.barGradient) ───
+    // services/gradient.js turns the document into the stops (strength already applied) and the line over
+    // this screen. Through Bindings for the same reason as the rim: a plugin built before `gradMid` has no
+    // such property, `gradOk` stays false and nothing here is touched. Only while the blob draws the fill
+    // (Drift.inBlob): otherwise each surface paints its own flat fill and a gradient would show on none.
+    // gradMid 0 is the plugin's "off", so a switched-off gradient costs the shader one comparison.
+    readonly property bool gradOk: blobGroup.gradMid !== undefined
+    readonly property var  gradDoc: Grad.clean(Config.barGradient)
+    readonly property bool gradLive: root.gradOk && Drift.inBlob && root.gradDoc.on
+    readonly property var  gradStops: {
+        const pal = Colors.of(QsWindow.window)
+        return Grad.colours(root.gradDoc, n => String(pal.role(n, pal.primary)), String(root.fill))
+    }
+    readonly property var gradLine: Grad.axis(root.gradDoc.angle, root.screenW, root.screenH)
+    Binding { target: blobGroup; property: "gradAxis"; when: root.gradOk
+              value: Qt.vector4d(root.gradLine[0], root.gradLine[1], root.gradLine[2], root.gradLine[3]) }
+    Binding { target: blobGroup; property: "gradColor0"; when: root.gradOk; value: root.gradStops[0] }
+    Binding { target: blobGroup; property: "gradColor1"; when: root.gradOk; value: root.gradStops[1] }
+    Binding { target: blobGroup; property: "gradColor2"; when: root.gradOk; value: root.gradStops[2] }
+    Binding { target: blobGroup; property: "gradMid"; when: root.gradOk; value: root.gradLive ? root.gradDoc.mid : 0 }
+
     // Whether each slot was open the last time it changed, so only an OPENING lights the rim.
     property var _wasOpen: ({})
 
@@ -335,6 +403,11 @@ Item {
         if (b.w <= 1 || b.h <= 1) return
         const reach = b.top ? Math.hypot(b.w / 2, b.h) * 1.1 : Math.hypot(b.w, b.h) / 2 * 1.2
         root._igniteAt(b.x + b.w / 2, b.top ? b.y : b.y + b.h / 2, reach)
+    }
+
+    // A lobe that is still growing, from where it joins the bar: the rim runs to the size it is growing to.
+    function igniteBox(cx, top, w, h) {
+        if (root.rimOk) root._igniteAt(cx, top, Math.hypot(w / 2, h) * 1.1)
     }
 
     function _igniteAt(cx, cy, reach) {
@@ -487,7 +560,7 @@ Item {
         y: root.leftY - root.borderWidth
         width:  root.grow(root.leftW)
         height: root.grow(root.leftH)
-        radius: Tokens.radiusCard + root.borderWidth
+        radius: root.leftR + root.borderWidth
         deformScale: root.deformScale
     }
 
@@ -498,7 +571,7 @@ Item {
         y: root.rightY - root.borderWidth
         width:  root.grow(root.rightW)
         height: root.grow(root.rightH)
-        radius: Tokens.radiusCard + root.borderWidth
+        radius: root.rightR + root.borderWidth
         deformScale: root.deformScale
     }
 
@@ -567,7 +640,7 @@ Item {
         y: root.centerY - root.borderWidth
         width:  root.grow(root.centerW)
         height: root.grow(root.centerH)
-        radius: Tokens.radiusCard + root.borderWidth
+        radius: root.centerR + root.borderWidth
         deformScale: root.deformScale
     }
 
@@ -702,6 +775,75 @@ Item {
         height: root.grow(root.arrSideH)
         radius: Tokens.radiusXl + root.borderWidth
         deformScale: root.deformScale
+    }
+
+    // The island: the glance's single join, at the handle's place.
+    // No deform on any island lobe (`deformScale: 0`, as the magnify pool). The deform is an UNDERDAMPED spring
+    // on the lobe's velocity (ratio 0.57), the one part of an island's opening that swings back: the card was
+    // stretched 5 px taller and 11 px narrower as it came down, let go after the box had landed, and the page
+    // inside (IslandDock puts the same matrix on it) went with it. The user: "it drops down and then a bit up".
+    // It was also kicked at full strength on the frame the lobe appears, because a lobe that is not out sits at
+    // 0,0 and the jump to its place counts as travel (35 px of width at 60 Hz). The box's own springs are
+    // critically damped (IslandDock.boxSpec); with this off nothing in the movement reverses.
+    BlobRect {
+        id: islandRect
+        group: blobGroup
+        x: root.islandX - root.borderWidth
+        y: root.islandY - root.borderWidth
+        width:  root.grow(root.islandW)
+        height: root.grow(root.islandH)
+        radius: Tokens.radiusCard + root.borderWidth
+        deformScale: 0
+    }
+    BlobRect {
+        id: islandLRect
+        group: blobGroup
+        x: root.islandLX - root.borderWidth
+        y: root.islandLY - root.borderWidth
+        width:  root.grow(root.islandLW)
+        height: root.grow(root.islandLH)
+        radius: Tokens.radiusCard + root.borderWidth
+        deformScale: 0
+    }
+    BlobRect {
+        id: islandRRect
+        group: blobGroup
+        x: root.islandRX - root.borderWidth
+        y: root.islandRY - root.borderWidth
+        width:  root.grow(root.islandRW)
+        height: root.grow(root.islandRH)
+        radius: Tokens.radiusCard + root.borderWidth
+        deformScale: 0
+    }
+    BlobRect {
+        id: islandBLRect
+        group: blobGroup
+        x: root.islandBLX - root.borderWidth
+        y: root.islandBLY - root.borderWidth
+        width:  root.grow(root.islandBLW)
+        height: root.grow(root.islandBLH)
+        radius: Tokens.radiusCard + root.borderWidth
+        deformScale: 0
+    }
+    BlobRect {
+        id: islandBCRect
+        group: blobGroup
+        x: root.islandBCX - root.borderWidth
+        y: root.islandBCY - root.borderWidth
+        width:  root.grow(root.islandBCW)
+        height: root.grow(root.islandBCH)
+        radius: Tokens.radiusCard + root.borderWidth
+        deformScale: 0
+    }
+    BlobRect {
+        id: islandBRRect
+        group: blobGroup
+        x: root.islandBRX - root.borderWidth
+        y: root.islandBRY - root.borderWidth
+        width:  root.grow(root.islandBRW)
+        height: root.grow(root.islandBRH)
+        radius: Tokens.radiusCard + root.borderWidth
+        deformScale: 0
     }
 
     // A bar pill's tooltip: the glance's single join, smaller.

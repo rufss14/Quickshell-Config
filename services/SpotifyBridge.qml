@@ -4,6 +4,7 @@ import Quickshell.Io
 import QtQuick
 import "../config"
 import "spicylyrics.js" as SpicyLyrics
+import "queuemodel.js" as QueueModel
 
 // ── SpotifyBridge ─────────────────────────────────────────────────────────────
 // Spotify's OWN playhead, pushed out of the app by a Spicetify extension.
@@ -97,8 +98,16 @@ Singleton {
     property string title:      ""
     property string artist:     ""
     property string album:      ""
+    // The ids behind the album and the artists, for the media page's links. "" / [] from an extension that
+    // predates them: the page then searches for the names.
+    property string albumUri:   ""
+    property var    artists:    []
     property real   duration:   0        // seconds
     property bool   playing:    false
+    // The track's Canvas clip: the canvaz URL the extension found ("" = none, or not asked yet) and the bridge's
+    // cached copy of it ("" until the download lands). The media page plays the file, never the URL.
+    property string canvasUrl:  ""
+    property string canvasPath: ""
 
     // "off" | "starting" | "waiting" | "live" | "error"
     //   waiting — the listener is up but Spotify has never spoken to it
@@ -194,6 +203,68 @@ Singleton {
     // throws on every track is indistinguishable on screen from a track with no lyrics.
     property string lastLyricsError: ""
 
+    // ── The queue and the Jam (the media page's Queue tab) ────────────────────
+    // `queue` is queuemodel.js's parse of the extension's snapshot: { rev, current, next[], more, context, jam }.
+    // Null until one arrives, which an extension that predates the queue never sends (the tab says so).
+    // `queueAt` is when (Date.now()), so a page can tell a snapshot from before a shell reload.
+    property var    queue: null
+    property real   queueAt: 0
+    // Changing it: one request at a time (a second drag waits for the first), the last refusal kept as a sentence.
+    property bool   queueBusy: false
+    property string queueError: ""
+    property var    _queueOps: []
+
+    function _runQueueOp() {
+        if (root.queueBusy || root._queueOps.length === 0) return
+        const next = root._queueOps.shift()
+        root.queueBusy = true
+        root._queueProc.command = ["python3", Quickshell.shellPath("scripts/spotify-queue.py"), JSON.stringify(next)]
+        root._queueProc.running = true
+    }
+    function _queueAsk(body) {
+        // A drag that lands twice on the same row replaces the one still waiting.
+        root._queueOps = root._queueOps.filter(o => !(o.op === body.op && o.uid === body.uid)).concat([body])
+        root._runQueueOp()
+    }
+    // Move the row `uid` before or after the row `anchorUid` (queuemodel.js moveTo gives both).
+    function queueMove(row, anchor, where) {
+        root._queueAsk({ op: "reorder", uid: row.uid, uri: row.uri, anchorUid: anchor.uid, anchorUri: anchor.uri, where: where })
+    }
+    function queueRemove(row) { root._queueAsk({ op: "remove", uid: row.uid, uri: row.uri }) }
+    // Ask the extension for this track's lyrics again (the lyrics card's retry).
+    function refetchLyrics(uri) { root._queueAsk({ op: "lyrics", uri: uri }) }
+    // Open a page in the Spotify app (album, artist, playlist or search). Only through the extension: without it the link
+    // falls back to the desktop handler (MediaLink).
+    function queueOpen(uri) { root._queueAsk({ op: "open", uri: uri }) }
+    // A Jam: "start" makes one (its invite link lands in jamLink), "end" ends the one you host, "leave" leaves one you joined.
+    property string jamLink: ""
+    function queueJam(action) { root._queueAsk({ op: "jam", value: action }) }
+    // A Jam's setting or listener: "queueOnly" / "volume" take a value; "remove" takes the listener's id.
+    function queueJamSet(what, value, member) {
+        const body = { op: "jamset", what: what }
+        if (what === "remove") body.member = member
+        else body.value = !!value
+        root._queueAsk(body)
+    }
+    // Start Spotify's DJ (the one context the bridge will play).
+    function queuePlay() { root._queueAsk({ op: "play", uri: "spotify:playlist:37i9dQZF1EYkqdzj48dyYq" }) }
+    // Save or unsave the song that is playing (Spotify's own library, as its heart does).
+    function queueLike(uri, value) { root._queueAsk({ op: "like", uri: uri, value: !!value }) }
+
+    property Process _queueProc: Process {
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let r = { ok: false, error: "No answer" }
+                try { r = JSON.parse(text) } catch (e) { /* the default above */ }
+                root.queueError = r.ok ? "" : String(r.error || "Spotify refused")
+                if (r.ok && typeof r.link === "string" && r.link !== "") root.jamLink = r.link
+                if (!r.ok) console.warn("SpotifyBridge: queue change refused:", root.queueError)
+                root.queueBusy = false
+                root._runQueueOp()
+            }
+        }
+    }
+
     // ── Attempted, regardless of outcome ──────────────────────────────────────
     // The uri of the last "lyrics" message this side actually processed — success OR
     // failure, unlike `lyricsUri` (only ever a HIT) and `lastLyricsError` (only ever a
@@ -249,6 +320,11 @@ Singleton {
         && root.trackUri !== ""
         && !(root.playing && root.duration > 0 && root.position() > root.duration + 5)
 
+    // A cached clip's path off the wire: an absolute .mp4, or "" (the page then shows the cover).
+    function _clipPath(v) {
+        return typeof v === "string" && v.startsWith("/") && v.endsWith(".mp4") ? v : ""
+    }
+
     function _num(v, fallback) {
         const n = Number(v)
         return isFinite(n) ? n : fallback
@@ -296,6 +372,20 @@ Singleton {
         }
         if (d.type === "restyled") {
             root.restyled(root._num(d.sheets, 0), root._num(d.loaded, 0), root._num(d.ms, 0))
+            return
+        }
+        // The queue as Spotify holds it, and the Jam it may belong to. Parsed defensively (queuemodel.js):
+        // another process wrote it.
+        if (d.type === "queue") {
+            root.queue = QueueModel.parseQueue(d)
+            root.queueAt = Date.now()
+            return
+        }
+        // The report of a change the shell asked for. The caller got it too; this is only for the log.
+        if (d.type === "queue-op") return
+        // The bridge finished fetching a clip. Taken only if it is still THIS track's: a skip can land first.
+        if (d.type === "canvas-ready") {
+            if (d.canvas === root.canvasUrl) root.canvasPath = root._clipPath(d.canvasPath)
             return
         }
         // A Canvas clip the bridge could not fetch or re-encode (the player keeps the cover). Logged, never an anchor.
@@ -441,8 +531,12 @@ Singleton {
         root.title    = d.title    || ""
         root.artist   = d.artist   || ""
         root.album    = d.album    || ""
+        root.albumUri = typeof d.albumUri === "string" ? d.albumUri : ""
+        root.artists  = Array.isArray(d.artists) ? d.artists.slice(0, 8) : []
         root.duration = root._num(d.durationMs, 0) / 1000
         root.playing  = !!d.playing
+        root.canvasUrl  = typeof d.canvas === "string" ? d.canvas : ""
+        root.canvasPath = root.canvasUrl !== "" ? root._clipPath(d.canvasPath) : ""
 
         root._anchorPos = Math.max(0, root._num(d.positionMs, 0) / 1000)
 
@@ -511,6 +605,8 @@ Singleton {
             } else if (root.state !== "error") {
                 root.state = "off"
                 root.trackUri = ""
+                root.canvasUrl = ""
+                root.canvasPath = ""
             }
         }
     }
@@ -660,6 +756,7 @@ Singleton {
                 parts.push("lyricsUri: " + root.lyricsUri)
             if (root.trackUri !== "")
                 parts.push("trackUri: " + root.trackUri)
+            parts.push("canvas: " + (root.canvasPath !== "" ? "cached" : root.canvasUrl !== "" ? "fetching" : "none"))
             if (root.lyrics)
                 parts.push("provider: " + (root.lyrics.provider || "?")
                          + " (" + (root.lyrics.source || "?") + ")"

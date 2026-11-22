@@ -26,6 +26,9 @@ Item {
     // Bar.qml's `blobRing`: the blob owns the bar's fill, so the card can melt out of it.
     property bool welded: false
     property matrix4x4 deformMatrix
+    // The sidebar's face on that side, 0 for none: the card stays off it.
+    property real clearLeft: 0
+    property real clearRight: 0
 
     // ── What DockPreview reads off its strip ──────────────────────────────────
     property string previewKey: ""
@@ -126,6 +129,8 @@ Item {
         deformMatrix: root.deformMatrix
         dockInner:    Config.belowBar
         anchorMain:   root.anchorX
+        clearLo:      root.clearLeft
+        clearHi:      root.clearRight
         peeks:        Config.dockPeek
     }
 }

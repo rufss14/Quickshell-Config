@@ -12,8 +12,8 @@ import "../../../../services"
 import "../../../../services/wallfx.js" as FX
 import "../.."
 
-// WallpaperGalleryView — part of WallpaperPage.qml, moved into its own file (2026-11-08). Reads and writes the
-// page's state through `page` (was `root`).
+// WallpaperGalleryView — the gallery of WallpaperPage.qml (its first rail page). Reads and writes the
+// page's state through `page`.
 ColumnLayout {
     id: galleryView
     // The page that owns the state (WallpaperPage.qml's root).
@@ -22,22 +22,21 @@ ColumnLayout {
     anchors.fill: parent
     spacing: Tokens.spacingLg
 
-    opacity: page.view === "gallery" && !page.browsing && !page.choosing ? 1 : 0
+    opacity: !page.browsing && !page.tuning && !page.choosing ? 1 : 0
     visible: opacity > 0.01
     Behavior on opacity { NumberAnimation { duration: Motion.standard } }
 
-    // ── Picking a scene for a screen (or a span group) ───────────
-    // Entered from the Engine tab's Monitors section. A tile's click
-    // routes to WallpaperEngine.assignMonitor()/spanMonitors() while
-    // this is up — see WallTile.doApply().
+    // ── Picking a scene for a screen (or a span group), or a workspace's own ──
+    // Entered from Scenes › Monitors or Placement's workspace strip. A tile's click
+    // routes to WallpaperEngine.assignMonitor()/spanMonitors() or Wallpaper.assign()
+    // while this is up (WallpaperPageTile.doApply()); Cancel, like a finished pick,
+    // goes back to the page the pick came from (page.endPick()).
     Rectangle {
         Layout.fillWidth: true
         visible: page.anyPicking
         implicitHeight: pickRow.implicitHeight + Tokens.spacingMd * 2
-        radius: Tokens.radiusSm
-        color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.12)
-        border.width: Tokens.borderWidth
-        border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.35)
+        radius: Tokens.radiusCard
+        color: Colors.of(QsWindow.window).primaryContainer
 
         RowLayout {
             id: pickRow
@@ -47,7 +46,11 @@ ColumnLayout {
             anchors.margins: Tokens.spacingMd
             spacing: Tokens.spacingMd
 
-            MaterialIcon { name: "equalizer"; color: Colors.of(QsWindow.window).primary; variant: "body" }
+            MaterialIcon {
+                name: page.pickingWs > 0 ? "view_quilt" : "monitor"
+                color: Colors.of(QsWindow.window).fgOnPrimaryContainer
+                variant: "body"
+            }
             StyledText {
                 Layout.fillWidth: true
                 text: page.pickingWs > 0
@@ -56,7 +59,7 @@ ColumnLayout {
                     ? "Choose a scene to span " + page.pickingScreens.join(" + ")
                     : "Choose a scene for " + page.pickingForScreen
                 variant: "caption"
-                color: Colors.of(QsWindow.window).primary
+                color: Colors.of(QsWindow.window).fgOnPrimaryContainer
             }
             PanelButton {
                 capsule: true
@@ -76,29 +79,6 @@ ColumnLayout {
         wrapMode: Text.WordWrap
     }
 
-    // Scenes that workspaces own, and the shared scene, play in windows the shell
-    // captures (services/ScenePreload) — which is what lets the pointer move them.
-    RowLayout {
-        Layout.fillWidth: true
-        Layout.fillHeight: false
-        visible: !page.pickingActive && (Wallpaper.perWorkspace || WallpaperEngine.sharedIsScene)
-        spacing: Tokens.spacingMd
-        Toggle {
-            accent: Colors.of(QsWindow.window).primary
-            checked: Config.wpePreload
-            onToggled: Config.wpePreload = !Config.wpePreload
-        }
-        StyledText {
-            Layout.fillWidth: true
-            text: Config.wpePreload
-                ? "Play scenes through the shell — parallax follows the pointer anywhere, workspace switches are instant; each scene keeps using the GPU"
-                : "Play scenes through the shell — off: the scene's own renderer plays them (its parallax works only over a bare desktop)"
-            variant: "caption"
-            emphasis: "dim"
-            wrapMode: Text.WordWrap
-        }
-    }
-
     // ── Hero — what's on screen, and what it did to the shell ────
     // The bar panel's hero: the current picture (dissolving into the next
     // when it changes), its name with its aspect and format, where the
@@ -111,14 +91,10 @@ ColumnLayout {
         Layout.fillHeight: false
         Layout.preferredHeight: page.heroHeight
         visible: page.heroName !== ""
-        radius: Tokens.radiusSm
-        border.width: Tokens.borderWidth
-        border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.22)
-        gradient: Gradient {
-            GradientStop { position: 0.0
-                color: Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceContainer, Colors.of(QsWindow.window).primary, 0.11) }
-            GradientStop { position: 1.0; color: Colors.of(QsWindow.window).surfaceContainer }
-        }
+        // A flat plate on the tone ladder (docs/island-style.md §1): no outline, no gradient.
+        // The blurred picture behind it is the colour.
+        radius: Tokens.radiusXl
+        color: Colors.of(QsWindow.window).section
 
         // The current wallpaper's aspect, from the loaded thumbnail (sourceSize
         // preserves the ratio even though it scales the pixels). More use than
@@ -168,7 +144,8 @@ ColumnLayout {
                 // 16:9, the shape of a wallpaper.
                 Layout.preferredWidth: Math.round((page.heroHeight - Tokens.spacingXs * 2) * 16 / 9)
                 Layout.fillHeight: true
-                radius: Tokens.radiusXs
+                // Concentric with the hero: its corner less the gap around the thumb.
+                radius: Math.max(Tokens.radiusXs, hero.radius - Tokens.spacingXs)
                 color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).surface, 0.5)
 
                 // ── Crossfade on a wallpaper change ─────────────────────
@@ -209,9 +186,9 @@ ColumnLayout {
                 Loader {
                     anchors.fill: parent
                     active: page.materialOnScreen
-                    // The page stays loaded off stage (PageSlot), so only animate
-                    // while its slot is showing.
-                    sourceComponent: MaterialWallpaper { running: page.parent?.visible ?? true }
+                    // The page stays loaded off stage (PageSlot), and the gallery under
+                    // another rail page of this file: only animate while it is showing.
+                    sourceComponent: MaterialWallpaper { running: (page.parent?.visible ?? true) && page.view === "gallery" }
                 }
                 MaterialIcon {
                     anchors.centerIn: parent
@@ -240,7 +217,7 @@ ColumnLayout {
                     }
                     StyledText {
                         Layout.fillWidth: true
-                        text: page.heroName
+                        text: page.heroTitle
                         variant: "body"
                         font.weight: Font.DemiBold
                         elide: Text.ElideMiddle
@@ -312,17 +289,6 @@ ColumnLayout {
                         }
                     }
                 }
-            }
-
-            PanelButton {
-                capsule: true
-                Layout.alignment: Qt.AlignVCenter
-                visible: page.sceneOnScreen && WallpaperEngine.needsRefresh
-                variant: "primary"
-                accent:  Colors.of(QsWindow.window).primary
-                symbol:  "refresh"
-                label:   Translation.tr("Refresh")
-                onActivated: WallpaperEngine.refresh()
             }
         }
     }
@@ -533,10 +499,8 @@ ColumnLayout {
         visible: page.isImages && !Wallpaper.applying
                  && (Wallpaper.lastFailed || Wallpaper.needsRestart)
         implicitHeight: failRow.implicitHeight + Tokens.spacingMd * 2
-        radius: Tokens.radiusSm
+        radius: Tokens.radiusCard
         color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).warning, 0.12)
-        border.width: Tokens.borderWidth
-        border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).warning, 0.35)
 
         RowLayout {
             id: failRow
@@ -556,7 +520,7 @@ ColumnLayout {
                 text: Wallpaper.lastFailed
                     ? Wallpaper.failedCount + " step"
                       + (Wallpaper.failedCount !== 1 ? "s" : "")
-                      + " failed — the picture is set, some apps kept "
+                      + " failed. The picture is set, some apps kept "
                       + "their old colours."
                     : "Some apps only read the theme at startup and are "
                       + "still showing the old colours."

@@ -1,12 +1,15 @@
 WallpaperEntry            1.0 WallpaperEntry.qml
 WallpaperTile             1.0 WallpaperTile.qml
+WallpaperCard             1.0 WallpaperCard.qml
+WallpaperNow              1.0 WallpaperNow.qml
+WallpaperSources          1.0 WallpaperSources.qml
 WallpaperRow              1.0 WallpaperRow.qml
 WallpaperBrowse           1.0 WallpaperBrowse.qml
 WallpaperMaterial         1.0 WallpaperMaterial.qml
 WallpaperRendererSettings 1.0 WallpaperRendererSettings.qml
 WallpaperSceneProps       1.0 WallpaperSceneProps.qml
 WallpaperOptionRow        1.0 WallpaperOptionRow.qml
-WallpaperPopover          1.0 WallpaperPopover.qml
 WallpaperSubBar           1.0 WallpaperSubBar.qml
 WallpaperPanelBody 1.0 WallpaperPanelBody.qml
 WallpaperEffects          1.0 WallpaperEffects.qml
+WallpaperMaterialPlate    1.0 WallpaperMaterialPlate.qml

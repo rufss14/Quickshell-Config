@@ -13,19 +13,20 @@
 // services/Session by the view, which passes them in as `caps`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// key, glyph, label, what it does, the letter that fires it, whether the first press only
+// key, glyph, the M3E shape its badge blooms into (components/shapes.js; calm ones, each different),
+// label, what it does, the letter that fires it, whether the first press only
 // ARMS it (the second fires), what the armed one asks, how loud its warning is, whether it
 // ends the session (so the interruptions it would cause are listed), and what the machine
 // must be able to do for it to appear. Restarting is the recoverable one: the warning
 // colour, not the danger.
 var ACTIONS = [
-    { key: "lock",      glyph: "\u{F033E}", label: "Lock",      hint: "Everything keeps running",
+    { key: "lock",      glyph: "\u{F033E}", shape: "squircle", label: "Lock",      hint: "Everything keeps running",
       letter: "L", confirm: false },
-    { key: "logout",    glyph: "\u{F0343}", label: "Log out",   hint: "Close every app",
+    { key: "logout",    glyph: "\u{F0343}", shape: "clover",   label: "Log out",   hint: "Close every app",
       letter: "E", confirm: true, ends: true, ask: "Log out?",   tone: "danger" },
-    { key: "reboot",    glyph: "\u{F0709}", label: "Restart",   hint: "Back in a minute",
+    { key: "reboot",    glyph: "\u{F0709}", shape: "sunny",    label: "Restart",   hint: "Back in a minute",
       letter: "R", confirm: true, ends: true, ask: "Restart?",   tone: "warning" },
-    { key: "shutdown",  glyph: "\u{F0425}", label: "Shut down", hint: "Power off",
+    { key: "shutdown",  glyph: "\u{F0425}", shape: "cookie9",  label: "Shut down", hint: "Power off",
       letter: "P", confirm: true, ends: true, ask: "Shut down?", tone: "danger" }
 ]
 

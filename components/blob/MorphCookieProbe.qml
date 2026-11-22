@@ -7,8 +7,8 @@ import Quicktest.Blobs
 // to load — taking the material with it while every welded card had already stopped painting its
 // own fill. So state/Morph.qml asks this, the same catchable way it asks MorphProbe, and the shell
 // only hands the material to the blob (Drift.inBlob) when the answer is yes. Until the plugin is
-// rebuilt, nothing changes. One of three files allowed to import the plugin (with MorphProbe and
-// BlobBarLayer).
+// rebuilt, nothing changes. One of four files allowed to import the plugin (with MorphProbe,
+// MorphGradientProbe and BlobBarLayer).
 // ─────────────────────────────────────────────────────────────────────────────
 BlobGroup {
     cookies: []

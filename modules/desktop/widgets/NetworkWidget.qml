@@ -113,7 +113,7 @@ Item {
         Layout.fillWidth: true
         implicitHeight: rateContent.implicitHeight + Tokens.spacingSm * 2
         radius: Tokens.corner(Config.barShape, Tokens.radiusSm)
-        color: rate.hero ? Colors.of(QsWindow.window).primaryContainer : Colors.of(QsWindow.window).surfaceHigh
+        color: rate.hero ? Colors.of(QsWindow.window).primaryContainer : Colors.of(QsWindow.window).plate
 
         RowLayout {
             id: rateContent

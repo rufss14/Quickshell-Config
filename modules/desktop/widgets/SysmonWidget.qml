@@ -317,7 +317,7 @@ Item {
         Layout.fillWidth: true
         implicitHeight: statRow.implicitHeight + Tokens.spacingSm * 2
         radius: Tokens.corner(Config.barShape, Tokens.radiusSm)
-        color: Colors.of(QsWindow.window).surfaceHigh
+        color: Colors.of(QsWindow.window).plate
 
         RowLayout {
             id: statRow

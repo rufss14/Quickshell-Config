@@ -306,7 +306,7 @@ Item {
             turns: false
             spec: Motion.springSpatial
             shape: Config.barShape ? "squircle" : "cookie12"
-            fillColor: md.day ? Colors.of(QsWindow.window).primaryContainer : Colors.of(QsWindow.window).surfaceHigh
+            fillColor: md.day ? Colors.of(QsWindow.window).primaryContainer : Colors.of(QsWindow.window).plate
         }
         // Hour, then minute: each a rounded bar with its round end on the pivot.
         Repeater {

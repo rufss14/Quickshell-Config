@@ -51,6 +51,9 @@ ColumnLayout {
     // The sentence that explains it — a tip on the label (HelpTip).
     property string help: ""
     property color  accent: Colors.of(QsWindow.window).primary
+    // Text colours: a row on a hero card passes the card's on-container ink and its dim.
+    property color  ink:    Colors.of(QsWindow.window).fg
+    property color  inkDim: Colors.of(QsWindow.window).fgDim
 
     // No `property bool enabled` — ColumnLayout is an Item, which already has one,
     // and redeclaring it shadows the property QML uses to gate input. Inheriting it
@@ -84,12 +87,13 @@ ColumnLayout {
             text:    sliderRow.label
             variant: "body"
             font.weight: Font.Medium
+            color:   sliderRow.ink
             elide:   Text.ElideRight
         }
         MaterialIcon {
             visible: sliderRow.help !== ""
             name: "info"
-            color: Colors.of(QsWindow.window).fgDim
+            color: sliderRow.inkDim
             font.pixelSize: Tokens.iconSm
             opacity: tip.active ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: Motion.fast } }
@@ -116,7 +120,7 @@ ColumnLayout {
             visible: !sliderRow.stepper
             text:     sliderRow.readout
             variant:  "body"
-            emphasis: "dim"
+            color:    sliderRow.inkDim
             font.weight: Font.Medium
         }
     }

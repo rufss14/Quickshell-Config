@@ -67,7 +67,15 @@ Rectangle {
     // OverviewLyrics documents). Putting it back here would cost the panels their
     // shadows with no other symptom.
 
-    color:        root.blobMaterial ? "transparent" : Colors.of(QsWindow.window).surface
+    color:        root.blobMaterial ? "transparent" : Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surface, Tokens.glass)
+
+    // A card the blob does not draw (a free panel) wears the shell's gradient like the bar does.
+    GradientPlate {
+        anchors.fill: parent
+        visible: !root.blobMaterial
+        ground: Colors.of(QsWindow.window).surface
+        radius: root.radius
+    }
     border.width: Tokens.borderWidth
     border.color: (hoverFocus && cardHover.hovered) ? Colors.of(QsWindow.window).outlineFocus : Colors.of(QsWindow.window).outline
 

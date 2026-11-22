@@ -24,7 +24,7 @@ additionally refuses any peer that is not loopback, so it is not reachable off t
 machine even if the bind address is overridden by mistake.
 """
 
-import sys, os, json, argparse, threading, time, ctypes, signal, hashlib, base64
+import sys, os, json, argparse, threading, time, ctypes, signal, hashlib, base64, re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
 
@@ -137,6 +137,144 @@ def play_report(msg):
         _events.notify_all()
 
 
+# ── Changing the queue (the media page: drag a song to reorder, remove one) ───────────────────────────
+# The same road as "play": the shell POSTs /queue-op, which waits for the extension (it makes the change inside
+# Spotify with the client's own queue API) and returns its report. The request is checked HERE, not trusted
+# onward: an operation from a short list, ids as short strings, a place as before/after. One at a time; a second
+# arriving while one is pending waits its turn on the lock.
+QUEUE_OPS     = ("reorder", "remove", "like", "play", "jam", "open", "jamset", "lyrics")
+JAMSET_WHAT   = ("queueOnly", "volume", "remove")
+# Where "open" may take the client: an album, artist or playlist page, or a search. Never a track (that would play it).
+OPEN_URI      = re.compile(r"^spotify:(?:(?:album|artist|playlist):[A-Za-z0-9]{22}|search:[^\x00-\x1f]{1,120})$")
+JAM_ACTIONS   = ("start", "end", "leave")   # start a Jam, end one you host, leave one you joined
+# The one context "play" may start: Spotify's DJ (the client's own DJ station, the id its now-playing bar uses).
+DJ_URI        = "spotify:playlist:37i9dQZF1EYkqdzj48dyYq"
+QUEUE_WAIT_S  = 6
+_qop          = None           # {"seq", "op", ..., "at"}: the newest request
+_qop_seq      = 0
+_qop_done     = {}             # seq -> the extension's report
+_qop_closed   = 0              # the newest request the caller has finished with (answered or timed out)
+_qop_lock     = threading.Lock()
+
+
+def _qop_pending():
+    """Call with _events held."""
+    return (_qop is not None and _qop["seq"] > _qop_closed
+            and time.monotonic() - _qop["at"] < PENDING_S)
+
+
+def _short(v, n=100):
+    return v if isinstance(v, str) and 0 < len(v) <= n else ""
+
+
+def clean_queue_op(req):
+    """The request as the extension will be told it, or None when it is not a well-formed one."""
+    if not isinstance(req, dict) or req.get("op") not in QUEUE_OPS:
+        return None
+    out = {"op": req["op"], "uid": _short(req.get("uid"), 64), "uri": _short(req.get("uri"))}
+    if not out["uid"] and not out["uri"] and req["op"] not in ("like", "play", "jam", "open", "jamset", "lyrics"):
+        return None
+    if req["op"] == "play":
+        if req.get("uri") != DJ_URI:
+            return None
+        return {"op": "play", "uid": "", "uri": DJ_URI}
+    if req["op"] == "lyrics":
+        uri = req.get("uri")
+        if not isinstance(uri, str) or not re.match(r"^spotify:track:[A-Za-z0-9]{22}$", uri):
+            return None
+        return {"op": "lyrics", "uid": "", "uri": uri}
+    if req["op"] == "jamset":
+        what = req.get("what")
+        if what in ("queueOnly", "volume") and isinstance(req.get("value"), bool):
+            return {"op": "jamset", "uid": "", "uri": "", "what": what, "value": req["value"]}
+        member = _short(req.get("member"), 80)
+        if what == "remove" and member:
+            return {"op": "jamset", "uid": "", "uri": "", "what": "remove", "member": member}
+        return None
+    if req["op"] == "open":
+        uri = req.get("uri")
+        if not isinstance(uri, str) or not OPEN_URI.match(uri):
+            return None
+        return {"op": "open", "uid": "", "uri": uri}
+    if req["op"] == "jam":
+        if req.get("value") not in JAM_ACTIONS:
+            return None
+        return {"op": "jam", "uid": "", "uri": "", "value": req["value"]}
+    if req["op"] == "like":
+        # Only the track that is playing, named by its uri: the extension checks it again against Spotify's own state.
+        if not out["uri"].startswith("spotify:track:") or not isinstance(req.get("value"), bool):
+            return None
+        out["value"] = req["value"]
+        return out
+    if req["op"] == "reorder":
+        out["anchorUid"] = _short(req.get("anchorUid"), 64)
+        out["anchorUri"] = _short(req.get("anchorUri"))
+        if not out["anchorUid"] and not out["anchorUri"]:
+            return None
+        if req.get("where") not in ("before", "after"):
+            return None
+        out["where"] = req["where"]
+    return out
+
+
+def queue_op_problem(req):
+    """Why clean_queue_op refused a request, in a few words the page can show. Only for the answer; never trusted."""
+    if not isinstance(req, dict):
+        return "not a JSON object"
+    if req.get("op") not in QUEUE_OPS:
+        return "unknown op %r" % (req.get("op"),)
+    if req["op"] == "like":
+        return "like needs a spotify:track uri and a true/false value"
+    if req["op"] == "play":
+        return "play only starts the DJ"
+    if req["op"] == "jam":
+        return "jam takes start, end or leave"
+    if req["op"] == "open":
+        return "open takes an album, artist, playlist or search"
+    if req["op"] == "jamset":
+        return "jamset takes queueOnly or volume with true/false, or remove with a member id"
+    if not _short(req.get("uid"), 64) and not _short(req.get("uri")):
+        return "no uid or uri for the row"
+    if req["op"] == "reorder":
+        if not _short(req.get("anchorUid"), 64) and not _short(req.get("anchorUri")):
+            return "no anchor row"
+        return "where must be before or after"
+    return "invalid"
+
+
+def queue_op(req):
+    """-> (status, body). Waits for the extension's report."""
+    global _qop, _qop_seq, _qop_closed
+    if not listening():
+        return 503, {"ok": False, "error": "spotify-not-listening"}
+    with _qop_lock:
+        with _events:
+            _qop_seq += 1
+            seq = _qop_seq
+            _qop = dict(req, seq=seq, at=time.monotonic())
+            _events.notify_all()
+            _events.wait_for(lambda: seq in _qop_done, timeout=QUEUE_WAIT_S)
+            got = _qop_done.pop(seq, None)
+            # Closed, not merely answered: a request that was popped from _qop_done would read as pending again.
+            _qop_closed = seq
+    if got is None:
+        return 504, {"ok": False, "error": "spotify-no-answer"}
+    ok = got.get("type") == "queue-done" and got.get("ok") is True
+    link = str(got.get("link") or "")
+    # A Jam's invite link, only ever an https address (it is copied, never opened here).
+    link = link if link.startswith("https://") and len(link) <= 300 and " " not in link else ""
+    return (200 if ok else 502), {"ok": ok, "error": "" if ok else str(got.get("error") or "failed")[:160], "link": link}
+
+
+def queue_report(msg):
+    with _events:
+        try:
+            _qop_done[int(msg.get("seq") or 0)] = msg
+        except (TypeError, ValueError):
+            return
+        _events.notify_all()
+
+
 def mailbox_css():
     """The mail, as a stylesheet the extension reads back through computed style."""
     with _events:
@@ -145,6 +283,8 @@ def mailbox_css():
             mail["restyle"] = _restyle_seq
         if _play_pending():
             mail["play"] = {"seq": _play["seq"], "query": _play["query"], "kind": _play["kind"]}
+        if _qop_pending():
+            mail["queueop"] = {k: v for k, v in _qop.items() if k != "at"}
     b64 = base64.b64encode(json.dumps(mail).encode("utf-8")).decode("ascii")
     return ('#qs-mailbox::after{content:"%s"}\n' % b64).encode("ascii")
 
@@ -155,8 +295,8 @@ def _restyle_pending():
 
 
 def _pending():
-    """Call with _events held: anything for the extension — a restyle, or something to play."""
-    return _restyle_pending() or _play_pending()
+    """Call with _events held: anything for the extension — a restyle, something to play, a queue change."""
+    return _restyle_pending() or _play_pending() or _qop_pending()
 
 
 def acknowledge():
@@ -370,10 +510,79 @@ def _canvas_prune():
         pass
 
 
+def _canvas_download(url, dest):
+    """Fetch a validated clip URL into `dest`, capped at CANVAS_MAX. Raises on any failure."""
+    import urllib.request
+    with urllib.request.urlopen(url, timeout=15) as r, open(dest, "wb") as f:
+        got = 0
+        while True:
+            chunk = r.read(65536)
+            if not chunk:
+                break
+            got += len(chunk)
+            if got > CANVAS_MAX:
+                raise ValueError("clip larger than %d bytes" % CANVAS_MAX)
+            f.write(chunk)
+
+
+def canvas_video_path(url):
+    """Where the UNTOUCHED clip for a validated URL is (or would be) cached. The shell plays it
+    with Qt's own decoder, which has H.264; only Spotify's Chromium needs the re-encode above."""
+    return os.path.join(CANVAS_DIR, hashlib.sha1(url.encode()).hexdigest()[:24] + ".mp4")
+
+
+_canvas_video_busy = set()                # urls being fetched now, so an anchor every 5s starts one
+
+
+def canvas_video_start(url):
+    """The cached clip's path, or "" — and, when it is not cached yet, a background fetch whose
+    end is announced as {"type": "canvas-ready"}. Never blocks: this runs on the anchor's request."""
+    path = canvas_video_path(url)
+    if os.path.exists(path):
+        try:
+            os.utime(path)                        # newest-used, for the prune
+        except OSError:
+            pass
+        return path
+    key = path
+    with _canvas_lock:
+        if key in _canvas_video_busy or time.monotonic() - _canvas_failed.get(key, float("-inf")) < CANVAS_RETRY:
+            return ""
+        _canvas_video_busy.add(key)
+
+    def work():
+        import tempfile, shutil
+        err = ""
+        tmp = None
+        try:
+            os.makedirs(CANVAS_DIR, exist_ok=True)
+            tmp = tempfile.mkdtemp(prefix=".", dir=CANVAS_DIR)
+            part = os.path.join(tmp, "clip.mp4")
+            _canvas_download(url, part)
+            os.replace(part, path)
+            _canvas_prune()
+        except Exception as e:                    # network, HTTP status, size, disk
+            err = "%s: %s" % (type(e).__name__, e)
+        finally:
+            if tmp:
+                shutil.rmtree(tmp, ignore_errors=True)
+            with _canvas_lock:
+                _canvas_video_busy.discard(key)
+                if err:
+                    _canvas_failed[key] = time.monotonic()
+        if err:
+            emit({"type": "canvas-error", "error": err[:200], "recvAt": _now_ms()})
+        else:
+            emit({"type": "canvas-ready", "canvas": url, "canvasPath": path, "recvAt": _now_ms()})
+
+    threading.Thread(target=work, daemon=True).start()
+    return ""
+
+
 def canvas_file(url):
     """(path, content type, error) for a validated clip URL — from the cache, or fetched and
     encoded now (a few seconds; the page shows the cover meanwhile)."""
-    import subprocess, tempfile, urllib.request
+    import subprocess, tempfile
     key = hashlib.sha1(url.encode()).hexdigest()[:24]
     with _canvas_lock:
         if time.monotonic() - _canvas_failed.get(key, float("-inf")) < CANVAS_RETRY:
@@ -392,16 +601,7 @@ def canvas_file(url):
         err = ""
         try:
             src = os.path.join(tmp, "clip.mp4")
-            with urllib.request.urlopen(url, timeout=15) as r, open(src, "wb") as f:
-                got = 0
-                while True:
-                    chunk = r.read(65536)
-                    if not chunk:
-                        break
-                    got += len(chunk)
-                    if got > CANVAS_MAX:
-                        raise ValueError("clip larger than %d bytes" % CANVAS_MAX)
-                    f.write(chunk)
+            _canvas_download(url, src)
             for _, ext, ctype, args in CANVAS_ENCODERS:
                 out = os.path.join(tmp, "out." + ext)
                 cmd = [FFMPEG_BIN, "-v", "error", "-y", "-i", src, "-an", "-vf", "scale=480:-2"] + args + [out]
@@ -688,6 +888,23 @@ class Handler(BaseHTTPRequestHandler):
             self._finish(code, json.dumps(body).encode())
             return
 
+        if self.path.split("?")[0] == "/queue-op":
+            try:
+                n = min(int(self.headers.get("Content-Length") or 0), MAX_BODY)
+                req = json.loads(self.rfile.read(n).decode("utf-8", "replace")) if n > 0 else {}
+            except (ValueError, OSError):
+                req = None
+            op = clean_queue_op(req)
+            if op is None:
+                why = "not-understood: " + queue_op_problem(req)
+                self._finish(400, json.dumps({"ok": False, "error": why}).encode())
+                return
+            code, body = queue_op(op)
+            emit({"type": "queue-op", "op": op["op"], "ok": body.get("ok"), "error": body.get("error", ""),
+                  "recvAt": _now_ms()})
+            self._finish(code, json.dumps(body).encode())
+            return
+
         # The extension's poll, as a no-cors POST: the one shape Spotify's renderer is
         # measured to deliver here (its anchors). A cors GET from that origin never
         # arrived — Chromium's local-network rules — so `listening` stayed false. The
@@ -737,8 +954,17 @@ class Handler(BaseHTTPRequestHandler):
         # monotonic: the shell's `Date.now()` is wall-clock too, and the two are only
         # directly comparable if this one is as well.
         msg["recvAt"] = _now_ms()
+        if msg.get("type") == "anchor":
+            # The extension names the track's Canvas clip; it is a trust boundary like /canvas's
+            # `src`, so only a canvaz URL goes on, and what the shell gets is OUR cached copy's
+            # path (empty until the fetch lands), never a URL to follow.
+            clip = canvas_source(msg.get("canvas"))
+            msg["canvas"] = clip or ""
+            msg["canvasPath"] = canvas_video_start(clip) if clip else ""
         if msg.get("type") in ("played", "play-failed"):
             play_report(msg)
+        if msg.get("type") == "queue-done":
+            queue_report(msg)
         if msg.get("type") == "restyled":
             acknowledge()
         emit(msg)

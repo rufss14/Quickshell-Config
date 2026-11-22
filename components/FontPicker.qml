@@ -55,7 +55,7 @@ ColumnLayout {
         label:  root.label
         help:   root.help
         detail: root.missing
-                ? "“" + root.value + "” isn’t installed here — using " + root.fallback + "."
+                ? "“" + root.value + "” isn’t installed here, so " + root.fallback + " is used."
                 : root.detail
         wrapDetail: true
 

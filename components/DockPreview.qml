@@ -239,6 +239,12 @@ Item {
     // instead of bridging a gap with a neck — which read as a bump.
     readonly property int standOff: root.fused ? 0 : Tokens.spacingMd
     readonly property int margin:  Tokens.spacingMd     // from the screen's edge
+    // A top or bottom card that is not held inside a dock's length stays off whatever stands at the screen's
+    // sides (the sidebar's face: Bar.qml hands the workspace glance its band), standing on it as PillTip does.
+    property real clearLo: 0
+    property real clearHi: 0
+    readonly property real sideLo: Math.max(root.margin, root.clearLo)
+    readonly property real sideHi: Math.max(root.margin, root.clearHi)
     readonly property int pad:     Tokens.spacingSm     // card → tiles
     readonly property int tilePad: Tokens.spacingSm     // tile → its contents
     readonly property int headerH: Tokens.iconMd + Tokens.spacingSm
@@ -283,7 +289,7 @@ Item {
     readonly property real availW:
           root.edge === "left"  ? root.width - root.dockInner - root.standOff - root.margin
         : root.edge === "right" ? root.dockInner - root.standOff - root.margin
-        :                         Math.min(root.width - root.margin * 2, root.spanLen)
+        :                         Math.min(root.width - root.sideLo - root.sideHi, root.spanLen)
 
     // The height cap wins even below tileMin: a smaller picture beats one that
     // hangs off the end of the dock.
@@ -367,7 +373,7 @@ Item {
               root.edge === "left"  ? root.dockInner + root.standOff
             : root.edge === "right" ? root.dockInner - root.standOff - root.cardW
             : root.contained ? root._alongClamp(root.main - root.cardW / 2, root.cardW)
-            : root._clamp(root.main - root.cardW / 2, root.margin, root.width - root.cardW - root.margin)
+            : root._clamp(root.main - root.cardW / 2, root.sideLo, root.width - root.cardW - root.sideHi)
         readonly property real restY: root.vertical
             ? (root.contained ? root._alongClamp(root.main - root.cardH / 2, root.cardH)
                               : root._clamp(root.main - root.cardH / 2, root.margin, root.height - root.cardH - root.margin))

@@ -7,6 +7,7 @@ import "../../config"
 import "../../components"
 import "../../services"
 import "../../state"
+import "../../services/calmspot.js" as Calm
 import "widgets"
 
 // ── WidgetLayer ───────────────────────────────────────────────────────────────
@@ -188,6 +189,31 @@ PanelWindow {
 
     Region { id: passthrough; regions: root._maskRegions }
 
+    // ── Calm spots ────────────────────────────────────────────────────────────
+    // While arranging, the wallpaper this screen shows is read for where it is quiet (WallEnergy),
+    // and a tile's "Calm" chip moves it there: the block of the picture its size covers with the
+    // least detail, clear of the other tiles. Off while arranging is off, nothing is read. A scene
+    // or a video has no still to read, so the chip isn't offered.
+    WallEnergy {
+        id: energy
+        active: root.arranging
+        source: Wallpaper.pictureFor(root.wsId)
+        aspect: root.width / Math.max(1, root.height)
+    }
+
+    function moveToCalm(id) {
+        const me = DesktopWidgets.get(id)
+        if (!me || !energy.ready) return
+        const W = root.width, H = root.height
+        const own = Calm.cellsFor(DesktopWidgets.widthOf(me.size), DesktopWidgets.heightOf(me.size), W, H, energy.cols, energy.rows)
+        const avoid = root.placedIds.filter(o => o !== id).map(o => {
+            const t = DesktopWidgets.get(o)
+            return t ? Calm.blockOf({ x: t.x, y: t.y, w: DesktopWidgets.widthOf(t.size), h: DesktopWidgets.heightOf(t.size) }, W, H, energy.cols, energy.rows) : null
+        }).filter(b => b !== null)
+        const spot = Calm.best(energy.grid, energy.cols, energy.rows, own.w, own.h, "calm", avoid)
+        if (spot) DesktopWidgets.move(id, spot.cx * W / energy.cols, spot.cy * H / energy.rows, W, H)
+    }
+
     property var _maskRegions: []
 
     // Ids of the tiles that have sprung away (WidgetFrame `gone`), so their regions shrink to
@@ -264,7 +290,11 @@ PanelWindow {
     // of the file looked at the wrong part of the wallpaper whenever parallax was on.
     WallBackdrop {
         id: wallpaperTexture
-        anchors.fill: parent
+        // The screen, not this layer: the layer starts below the bar and right of the sidebar.
+        x: -root._reserved[0]
+        y: -root._reserved[1]
+        width: root.screen ? root.screen.width : root.width
+        height: root.screen ? root.screen.height : root.height
         screenName: root.screenName
         opacity: 0.004
         z: -100
@@ -281,7 +311,10 @@ PanelWindow {
     // the glass is a blur, and a frame loop is not worth it).
     Loader {
         id: materialTexture
-        anchors.fill: parent
+        x: -root._reserved[0]
+        y: -root._reserved[1]
+        width: root.screen ? root.screen.width : root.width
+        height: root.screen ? root.screen.height : root.height
         z: -100
         opacity: 0.004
         active: Config.widgetGlass && Config.wallMaterial
@@ -362,6 +395,12 @@ PanelWindow {
             arranging: root.arranging
             boundsW:   root.width
             boundsH:   root.height
+            insetX:    root._reserved[0]
+            insetY:    root._reserved[1]
+            screenW:   root.screen ? root.screen.width : root.width
+            screenH:   root.screen ? root.screen.height : root.height
+            calmAvailable: energy.ready
+            onCalmRequested: root.moveToCalm(frame.modelData)
 
             // Widgets only run their timers when they can be seen. `root.visible` is
             // false whenever the feature is off or the screen is empty, and a clock

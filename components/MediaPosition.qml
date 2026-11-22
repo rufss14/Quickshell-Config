@@ -47,6 +47,13 @@ Item {
     // is playing.
     property string pin: ""
 
+    // A player that wins whenever it is one of several that qualify (`desktopEntry`, "spotify"): when more than one
+    // is playing it is the one shown, and with nothing playing and nothing held yet it is the first pick. A pin
+    // still beats it, and a player merely paused never takes the card from one that is playing.
+    property string prefer: ""
+    onPinChanged:    root._refresh()
+    onPreferChanged: root._refresh()
+
     readonly property var allPlayers: Mpris.players.values
 
     property var _player: null
@@ -72,14 +79,20 @@ Item {
                 if (all[p].identity === root.pin) { root._player = all[p]; return }
         }
 
+        let playing = null
         for (let i = 0; i < all.length; i++) {
-            if (all[i].playbackState === MprisPlaybackState.Playing) {
-                root._player = all[i]
-                return
-            }
+            if (all[i].playbackState !== MprisPlaybackState.Playing) continue
+            if (playing === null) playing = all[i]
+            if (root.prefer !== "" && all[i].desktopEntry === root.prefer) { playing = all[i]; break }
         }
+        if (playing !== null) { root._player = playing; return }
+
         for (let j = 0; j < all.length; j++)
             if (all[j] === root._player) return
+
+        if (root.prefer !== "")
+            for (let k = 0; k < all.length; k++)
+                if (all[k].desktopEntry === root.prefer) { root._player = all[k]; return }
 
         root._player = all.length > 0 ? all[0] : null
     }

@@ -237,7 +237,7 @@ Rectangle {
                     MorphShape {
                         anchors.fill: parent
                         shape: hero.live ? hero._modeShapes[hero.mode] : hero.on ? "squircle" : "circle"
-                        fillColor: hero.live ? panel.accent : Colors.of(QsWindow.window).surfaceHigh
+                        fillColor: hero.live ? panel.accent : Colors.of(QsWindow.window).plate
                     }
                 }
                 MaterialIcon {

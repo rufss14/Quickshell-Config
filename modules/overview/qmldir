@@ -22,6 +22,7 @@ OverviewSessions 1.0 OverviewSessions.qml
 OverviewFilters 1.0 OverviewFilters.qml
 OverviewHints 1.0 OverviewHints.qml
 BulkInspector 1.0 BulkInspector.qml
+InspectorActions 1.0 InspectorActions.qml
 WorkspaceChips 1.0 WorkspaceChips.qml
 WorkspaceMap 1.0 WorkspaceMap.qml
 OverviewModifiers 1.0 OverviewModifiers.qml

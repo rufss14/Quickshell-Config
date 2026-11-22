@@ -11,8 +11,8 @@ import { fileURLToPath } from "url";
 const here = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(here, "..", "services", "wallpaperlib.js"), "utf8")
     .replace(/^\s*\.pragma\s+library\s*$/m, "");
-const { filterSort, activeFilters, kinds, parseFindRow, dropPaths } =
-    new Function(src + "\nreturn { filterSort, activeFilters, kinds, parseFindRow, dropPaths };")();
+const { filterSort, activeFilters, kinds, parseFindRow, dropPaths, crumbs, pasteKinds, colorKey, colorName, colorWord, COLORS } =
+    new Function(src + "\nreturn { filterSort, activeFilters, kinds, parseFindRow, dropPaths, crumbs, pasteKinds, colorKey, colorName, colorWord, COLORS };")();
 
 let pass = 0, fail = 0;
 function check(name, cond, detail) {
@@ -77,6 +77,51 @@ check("dropPaths survives a bad escape", same(dropPaths(["file:///a/%E0%A4%A.png
 check("dropPaths de-duplicates", same(dropPaths(["file:///a/x.png", "file:///a/x.png"]), ["/a/x.png"]));
 check("dropPaths on nothing", same(dropPaths(undefined), []) && same(dropPaths([]), []));
 check("dropPaths drops a relative path", same(dropPaths(["file://a/b.png"]), []));
+
+// ── crumbs
+check("crumbs inside home start at Home", same(crumbs("file:///home/u/Pictures/Art", "/home/u"),
+    [{ label: "Home", path: "/home/u" }, { label: "Pictures", path: "/home/u/Pictures" }, { label: "Art", path: "/home/u/Pictures/Art" }]));
+check("crumbs of home itself", same(crumbs("file:///home/u", "/home/u"), [{ label: "Home", path: "/home/u" }]));
+check("crumbs outside home start at /", same(crumbs("file:///mnt/disk/x", "/home/u"),
+    [{ label: "/", path: "/" }, { label: "mnt", path: "/mnt" }, { label: "disk", path: "/mnt/disk" }, { label: "x", path: "/mnt/disk/x" }]));
+check("crumbs of the root", same(crumbs("file:///", "/home/u"), [{ label: "/", path: "/" }]));
+check("crumbs decode escapes", crumbs("file:///home/u/My%20Pics", "/home/u")[1].label === "My Pics");
+check("crumbs: /home/user2 is not inside /home/u", crumbs("file:///home/user2/a", "/home/u")[0].label === "/");
+check("crumbs survive a bad escape", crumbs("file:///home/u/%E0%A4%A", "/home/u").length === 2);
+check("crumbs with no home", crumbs("file:///a/b", "")[0].label === "/");
+
+// ── colour
+check("colorName: pure hues", colorName("#ff0000") === "red" && colorName("#00ff00") === "green" && colorName("#0000ff") === "blue");
+check("colorName: in-between hues land on the nearest", colorName("#ff7f00") === "orange" && colorName("#ffd400") === "yellow" && colorName("#8000ff") === "purple" && colorName("#ff1493") === "pink");
+check("colorName: neutrals", colorName("#101010") === "black" && colorName("#f2f2f2") === "white" && colorName("#808080") === "grey");
+check("colorName: unknown", colorName("") === "" && colorName("nope") === "" && colorName(undefined) === "");
+check("colorWord: names and aliases", colorWord("Blue") === "blue" && colorWord(" gray ") === "grey" && colorWord("cyan") === "teal");
+check("colorWord: not a colour", colorWord("dune") === "" && colorWord("") === "");
+check("colorKey: red first, then round the wheel", colorKey("#ff0000") < colorKey("#ffd400") && colorKey("#ffd400") < colorKey("#00ff00") && colorKey("#00ff00") < colorKey("#0000ff"));
+check("colorKey: neutrals after every hue, light to dark", colorKey("#ff1493") < colorKey("#f2f2f2") && colorKey("#f2f2f2") < colorKey("#404040"));
+check("colorKey: unknown is last", colorKey("") > colorKey("#000000"));
+const cols = { "/w/b.png": "#0000ff", "/w/a.jpg": "#ff0000", "/w/c.gif": "#00ff00", "/w/Dune.PNG": "#202020" };
+check("sort by colour walks the spectrum", same(filterSort(imgs, { images: true, sort: "color", colors: cols }), ["/w/a.jpg", "/w/c.gif", "/w/b.png", "/w/Dune.PNG"]));
+check("sort by colour does not float favourites", same(filterSort(imgs, { images: true, sort: "color", colors: cols, favs: ["b.png"] }), ["/w/a.jpg", "/w/c.gif", "/w/b.png", "/w/Dune.PNG"]));
+check("a picture with no colour known sorts last", same(filterSort(["/w/x.png", "/w/a.jpg"], { images: true, sort: "color", colors: cols }), ["/w/a.jpg", "/w/x.png"]));
+check("searching a colour name finds that colour", same(filterSort(imgs, { images: true, search: "blue", colors: cols }), ["/w/b.png"]));
+check("a colour word still matches a file name", same(filterSort(["/w/blue-sky.png", "/w/a.jpg"], { images: true, search: "blue", colors: cols }), ["/w/blue-sky.png"]));
+check("scenes colour by their preview", same(filterSort([{ id: "1", title: "A", type: "scene", preview: "/p/1.jpg" }, { id: "2", title: "B", type: "scene", preview: "/p/2.jpg" }],
+    { images: false, search: "red", colors: { "/p/1.jpg": "#ff0000", "/p/2.jpg": "#0000ff" } }).map(e => e.id), ["1"]));
+check("a non-colour search is unchanged by the colours", same(filterSort(imgs, { images: true, search: "dune", colors: cols }), ["/w/Dune.PNG"]));
+check("eight hues, each named once", COLORS.length === 8 && new Set(COLORS.map(c => c.id)).size === 8);
+
+// ── paste
+check("paste: a PNG is taken as it is", same(pasteKinds(["image/png", "text/html"]), { files: false, image: "image/png", ext: "png", convert: false }));
+check("paste: a JPEG keeps its type", same(pasteKinds(["image/jpeg"]), { files: false, image: "image/jpeg", ext: "jpg", convert: false }));
+check("paste: PNG beats the other image types", pasteKinds(["image/webp", "image/png"]).image === "image/png");
+check("paste: a WebP alone is converted to PNG", same(pasteKinds(["image/webp"]), { files: false, image: "image/webp", ext: "png", convert: true }));
+check("paste: copied files are seen", pasteKinds(["text/uri-list", "x-special/gnome-copied-files"]).files === true);
+check("paste: files and a picture at once", pasteKinds(["text/uri-list", "image/png"]).files && pasteKinds(["text/uri-list", "image/png"]).image === "image/png");
+check("paste: text only offers nothing", same(pasteKinds(["text/plain", "UTF8_STRING"]), { files: false, image: "", ext: "", convert: false }));
+check("paste: nothing at all", same(pasteKinds([]), { files: false, image: "", ext: "", convert: false }) && pasteKinds(undefined).image === "");
+check("paste: types are matched whatever their case", pasteKinds(["Image/PNG\n"]).image === "image/png");
+check("paste: an SVG is not taken", pasteKinds(["image/svg+xml"]).image === "");
 
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);

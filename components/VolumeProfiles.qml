@@ -54,7 +54,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: height / 2
-        color: Colors.of(QsWindow.window).surfaceContainer
+        color: Colors.of(QsWindow.window).plateLow
         border.width: Tokens.borderWidth
         border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)
     }

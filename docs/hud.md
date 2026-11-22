@@ -1,61 +1,31 @@
 # The HUD — cards in the overview, widgets on screen
 
 `services/Hud` + `modules/hud/`. Four widgets — **performance** (+ the FPS cap and Game mode),
-**clips**, **voice** (Discord), **input** — that live as cards in the overview, and
-that you can PIN to be drawn over fullscreen games, or always, as a plain overlay. (The desktop
+**clips**, **voice** (Discord), **input** — that you PIN to be drawn over fullscreen games, or always, as a
+plain overlay, and place from the overview. (The desktop
 widgets are the opposite: under windows.)
 
-    qs ipc -c ~/.config/quicktest call hud open        # the overview, a card tuned (also: toggle, close, status)
+    qs ipc -c ~/.config/quicktest call hud open        # the overview, the island on a widget's options (also: toggle, close, status)
     qs ipc -c ~/.config/quicktest call hud arrange     # drag the widgets on the real screen
 
-## Everything is in the overview (2026-10-20)
+## Where the HUD is set (2026-11-17)
 
-The user: "the HUD lives inside the Overview… not an extra keybind just to open HUD". So:
+The widgets were four cards in the overview's More row (performance, clips, voice, key display, each
+with pin / move / tune chips). The user, 2026-11-17: "remove the cards", then "you can keep the surface for clips and
+kbm". Two cards remain (Replay clips, Key display; docs/overview.md); performance and voice have none. The HUD itself is unchanged: four widgets, one switch each
+(`pinned`), drawn over games or always by `HudLayer`. How you reach them:
 
-- **No SUPER+G, no edit overlay.** The bind was removed from the live `~/.config/hypr/binds.lua`
-  (backup `.bak/binds.lua.20261020-hud`); the repo's copy never had it. The old studio, name tags
-  and per-widget toolbars are gone, and so is `shown` — a widget has ONE switch, `pinned`.
-  `hud.js normalise` migrates old files: pinned-but-never-shown stays unpinned.
-- **The corners** (`Overview.qml`, the user's call 2026-10-20: "instead of the HUD living on the
-  side of the workspaces, we make it live above and under… the workspaces keep being on the
-  center"; then "the performance part is quite big"; then "swap the position of clips and
-  performance"): one `HudCard` per widget, ALL the same size (`stage.sideW`, 11 card units max),
-  in the four corners round the grid — Clips and Voice above with the overview's header + search
-  between them, Performance and Input below with the island between them. A card: the shared
-  cookie field (DriftShapes), a header (cookie chip, name, a where-badge that springs in once
-  pinned, a status line that fades between kinds of status) and PIN / MOVE / TUNE chips; it
-  LEANS toward the pointer (2.2°) with PointerGlow on the edge facing it. The widget's full
-  version laid out in a ROW inside:
-  - `HudPerfCard`: CPU, GPU, RAM as three RINGS (RadialGauge, the figure rolling in the hole —
-    the desktop Sysmon's language, the user's pick of four mock-ups), name + temp/GB under each,
-    a dot on each track at the last minute's PEAK; the frame cap and Game mode in a column
-    beside them. Third version: rows over sparklines and 72px gauges + a shared trace before it.
-  - `HudVoiceCard`: server › channel and the line (quality dot + ping); faces in a row ("+N"
-    past what fits), each rippling while they talk (Discord says only THAT, not how loud);
-    CLICK a face and the bottom row becomes their volume for you (0–200 %) + mute-for-me,
-    else it's your mic volume (debounced — every send is an RPC message); mute/deafen/
-    leave-twice stacked. Out of a call: three empty seats.
-  - `HudClipsCard`: the buffer switch + what it holds + "All"; the TIMELINE — a film strip back
-    from now, filled as far as it holds, a notch per `saveLengths` length spaced by
-    `clips.js timelineAt` (square root; notches only while buffering); hover lights what it'd
-    save, click saves, the span flashes when the file lands (only for saves made from the
-    card); then "+ next 30s" and record/pause; the SHELF — the last three clips as a deck that
-    fans out on hover, click plays, drag one OUT as a file (dropped under 10 card units).
-  - `HudInputCard`: the overlay drawn idle, fitted to the height; what it's for; size and opacity
-    steppers.
-  Built only while the overview is; the cards that tick hold `Clock.acquireSeconds()` only while
-  something runs.
-- **Dragging a clip out of the overview** (the shelf): the overview covers the screen, so a drag
-  sets `UiState.overviewLending` — the stage and dim fade and the window's mask goes EMPTY
-  (transparent for input, `proxywindow.cpp`) so the drop lands on the window beneath; a taken
-  drop closes the overview, a refused one brings it back. **Unverified:** whether Hyprland picks
-  the drop target by input region during a Wayland drag at all.
-- **One card height** (`HudCard.bodyHeight`, 2.5 card units): the strips' height is a constant,
-  so the grid's room never depends on the cards' widths (which follow the grid). Nothing in a
-  card may wrap into a taller card.
-- Before the corners (same day): a full-height rail beside the grid (pushed the workspaces off
-  centre), then full-width strips (Performance stretched across).
-- **Arranging = the real screen** (`HudArrange`, a card's MOVE chip, the inspector's, or
+- **The overview's HUD chip** (the `widgets` icon in the top-right tray, `OverviewChips`) starts ARRANGING
+  (`Hud.arrange(true, "")`). Every widget wears a tag there: name, where (Over games / Always), pin, and a tune
+  chip that ends arranging and puts the widget in the island (`Hud.inspect(id)`).
+- **`qs ipc call hud open`**: the overview with the island on the first widget's options.
+- **`qs ipc call hud arrange`**: arranging, as before.
+- **The island** (`HudInspector`, the third face of `OverviewIsland`): the map of the screen to place it on, pin,
+  click-through, opacity, size, and the Keys page for the key display's layout.
+- The Performance card's Max FPS / Game mode column went with that card (the Gaming panel owns both). The clips shelf
+  (drag a clip out of the overview, `UiState.overviewLending`) stays on the Clips card.
+
+- **Arranging = the real screen** (`HudArrange`, the overview's HUD chip, the inspector's, or
   `qs ipc … call hud arrange`): `Hud.arranging` fades the overview's stage out, lifts the dim to
   0.12 and hides the cookie field, and draws every widget at its true place and size (unpinned
   ones faint). Drag one: it snaps onto the centre lines and onto a `Tokens.spacingXxl` margin in
@@ -87,7 +57,7 @@ The user: "the HUD lives inside the Overview… not an extra keybind just to ope
   + motif in each card's top-right corner, was cut by the chips and read as a glitch. It was never
   committed. Illustrations, if they come back: palette roles, never image assets.
 - Retired 2026-10-20 (the user: "simple and honestly useless"): the volume, to-do and standalone
-  FPS widgets (FPS lives in the performance card). In git history.
+  FPS widgets (FPS is the Gaming panel's frame cap). In git history.
 - Removed 2026-10-20, later the same day (the user: "Remove the crosshair stuff"): the crosshair
   widget, its card, its options (style/size/role) and the CS2 share-code import that was planned
   for it. `HudCrosshair.qml` is in git history (its card never was); `hud.js normalise` ignores a
@@ -108,7 +78,7 @@ The user: "the HUD lives inside the Overview… not an extra keybind just to ope
   right types, fractions clamped; a saved `crosshair` entry from before 2026-10-20 is dropped).
   Edits are refused until the file has been read.
 - **Colours** are palette roles, never hex. The voice ring is `focus`, not Discord's green.
-- **Input's preview never installs the key hook** (`HudInput.listen: false` in the card and the
+- **Input's preview never installs the key hook** (`HudInput.listen: false` in the island's preview and the
   map) — the hook is a Hyprland Lua subscription, only for the real overlay.
 
 ## FPS limit — what is and isn't known
@@ -132,7 +102,7 @@ solid accent when lit.
 
 - **Size and transparency** are the widget's `opts.scale` (0.5–2, the island's size slider —
   `HudWidget.resizable`, body gets `sizeScale` and lays itself out bigger, not stretched) and
-  `opts.opacity` (0.1–1, the island's opacity slider). Transparency fades the card and the idle
+  `opts.opacity` (0.1–1, the island's opacity slider). Transparency fades the plate and the idle
   keys only: a lit key and the text are always solid. Both clamped in `hud.js`.
 - **Keys** come from the SfxKeys route — a runtime `hyprctl eval` Lua hook on
   `input.keyboard.key` posting custom events (`services/InputKeys`).
@@ -176,15 +146,6 @@ Tests: `bun scripts/test-hud.js` (layout rules, migration, snapping, anchors + t
 (the table, the parser, the rates, the hook run under lua5.4 on a stub `hl` — it never calls
 `hl.bind`, never names an undrawn key — and binds.lua's static block).
 
-## Round 4 (2026-10-20)
-
-- **Chips on hover**: a card's pin / move / tune tray fades and slides in only while the pointer
-  is on the card (or the card is in the island). Faded, never hidden, so the header doesn't reflow.
-- **Clip hover preview**: rest 400 ms on a clip in the shelf and it plays muted and looping in its
-  frame (`ClipPlayer` by URL with `crop` and `loopAll`, only when `Media.available`).
-- **Performance** fix: the frame-cap column is a layout, and a layout's `Layout.fillWidth` defaults
-  to TRUE — it took the whole row and pushed the rings out of the card. It states `false` now.
-
 ## The input overlay's keyboards (2026-11-03)
 
 The user: make the keyboard-and-mouse overlay customisable — a full keyboard, numbers, and so on.
@@ -204,7 +165,7 @@ The user: make the keyboard-and-mouse overlay customisable — a full keyboard, 
   screen removes it). The island's Keys page says so in the danger tone when one of those is picked, and `bun scripts/test-inputkeys.js`
   (84, including the Lua of EVERY layout under lua5.4) checks that each layout names exactly its keys and that "all" really
   includes every letter and digit. Don't type passwords with a full layout showing; "Games only" (the default `where`) limits it to a game.
-- **UI**: the Key display card's `tune` chip opens the island's HUD inspector on its **Keys** page (it replaces the sliders: a layout
+- **UI**: the key display's tune chip (an arrange tag, or `hud open`) opens the island's HUD inspector on its **Keys** page (it replaces the sliders: a layout
   switch, Mouse and rate toggles, a size stepper and the exposure line). The mouse is three rows tall at most and centred on the keys.
 - Not exercised: a live install of a big layout into the compositor (it is the user's pin that installs the hook), and the labels at
   very small sizes (Prt / Scr / Pse are short for that reason).

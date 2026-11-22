@@ -23,6 +23,8 @@ Rectangle {
     property var    apps: []
     property string current: ""          // "" = All
     property color  accent: Colors.of(QsWindow.window).primary
+    // On an island page: a lifted card (surfaceHigh) on the page's plate, no outline.
+    property bool   plated: false
 
     signal picked(string app)
 
@@ -36,8 +38,11 @@ Rectangle {
     implicitHeight: Tokens.iconXl + Tokens.spacingMd
     visible: root.apps.length > 1
     radius: height / 2
-    color: Colors.of(QsWindow.window).surfaceContainer
-    border.width: Tokens.borderWidth
+    // Plated: no pill behind the chips (each is its own tonal plate on the page's tone), and the edge
+    // fades go to that tone.
+    readonly property color ground: root.plated ? Colors.of(QsWindow.window).section : Colors.of(QsWindow.window).surfaceContainer
+    color: root.plated ? "transparent" : root.ground
+    border.width: root.plated ? 0 : Tokens.borderWidth
     border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)
 
     function _tone(app) {
@@ -76,6 +81,7 @@ Rectangle {
                 label: root.current === "" ? "All  " + root.total : "All"
                 symbol: root.current === "" ? "" : "close"
                 tint:  root.accent
+                tonal: root.plated
                 opacity: root.current === "" ? 0.85 : 1
                 onActivated: root.picked("")
             }
@@ -86,6 +92,7 @@ Rectangle {
                     required property var modelData
                     label:   modelData.app + "  " + modelData.count
                     dot:     root._tone(modelData.app)
+                    tonal:   root.plated
                     on:      root.current === modelData.app
                     tint:    root._tone(modelData.app)
                     opacity: Notifications.isMuted(modelData.app) ? 0.6 : 1
@@ -109,8 +116,8 @@ Rectangle {
         Behavior on opacity { NumberAnimation { duration: Motion.fast } }
         gradient: Gradient {
             orientation: Gradient.Horizontal
-            GradientStop { position: 0.0; color: root.color }
-            GradientStop { position: 1.0; color: Colors.of(QsWindow.window).alpha(root.color, 0) }
+            GradientStop { position: 0.0; color: root.ground }
+            GradientStop { position: 1.0; color: Colors.of(QsWindow.window).alpha(root.ground, 0) }
         }
     }
     Rectangle {
@@ -124,8 +131,8 @@ Rectangle {
         Behavior on opacity { NumberAnimation { duration: Motion.fast } }
         gradient: Gradient {
             orientation: Gradient.Horizontal
-            GradientStop { position: 0.0; color: Colors.of(QsWindow.window).alpha(root.color, 0) }
-            GradientStop { position: 1.0; color: root.color }
+            GradientStop { position: 0.0; color: Colors.of(QsWindow.window).alpha(root.ground, 0) }
+            GradientStop { position: 1.0; color: root.ground }
         }
     }
 }

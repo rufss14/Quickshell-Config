@@ -103,6 +103,24 @@ Rectangle {
     property color tint: "transparent"
     property real  tintAmount: 0
 
+    // ── The shell's gradient, as this surface's fill ──────────────────────────
+    // Opt-in: a surface that stands apart from the bar's blob (a popup, a card) sets `gradient` and wears
+    // Config.barGradient while it is on, drawn over whatever fill it has (GradientPlate). A surface the blob
+    // draws already wears it, and a content area on a tonal fill keeps its own. `gradientGround` is the
+    // colour the gradient is mixed from: the surface's fill, unless the caller's is something else.
+    property bool  gradient: false
+    property color gradientGround: Colors.of(QsWindow.window).surfaceFor(elevation)
+    GradientPlate {
+        anchors.fill: parent
+        visible: root.gradient
+        ground: root.gradientGround
+        radius: root.radius
+        topLeftRadius: root.topLeftRadius
+        topRightRadius: root.topRightRadius
+        bottomLeftRadius: root.bottomLeftRadius
+        bottomRightRadius: root.bottomRightRadius
+    }
+
     color: Colors.of(QsWindow.window).fade(root.tintAmount > 0
                          ? Qt.tint(Colors.of(QsWindow.window).surfaceFor(elevation),
                                    Colors.of(QsWindow.window).alpha(root.tint, root.tintAmount))

@@ -133,7 +133,7 @@ Item {
 
         // ══ When ══════════════════════════════════════════════════════════════
         // Nothing to show (no pins, nothing running, no launcher button) — no dock.
-        readonly property bool hasContent: dockStrip.fullLength > 0
+        readonly property bool hasContent: dockStrip.fullLength > 0 || dockStrip.fixed
 
         // (The overview does NOT sink the dock or the sidebar any more — the user, 2026-10-24: they
         // stay up under its dim. It used to, via SideBarHost's `overviewHere`.)
@@ -395,6 +395,7 @@ Item {
                     monitor:        host.monitor
                     contextMenu:    dockMenu
                     maxLength:      dock.maxLength
+                    fixedSlots:     Config.dockSlotCount
                     previewHovered: preview.hovered
                     scope:          Config.dockScope
                     // The dock's rounded ends — its pill's — reach this far into the strip.

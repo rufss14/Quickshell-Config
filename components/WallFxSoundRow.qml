@@ -7,11 +7,16 @@ import "../services/wallfx.js" as FX
 
 // One sound of the wallpaper's music effects: a dot that lights when it's heard, and a Fader for its
 // trim (auto = what the song gives it; 0 is off, up to twice as strong; an opt-in sound like Strobe goes
-// 0..1 and starts off). Shared by Settings' Effects tab and the Wallpaper panel's Effects view, so the
-// two can't drift. `sound` is one entry of FX.SOUNDS (services/wallfx.js).
+// 0..1 and starts off). Shared by Settings' Music on the desktop page and the Wallpaper panel's Effects
+// view, so the two can't drift. `sound` is one entry of FX.SOUNDS (services/wallfx.js).
 ColumnLayout {
     id: row
     required property var sound
+    // The dot hangs in the padding left of the row (a grouped settings segment runs past it), so the
+    // slider takes the row's whole width and lines up with the sliders above it.
+    property bool gutterMark: false
+    // Whether the dot may light at all: the page's effects switch.
+    property bool live: true
 
     readonly property bool optIn: row.sound.optIn === true
     readonly property real trim: FX.trimOf(Config.wallFxMix, row.sound.id)
@@ -41,27 +46,35 @@ ColumnLayout {
         color: Colors.of(QsWindow.window).danger
         wrapMode: Text.WordWrap
     }
-    RowLayout {
+    Item {
         Layout.fillWidth: true
         Layout.fillHeight: false
-        spacing: Tokens.spacingMd
+        implicitHeight: fader.implicitHeight
+
         Rectangle {
-            Layout.alignment: Qt.AlignVCenter
-            implicitWidth: Tokens.spacingMd
-            implicitHeight: Tokens.spacingMd
+            id: mark
+            readonly property real lit: row.live && row.trim > 0 && row.heard > 0.05 ? Math.min(1, row.heard) : 0
+            // In gutter mode: centred in the segment padding (Section's segment inset, spacingLg).
+            x: row.gutterMark ? -(Tokens.spacingLg + width) / 2 : 0
+            anchors.verticalCenter: parent.verticalCenter
+            width: Tokens.spacingMd
+            height: Tokens.spacingMd
             radius: width / 2
-            color: row.trim > 0 && row.heard > 0.05 ? row.tone : Colors.of(QsWindow.window).outline
-            opacity: row.trim > 0 && row.heard > 0.05 ? 0.35 + 0.65 * Math.min(1, row.heard) : 1
+            color: mark.lit > 0 ? row.tone : Colors.of(QsWindow.window).outline
+            opacity: mark.lit > 0 ? 0.35 + 0.65 * mark.lit : 1
         }
         Fader {
-            Layout.fillWidth: true
+            id: fader
+            x: row.gutterMark ? 0 : mark.width + Tokens.spacingMd
+            width: parent.width - x
             accent: row.tone
             label: row.sound.label + " · " + row.sound.effect
             help: row.sound.about
             from: 0; to: row.optIn ? 1 : 2; step: 0.05
             value: row.trim
-            readout: row.trim <= 0 ? "off"
-                   : !row.optIn && Math.abs(row.trim - 1) < 0.001 ? "auto"
+            // Auto is the song's own say, so it reads as that, not as a number.
+            readout: row.trim <= 0 ? Translation.tr("Off")
+                   : !row.optIn && Math.abs(row.trim - 1) < 0.001 ? Translation.tr("Follows the song")
                    : Math.round(row.trim * 100) + "%"
             // Auto is no entry at all (and Strobe's off), so Auto follows the song and a reset is
             // one assignment.

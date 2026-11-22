@@ -30,13 +30,21 @@ Item {
     // PipeWire node name (e.g. Audio.source.name) to analyse that instead.
     property string source: ""
 
+    // An app's stream, pinned by its `object.serial` (Audio.serialOf): cava is then pointed at this and
+    // `source` only names the config file. Not the name, because WirePlumber looks a name up once, when
+    // cava connects. An app that drops its stream and opens another (a browser does, each time a tab
+    // pauses) leaves a capture whose target is gone, and WirePlumber links it to the default INPUT, the
+    // microphone, for good. A serial names one node: a new stream is a new serial, so it is a source
+    // change and the restart below follows it. A caller that sets it also stops `running` while it is "".
+    property string serial: ""
+
     property bool running: false
 
     readonly property int frameRate: 60
 
     // ── Tuning ────────────────────────────────────────────────────────────────
     // The spectrum every visualiser shares is the defaults. MusicPulse runs its own, tuned for
-    // finding beats (2026-10-31): fewer bars over 40 Hz–8 kHz so the kick has bars of its own,
+    // finding beats: fewer bars over 40 Hz–8 kHz so the kick has bars of its own,
     // half the sensitivity so the bass stops sitting at its ceiling, less smoothing so an attack
     // stays an attack. `tag` keeps two streams on one source from sharing a config file.
     // A cutoff of 0 leaves cava's own (50 Hz–10 kHz).
@@ -105,7 +113,7 @@ Item {
         // switched output device.
         readonly property string inputSection:
             root.source === "" ? ""
-                               : "[input]\\nmethod=pipewire\\nsource=" + root.source + "\\n"
+                               : "[input]\\nmethod=pipewire\\nsource=" + (root.serial !== "" ? root.serial : root.source) + "\\n"
 
         // ── A stable path, not mktemp ─────────────────────────────────────────
         // `mktemp` + a trailing `rm` looks tidy and leaks a file per restart. Quickshell
@@ -195,11 +203,13 @@ Item {
     // handler, which also gives the old process a moment to go down.
     property bool _cycling: false
 
-    onSourceChanged: {
+    function _recycle() {
         if (!root.running || root._cycling) return
         root._cycling = true
         Qt.callLater(() => root._cycling = false)
     }
+    onSourceChanged: root._recycle()
+    onSerialChanged: root._recycle()
 
     // ── The unexpected-exit restart (see proc.onExited) ─────────────────────
     property double _startedAt: 0

@@ -73,12 +73,13 @@ Item {
         focused:      root.focused && !root.inner
         fillOpacity:  Tokens.sideOpacity
         // BarGroup's inner pill keeps the item's default; the bar drives their translucency through the fill alone (Surface.itemOpacity).
-        itemOpacity:  root.inner ? Tokens.surfaceOpacity : 1.0
+        itemOpacity:  root.inner && Config.screenFrame && !Colors.of(QsWindow.window).veiled ? Tokens.surfaceOpacity : 1.0
         // Welded, the blob's own fill, so the card and the lobe under it are one.
         // Welded while the blob draws the cookie field (Drift.inBlob), the blob IS this fill — the same
         // frameFill, with the cookies in it — so painting it again would only hide them.
         color: root.welded && Drift.inBlob ? "transparent"
-             : root.welded ? Colors.of(QsWindow.window).frameFill
+             : root.inner && Colors.of(QsWindow.window).veiled ? Colors.of(QsWindow.window).wash
+             : root.welded || (root.inner && !Config.screenFrame) ? Colors.of(QsWindow.window).frameFill
              :               Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceFor(surface.elevation), surface.fillOpacity)
     }
 }

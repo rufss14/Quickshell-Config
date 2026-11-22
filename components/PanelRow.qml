@@ -97,7 +97,7 @@ Item {
                 MorphShape {
                     anchors.fill: parent
                     shape: root.active ? root.shape : "circle"
-                    fillColor: root.active ? root.accent : Colors.of(QsWindow.window).surfaceHigh
+                    fillColor: root.active ? root.accent : Colors.of(QsWindow.window).plate
                 }
                 MaterialIcon {
                     anchors.centerIn: parent

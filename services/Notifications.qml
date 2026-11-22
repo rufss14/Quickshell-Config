@@ -4,6 +4,7 @@ import Quickshell.Services.Notifications
 import Quickshell.Hyprland
 import QtQuick
 import "../config"
+import "../state"
 import "notifyrules.js" as Rules
 import "notifyview.js" as View
 
@@ -362,6 +363,9 @@ Singleton {
             }
 
             if (show) {
+                // With a panel open over the deck's corner the clock pill takes it (see Glance);
+                // a transient has no record to open, so it keeps its toast, and critical never hides.
+                if (!critical && !n.transient && root._glanceTo(n)) return
                 // A transient toast has no record to hold its object alive, so track it
                 // here for the toast's lifetime (its actions/reply); a recorded one is
                 // already tracked above.
@@ -373,6 +377,92 @@ Singleton {
             // toast — left untracked, and the server drops it.
         }
     }
+
+    // ── Glance: a bar pill shows the notification instead of a toast ──────────
+    // The toast deck hangs from the bar's lower edge, the same place an island or a bar panel
+    // opens, so a toast arriving then clips against it. While one is open (UiState.barSurfaceOpen)
+    // and a pill that can show a notice stands on the monitor it was delivered to, the notification
+    // goes to that pill instead: the app's icon and the title, for the toast's own dwell. Nothing
+    // else about it changes — it is still a record, still counted, still chimes.
+    //
+    // A pill says it can by acquireGlance(monitor) for as long as it exists (ClockPill). `glance`
+    // is plain data, not the live notification: there are no actions to hold, so nothing is tracked.
+    // A deck that is already up keeps the next toast, so one arrival never splits across two places.
+    property var glance: null
+    property var _glanceHosts: ({})
+    property int _glanceSeq: 0
+    function acquireGlance(monitor) {
+        if (monitor !== "") root._glanceHosts[monitor] = (root._glanceHosts[monitor] ?? 0) + 1
+    }
+    function releaseGlance(monitor) {
+        if (monitor !== "" && root._glanceHosts[monitor] > 0) root._glanceHosts[monitor]--
+    }
+    function clearGlance() { glanceTimer.stop(); root.glance = null }
+
+    function _glanceInfo(n) {
+        // An icon NAME sent as the image hint is the app's icon, as the toast reads it.
+        const img = n.image || ""
+        const hint = img.indexOf("image://icon/") === 0 ? img.slice(13).split("?")[0] : ""
+        const icon = root.appIconFor({ appName: n.appName, appIcon: n.appIcon || hint,
+                                       desktopEntry: n.desktopEntry ?? "" })
+        return { title: n.summary || n.appName || "", detail: View.glanceBody(n.body, 40),
+                 icon: icon, urgency: n.urgency }
+    }
+
+    function _glanceTo(n) { return root._glanceShow(root._glanceInfo(n), root.timeoutFor(n), true) }
+
+    // The same pill for something that is not a notification: a Claude session's event
+    // (`kind: "claude"`, `pid`) or a copy (`kind: "clipboard"`, `symbol`). No chime: the caller's own cue stands.
+    function glanceEvent(info) { return root._glanceShow(info, 5000, false) }
+
+    // Could a glance show right now: a panel hangs where the deck would, a pill stands on the monitor
+    // (the focused one; or, with `deckMonitor`, the one a deck already up was delivered to, which is
+    // then allowed to be up), nothing is fullscreen (the bar is hidden then, and the toast is the only
+    // way to see it) and, without `deckMonitor`, no deck is up. Also what the sidebar's peeks ask before
+    // they stay quiet for it.
+    function canGlance(deckMonitor) {
+        const takeover = deckMonitor !== undefined
+        if (!UiState.barSurfaceOpen || (!takeover && root._currentPopups().length > 0)) return false
+        const monitor = takeover ? deckMonitor : (Hyprland.focusedMonitor?.name ?? "")
+        return root._glanceHosts[monitor] > 0 && Fullscreen.byMonitor[monitor] !== true
+    }
+
+    function _glanceShow(info, ms, chime, deckMonitor) {
+        if (!root.canGlance(deckMonitor)) return false
+        const monitor = deckMonitor !== undefined ? deckMonitor : (Hyprland.focusedMonitor?.name ?? "")
+        root.glance = Object.assign({ kind: "notification", icon: "", detail: "", preview: "", pid: 0 }, info,
+                                    { key: "g" + (root._glanceSeq++), monitor: monitor })
+        glanceTimer.interval = ms
+        glanceTimer.restart()
+        if (chime) Sfx.play("notify")
+        return true
+    }
+
+    // ── A panel opens over toasts or a peek already up ────────────────────────
+    // They would sit under it, so they leave. Toasts: the newest goes to the pill, the rest close
+    // KEEPING their records (critical ones and transients, volume and brightness, stay toasts). A
+    // sidebar peek (a copy, a Claude event): closed, and the same thing said on the pill.
+    Connections {
+        target: UiState
+        function onBarSurfaceOpenChanged() { if (UiState.barSurfaceOpen) root._takeOver() }
+    }
+    function _takeOver() {
+        const took = root._popupsToGlance()
+        if (UiState.sidePanel !== "peek") return
+        const kind = UiState.sidePanelArg
+        if (took || (kind === "clipboard" ? Clipboard.glanceLatest()
+                   : kind === "claude" ? ClaudeSessions.glanceCurrent() : false))
+            UiState.closeSidePanel()
+    }
+    function _popupsToGlance() {
+        const move = root._currentPopups().filter(w => w.n && !w.n.transient
+                                                        && w.n.urgency !== NotificationUrgency.Critical)
+        if (move.length === 0 || !root.canGlance(root.popupMonitor)) return false
+        root._glanceShow(root._glanceInfo(move[0].n), root.timeoutFor(move[0].n), false, root.popupMonitor)
+        for (const w of move) root.closePopup(w.psid, true)
+        return true
+    }
+    Timer { id: glanceTimer; onTriggered: root.glance = null }
 
     // ── Records ─────────────────────────────────────────────────────────────────
     // A notification's image is EITHER a real file/URL (a screenshot's path, an

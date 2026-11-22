@@ -151,7 +151,7 @@ Item {
             topRightRadius: track.radius
             bottomLeftRadius: root.innerR
             bottomRightRadius: root.innerR
-            color: Colors.of(QsWindow.window).surfaceContainer
+            color: Colors.of(QsWindow.window).plateLow
         }
 
         Shape {
@@ -182,7 +182,7 @@ Item {
         width: root.width
         height: root.width
         shape: root.muted ? "circle" : root.shape
-        fillColor: root.muted ? Colors.of(QsWindow.window).surfaceContainer
+        fillColor: root.muted ? Colors.of(QsWindow.window).plateLow
                               : Colors.of(QsWindow.window).primaryContainer
         Behavior on fillColor { ColorAnimation { duration: Motion.respond } }
 

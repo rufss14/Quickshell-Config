@@ -113,15 +113,10 @@ Rectangle {
     implicitHeight: row.implicitHeight + Tokens.spacingSm * 2
     radius: Tokens.radiusCard - Tokens.spacingXs
     color: Colors.of(QsWindow.window).fade(
-               root.asking ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceHigh, root.accent, 0.14)
-             : root.bad ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceContainer, Colors.of(QsWindow.window).danger, 0.08)
+               root.asking ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceHigh, root.accent, 0.22)
+             : root.bad ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceContainer, Colors.of(QsWindow.window).danger, 0.14)
              : Colors.of(QsWindow.window).surfaceHigh, 0.94)
-    border.width: Tokens.borderWidth
-    border.color: root.asking ? Colors.of(QsWindow.window).alpha(root.accent, 0.6)
-                : root.bad ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).danger, 0.4)
-                : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.08)
     Behavior on color { ColorAnimation { duration: Motion.standard } }
-    Behavior on border.color { ColorAnimation { duration: Motion.standard } }
 
     Item {
         id: row

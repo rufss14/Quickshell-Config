@@ -2,6 +2,7 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
+import Quickshell.Services.UPower
 import "../config"
 import "../config/modules.js" as Catalogue
 
@@ -88,6 +89,12 @@ Singleton {
             return !Bt.powered ? "Off"
                  : Bt.connectedCount > 0 ? root._n(Bt.connectedCount, "device", "devices") + " connected"
                  : "On, nothing connected"
+        case "battery": {
+            const d = UPower.displayDevice
+            if (!d) return "No battery"
+            const charging = d.state === UPowerDeviceState.Charging || d.state === UPowerDeviceState.PendingCharge
+            return Math.round(d.percentage * 100) + "%" + (charging ? " · Charging" : "")
+        }
         case "volume":
             return Audio.muted ? "Muted" : Math.round(Audio.volume * 100) + "%"
         case "privacy":
@@ -100,6 +107,8 @@ Singleton {
             return Idle.inhibited ? "Keeping the screen awake" : "Off"
         case "nightlight":
             return NightLight.statusText
+        case "stream":
+            return StreamMode.statusText + (StreamMode.sourceLabel !== "" ? " · " + StreamMode.sourceLabel : "")
         case "gamemode":
             return Gamemode.active ? (Gamemode.gameName !== "" ? "On · " + Gamemode.gameName : "On") : "Off"
         case "update":

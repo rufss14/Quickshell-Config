@@ -57,12 +57,12 @@ Item {
     readonly property real _minOff: Tokens.iconMd + Tokens.spacingLg * 2
     readonly property real _onNeed: curMeasure.implicitWidth + Tokens.spacingLg * 2
                                     + ((root._cur.icon ?? "") !== "" ? Tokens.iconMd + Tokens.spacingSm : 0)
-    readonly property real onW:  root.compact && root.n > 1
+    readonly property real selW:  root.compact && root.n > 1
         ? Math.max(root.segW, Math.min(root._onNeed, root._avail - (root.n - 1) * root._minOff))
         : root.segW
-    readonly property real offW: root.n > 1 ? (root._avail - root.onW) / (root.n - 1) : root.segW
+    readonly property real offW: root.n > 1 ? (root._avail - root.selW) / (root.n - 1) : root.segW
     function segX(i) {
-        return root.pad + (i <= root.currentIndex ? i * root.offW : (i - 1) * root.offW + root.onW)
+        return root.pad + (i <= root.currentIndex ? i * root.offW : (i - 1) * root.offW + root.selW)
     }
 
     // Set once the strip has real geometry, so the indicator doesn't glide in from the left
@@ -74,7 +74,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: height / 2
-        color: Colors.of(QsWindow.window).surfaceContainer
+        color: Colors.of(QsWindow.window).plateLow
         border.width: Tokens.borderWidth
         border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)
     }
@@ -90,7 +90,7 @@ Item {
         color: root.accent
 
         x:     root.segX(root.currentIndex)
-        width: root.onW
+        width: root.selW
 
         Behavior on x {
             enabled: root._settled
@@ -122,7 +122,7 @@ Item {
 
             x: root.segX(seg.index)
             y: root.pad
-            width:  seg.on ? root.onW : root.offW
+            width:  seg.on ? root.selW : root.offW
             height: root.height - root.pad * 2
 
             // The hover wash, on a segment that is not the chosen one.

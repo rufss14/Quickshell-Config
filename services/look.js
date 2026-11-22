@@ -53,7 +53,7 @@ var STYLE = {
     cornerStyle:     _one(["default", "ii"]),
     iconShape:       _one(["default", "squircle", "cookie", "clover", "circle"]),
     surfaceOpacity:  _num(0.5, 1),        shadowScale:     _num(0, 1.5),
-    accentRole:      _str(32, ID),        themeMode:       _one(["dark", "light"]),
+    themeMode:       _one(["dark", "light"]),
     colorizeIcons:   _bool(),
     panelCookies:    _bool(),             barCookies:      _bool(),
     barCookiesFrom:  _one(["panels", "everywhere"]),

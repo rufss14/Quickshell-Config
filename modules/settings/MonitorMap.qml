@@ -67,26 +67,20 @@ Item {
 
             x: root.offsetX + (screen.modelData.x - root.box.x) * root.scaleFactor
             y: root.offsetY + (screen.modelData.y - root.box.y) * root.scaleFactor
-            // 2px of surface between neighbouring screens, rather than a heavy border
-            // drawn around each to separate them. Two monitors that touch in Hyprland's
-            // coordinates would otherwise render as one undivided slab.
+            // 2px of ground between neighbouring screens to separate them. Two monitors that
+            // touch in Hyprland's coordinates would otherwise render as one undivided slab.
             width:  screen.modelData.width  * root.scaleFactor - 2
             height: screen.modelData.height * root.scaleFactor - 2
 
             radius: Tokens.radiusSm
 
-            // The focused screen is `focus` — "this is the one you're on". Every other
-            // screen is present, not absent, so it gets a real surface rather than a
-            // ghost outline.
-            color: screen.focused
-                ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).focus, 0.16)
-                : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)
+            // Tone ladder, no outline: the page card is `section`, a screen on it is
+            // `surfaceHigh`, and the one you are on is `primaryContainer`. Every screen is a
+            // real surface, present rather than a ghost outline.
+            color: screen.focused ? Colors.of(QsWindow.window).primaryContainer
+                                  : Colors.of(QsWindow.window).surfaceHigh
 
-            border.width: Tokens.borderWidth
-            border.color: screen.focused ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).focus, 0.55) : Colors.of(QsWindow.window).outline
-
-            Behavior on color        { ColorAnimation { duration: Motion.respond } }
-            Behavior on border.color { ColorAnimation { duration: Motion.respond } }
+            Behavior on color { ColorAnimation { duration: Motion.respond } }
 
             Column {
                 anchors.centerIn: parent
@@ -95,7 +89,7 @@ Item {
                 StyledText {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text:  screen.modelData.name
-                    color: screen.focused ? Colors.of(QsWindow.window).focus : Colors.of(QsWindow.window).fg
+                    color: screen.focused ? Colors.of(QsWindow.window).fgOnPrimaryContainer : Colors.of(QsWindow.window).fg
                     variant: "caption"
                     font.weight: Font.DemiBold
                 }

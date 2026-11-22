@@ -22,8 +22,8 @@ mon=$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')
 [ -n "$mon" ] || { echo "no focused monitor" >&2; exit 1; }
 mkdir -p "$out"
 
-# name[:arg] in the order they are shot. Feed pages 0-2 = What's changed, Ask, News.
-STATES=${STATES:-"idle search:fire pick more space bulk all ctrl sessions help full feed:0 feed:1 feed:2 peek"}
+# name[:arg] in the order they are shot. Drawer pages 0-3 = What's new, Ask, News, Notifications.
+STATES=${STATES:-"idle search:fire pick more space bulk all ctrl sessions help full feed:0 feed:1 feed:2 feed:3 peek"}
 
 ipc overview open >/dev/null
 sleep 2.2

@@ -11,17 +11,19 @@ import "../../../desktop/widgets"
 import "../../../desktop/widgets/toggles.js" as Toggles
 import "../.."
 
-// ── WidgetsCatalogueSection ── part of WidgetsPage.qml; `page` is the WidgetsPage it belongs to. ──
+// ── WidgetsCatalogueSection ── "Add a widget": screen picker and search, the sliding gallery, its pager.
+// Part of WidgetsPage.qml; `page` is the WidgetsPage it belongs to. ──
 Section {
     id: widgetsCatalogueSection
     required property var page
     property alias galPager: galPager
-    span:    3
-    visible: page.adding
-    symbol:  "widgets"
-    title:   Translation.tr("Add a widget")
+    grouped:  true
+    // Three cards across want the whole row, not a column.
+    fullRow:  true
+    visible:  page.adding
+    symbol:   "widgets"
+    title:    Translation.tr("Add a widget")
     subtitle: Translation.tr("Click one to place it")
-    accent:  Colors.of(QsWindow.window).primary
 
         RowLayout {
             Layout.fillWidth: true
@@ -30,6 +32,7 @@ Section {
 
             ChipRow {
                 Layout.fillHeight: false
+                Layout.fillWidth: false
                 visible: Quickshell.screens.length > 1
                 accent: Colors.of(QsWindow.window).primary
                 model: Quickshell.screens.map(s => ({ value: s.name, label: s.name }))
@@ -101,10 +104,26 @@ Section {
                 }
             }
 
+            // Wheel = turn the gallery page. Only over the gallery, and only when there is a page to turn to:
+            // everywhere else the wheel scrolls the settings page.
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.NoButton
+                enabled: page.galPageCount > 1
+
+                property real acc: 0
+                onWheel: function (ev) {
+                    acc += ev.angleDelta.y
+                    if (acc <= -120) { galPager.incrementCurrentIndex(); acc = 0 }
+                    else if (acc >= 120) { galPager.decrementCurrentIndex(); acc = 0 }
+                    ev.accepted = true
+                }
+            }
+
             StyledText {
                 anchors.centerIn: parent
                 visible: page.filteredCatalogue.length === 0
-                text: "Nothing matches “" + page.gallerySearch + "”."
+                text: Translation.tr("Nothing matches “%1”.").arg(page.gallerySearch)
                 variant: "body"
                 emphasis: "dim"
             }

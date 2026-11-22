@@ -6,79 +6,111 @@ import QtQuick.Layouts
 import "../../config"
 import "../../components"
 import "../../services"
+import "../../state"
 import "../../services/palette.js" as Palette
 import "colorscheme"
 
 // ── ColorSchemePanel ──────────────────────────────────────────────────────────
-// The palette editor.
+// The colour scheme page: build a palette, choose one you saved, let the album paint the shell.
+//
+// ── Laid out like the wallpaper page ──────────────────────────────────────────
+// A column on the LEFT: the loud card (`SchemeWorn`: the palette being built, drawn as the island wears it,
+// with light / dark over it and four tools under it) and under it the source rail (`SourceRail`: Palette,
+// Presets, Album, Gradient, a sliding pill, each with a figure of its own). The page on show takes the rest:
+// `SchemeEditor` (Palette: four colour cards or every slot, the picker, save, peek, Apply),
+// `SchemePresets` (cards that are miniatures of what they wear, in three groups), `SchemeAlbum` (the cover
+// on a canvas, then where it reaches) and `SchemeGradient` (the bar and islands painted as a gradient). A
+// failed apply, or any apply with the log on, takes the page's place (`SchemeProgress`); a question about
+// workspaces does too (components/WorkspacePicker).
+// How it should look and feel is docs/island-style.md.
 //
 // ── All logic lives in the ColorScheme service ────────────────────────────────
-// This file was 1308 lines and owned everything: six Processes, a bash pipeline built by
-// string concatenation, colour maths, and the UI. That pipeline was a SECOND COPY of the
-// wallpaper one and had rotted. It now lives in `scripts/reload-theme.sh`, shared with the
-// wallpaper gallery, driven by `ColorScheme`. Colour maths moved to `services/palette.js`.
+// The apply pipeline is `scripts/reload-theme.sh`, shared with the wallpaper gallery, driven by `ColorScheme`.
+// Colour maths is in `services/palette.js`. This file holds the EDITOR's state (the four seeds, the staged
+// slots, undo, ripple, light and dark kept while away) and the views read it through `panel`.
 //
 // ── Anything you set by hand is held ──────────────────────────────────────────
-// Simple derives a whole palette from four seeds; Advanced edits individual slots. Both
-// write the same overrides file, so both survive wallpaper changes, and "Release all"
-// undoes either. Held colours are always visible and always clearable.
+// Four colours derive a whole palette from four seeds; Every slot edits individual slots. Both write the same
+// overrides file, so both survive wallpaper changes, and "Release" undoes either. Held colours are always
+// visible (a pin) and always clearable.
 //
-// ── Looks like the wallpaper gallery and the media panel ──────────────────────
-// The recipe those two wear: header actions are ChipTrays of ChipButtons, the page switch
-// is a SegmentSwitch (spring indicator), fields are pill InputFields, and every view comes
-// in through a ViewEnter (it rises and fades up, the footer a beat behind the card). An
-// opt-in per-step apply log is gated by Config.colorApplyDebug — a FAILED apply always
-// surfaces its log regardless. No hero: the wallpaper panel shows a picture because there
-// is one to show; here the palette IS the content, laid out in the workbench.
+// ── A scheme per workspace ────────────────────────────────────────────────────
+// The workspaces tool of a card in Presets (or a right press on it) folds the page into
+// components/WorkspacePicker, which asks which workspaces wear it. Those wear it, the shell on the screen
+// showing one and the apps on it, as a workspace's own wallpaper's colours do (services/WorkspaceTheme), in
+// memory, with no theming run. A card shows the workspaces wearing it.
 //
-// ── Palette | Presets | Album ────────────────────────────────────────────────
-// The switch under the header chooses between EDIT (the workbench — picker in one
-// bounded card so it stops reading as a floating gradient column), LIBRARY (saved
-// presets, their own view so the editor isn't sharing height with a grid of cards) and
-// ALBUM (follow the cover, and how far it reaches).
-// Presets get a first-class switch rather than being a mode because that's the more
-// frequent trip; Palette-vs-Slots is a header button. Picking a preset drops back
-// into EDIT with its seeds loaded and the card flagged. Colour SOURCES (follow album
-// cover, rebuild from wallpaper, release held) are header buttons; the "why" of an
-// album-cover state rides the subtitle.
-//
-// ── A scheme per workspace ──────────────────────────────────────────────────
-// RIGHT-click a card in the library (left-click still loads it into the editor): the library folds
-// into components/WorkspacePicker, which asks which workspaces wear it. Those wear it — the shell on
-// the screen showing one, and the apps on it — as a workspace's own wallpaper's colours do
-// (services/WorkspaceTheme), in memory, with no theming run. A card shows the workspaces wearing it.
-//
-// ── This wallpaper's palette ────────────────────────────────────────────────
-// The footer's "Save for wallpaper / scene" binds the built palette to whatever is on
-// screen (keyed by basename, or "scene_<id>" for a Wallpaper Engine scene). Reset
-// erases the binding and regenerates the original with pywal. Handled by
-// ColorScheme + apply-wallpaper.sh's step 1c — see there.
+// ── This wallpaper's palette ──────────────────────────────────────────────────
+// The wallpaper tool of the loud card binds the built palette to whatever is on screen (keyed by basename, or
+// "scene_<id>" for a Wallpaper Engine scene). Pressed again with nothing changed, it erases the binding and
+// regenerates the original with pywal. Handled by ColorScheme + apply-wallpaper.sh's step 1c.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
     // Reached by the view files in colorscheme/.
     property alias savedTimer: savedTimer
 
-    implicitWidth:  608
-    // Hugs its content — no fillHeight anywhere, every sub-view contributes its own
-    // height (capped). BarPanelDock reads implicitHeight, so the panel grows/shrinks
-    // as the editor, library or progress view takes over.
-    implicitHeight: mainCol.implicitHeight + Tokens.spacingMd * 2
+    // ── As an island page ─────────────────────────────────────────────────────
+    // On the island (IslandCard) it has no outer padding: the rail names it and the card has its gutter. Off
+    // it, in the bar's plain dock, it is the same page at the same size with a margin round it.
+    property bool island: false
+    readonly property int bodyW: 780
+    readonly property int bodyH: 436
+    readonly property int sideW: Math.round(root.bodyW / 3)
 
-    property string view: "edit"            // "edit" | "library" | "album"
+    // What the loud card says under its name: a question, a blocker, a run, else what this view is for.
+    readonly property string headerLine: root.picking
+             ? (root.pickingAlbum ? Translation.tr("Which workspaces follow the album?") : Translation.tr("Which workspaces wear it? The others keep theirs."))
+             : root.blocked !== ""
+             ? root.blocked
+             : root.applyingQuiet
+             ? ((ColorScheme.runner.label || Translation.tr("Applying")) + "…")
+             : (root.view === "edit" && root.fallbackNote !== "")
+             ? root.fallbackNote
+             : root.view === "gradient"
+             ? (Config.barGradient?.on === true ? Translation.tr("The bar and the islands wear a gradient")
+                                                : Translation.tr("A gradient across the bar and the islands"))
+             : root.view === "album"
+             ? AlbumScheme.reasonText
+             : (AlbumScheme.active || AlbumScheme.reason === "held")
+             ? AlbumScheme.reasonText
+             : root.view === "library"
+             ? Translation.tr("%1 saved, %2 classics").arg(ColorScheme.presets.length).arg(ColorScheme.classics.length)
+             : root.editorDiffers
+             ? (root.mode === "simple" ? Translation.tr("Not applied yet")
+                : root.draftCount === 1 ? Translation.tr("1 unsaved change") : Translation.tr("%1 unsaved changes").arg(root.draftCount))
+             : root.mode === "simple"
+             ? Translation.tr("Four colours make the whole palette")
+             : Translation.tr("Pick a slot to hold it")
+    // A page of one size, as the wallpaper page is (`body` in config/islands.js says the same to the island).
+    implicitWidth:  root.bodyW + (root.island ? 0 : Tokens.spacingMd * 2)
+    implicitHeight: root.bodyH + (root.island ? 0 : Tokens.spacingMd * 2)
+
+    property string view: "edit"            // "edit" | "library" | "album" | "gradient"
     property string mode: "simple"          // "simple" | "advanced"
 
     // One accent for the whole panel — every highlight below follows it, as WallpaperPanel's does.
     readonly property color accent: Colors.of(QsWindow.window).primary
 
-    // Gutter on the right where the library's scrollbar sits, clear of the cards.
-    readonly property int contentPad: 16
+    // The views reach the fields' keys and the typed name through these (the editor holds the fields).
+    signal nameWanted(string name)
+    signal fieldsBlurRequested()
+    // A scheme put on straight from Presets does not carry you to the editor.
+    property bool holdView: false
 
     // ── What the palette is bound to right now ───────────────────────────────
     // A scene covers the still wallpaper completely, so while one runs the "this
     // wallpaper" controls act on the SCENE, keyed "scene_<id>" — the still's name
     // would be wrong. Acquire holds WallpaperEngine's poll while the panel is open.
-    Component.onCompleted:   WallpaperEngine.acquire()
+    Component.onCompleted: {
+        WallpaperEngine.acquire()
+        // `qs ipc call island part colorScheme library`: open on a view (edit | slots | library | album).
+        const part = UiState.islandPartFor("colorScheme")
+        if (root.island && part !== "") {
+            root.mode = part === "slots" ? "advanced" : "simple"
+            root.view = part === "slots" ? "edit" : part
+        }
+    }
     // A peek is only ever held: if the panel goes while it is, the shell must not stay wearing it.
     Component.onDestruction: { WallpaperEngine.release(); ColorScheme.endPeek(); ColorScheme.cancelPick() }
 
@@ -139,10 +171,10 @@ Item {
     onSeedBChanged:  root.dropLoaded()
 
     readonly property var seeds: [
-        { key: "seedBg", label: "Background", value: root.seedBg },
-        { key: "seedFg", label: "Text",       value: root.seedFg },
-        { key: "seedA",  label: "Accent",     value: root.seedA  },
-        { key: "seedB",  label: "Accent 2",   value: root.seedB  }
+        { key: "seedBg", label: Translation.tr("Background"), value: root.seedBg },
+        { key: "seedFg", label: Translation.tr("Text"),       value: root.seedFg },
+        { key: "seedA",  label: Translation.tr("Accent"),     value: root.seedA  },
+        { key: "seedB",  label: Translation.tr("Accent 2"),   value: root.seedB  }
     ]
 
     // A scheme loaded from disk previews and applies EXACTLY what was saved. Deriving from
@@ -281,24 +313,41 @@ Item {
     // Local to the panel (reset each time it opens). Searching hides cards rather than rebuilding the
     // list, so what is left glides together instead of every card re-arriving per keystroke; sorting
     // reorders the model, which does rebuild it — and re-arrives, which is what a sort should look like.
-    readonly property int libToolsFrom: 6     // schemes it takes before search and sort appear
+    readonly property int libToolsFrom: 6     // schemes it takes before search and sort appear (the classics alone reach it)
+    // Groups folded away on the Presets view ("mine", "classic"): kept while the panel lives.
+    property var folded: ({})
+    function isFolded(group) { return root.folded[group] === true }
+    function fold(group) {
+        const next = Object.assign({}, root.folded)
+        next[group] = !next[group]
+        root.folded = next
+    }
     property string libQuery: ""
     property string libSort:  "name"          // "name" | "recent"
     // Starred schemes float to the front, in the order chosen (like the wallpaper gallery's favourites).
     property bool libStarOnly: false
-    readonly property var sortedPresets: {
-        const all = root.libSort === "recent"
-            ? ColorScheme.presets.slice().sort((a, b) => b.mtime - a.mtime)
-            : ColorScheme.presets.slice()
+    // The Presets tab is three groups: the wallpaper's own colours (pywal), the schemes you saved (in the order
+    // chosen) and the classics the shell ships (ColorScheme.classics: fixed order, not renamed or deleted). A
+    // star floats a scheme up within its group.
+    function _starredFirst(all) {
         const stars = Config.colorFavorites
         return all.filter(p => stars.indexOf(p.name) >= 0).concat(all.filter(p => stars.indexOf(p.name) < 0))
     }
+    readonly property var mySchemes: root._starredFirst(root.libSort === "recent"
+        ? ColorScheme.presets.slice().sort((a, b) => b.mtime - a.mtime)
+        : ColorScheme.presets.slice())
+    readonly property var classicSchemes: root._starredFirst(ColorScheme.classics)
     function presetMatches(name) {
         if (root.libStarOnly && Config.colorFavorites.indexOf(name) < 0) return false
         const q = root.libQuery.trim().toLowerCase()
         return q === "" || name.toLowerCase().indexOf(q) >= 0
     }
-    readonly property int libMatches: ColorScheme.presets.filter(p => root.presetMatches(p.name)).length
+    readonly property int libMatchesMine:    root.mySchemes.filter(p => root.presetMatches(p.name)).length
+    readonly property int libMatchesClassic: root.classicSchemes.filter(p => root.presetMatches(p.name)).length
+    // The wallpaper row has no name to star or sort: it answers its own words, and not the star filter.
+    readonly property bool libWallShown: !root.libStarOnly && (root.libQuery.trim() === ""
+        || "from your wallpaper pywal generated".indexOf(root.libQuery.trim().toLowerCase()) >= 0)
+    readonly property int libMatches: root.libMatchesMine + root.libMatchesClassic + (root.libWallShown ? 1 : 0)
 
     // ── Harmony: Accent 2 from Accent ─────────────────────────────────────────
     // Four ways to pick a second colour that goes with the first, named by what they LOOK like and in
@@ -308,10 +357,10 @@ Item {
     // looking. Each chip carries a dot of the colour it would give, and stays lit while Accent 2 IS that
     // partner — the dots are the explanation; there is no caption.
     readonly property var harmonies: [
-        { kind: "analogous",     label: "Similar"  },
-        { kind: "triad",         label: "Triad"    },
-        { kind: "split",         label: "Split"    },
-        { kind: "complementary", label: "Opposite" }
+        { kind: "analogous",     label: Translation.tr("Similar")  },
+        { kind: "triad",         label: Translation.tr("Triad")    },
+        { kind: "split",         label: Translation.tr("Split")    },
+        { kind: "complementary", label: Translation.tr("Opposite") }
     ]
     function partnerOf(kind) { return Palette.partner(root.seedA, root.seedBg, root.seedFg, kind) }
     function applyHarmony(kind) {
@@ -441,8 +490,9 @@ Item {
     // A scheme that has only the OTHER mode loads that one — say so, and say what Save will do.
     readonly property string fallbackNote:
         root.loadedPalette !== null && ColorScheme.loadedName !== "" && !ColorScheme.loadedExact
-        ? "Only has " + (ColorScheme.loadedMode === "light" ? "Light" : "Dark")
-          + " — Save to add this as its " + (Config.themeMode === "light" ? "Light" : "Dark") + " version"
+        ? Translation.tr("Only has %1. Save to add a %2 version.")
+            .arg(ColorScheme.loadedMode === "light" ? Translation.tr("Light") : Translation.tr("Dark"))
+            .arg(Config.themeMode === "light" ? Translation.tr("Light") : Translation.tr("Dark"))
         : ""
 
     // ── Copy the colour in use ────────────────────────────────────────────────
@@ -503,8 +553,8 @@ Item {
     // just an icon — a text pill there pushed WallpaperPanel's header past its width).
     readonly property string restartNote: ColorScheme.runner.needsRestart && !ColorScheme.busy
         ? (ColorScheme.runner.restartApps.length === 1
-            ? ColorScheme.runner.restartApps[0].label + " needs a restart"
-            : ColorScheme.runner.restartApps.length + " apps need a restart")
+            ? Translation.tr("%1 needs a restart").arg(ColorScheme.runner.restartApps[0].label)
+            : Translation.tr("%1 apps need a restart").arg(ColorScheme.runner.restartApps.length))
         : ""
 
     property bool showDetails: false
@@ -555,463 +605,108 @@ Item {
             root.seedB  = Palette.slotValue(p, "color4")
             root.loadedPalette = p          // AFTER the seeds — assigning them fires dropLoaded()
             root.mode = "simple"
-            root.view = "edit"
-            workbench.schemeName.setText(name)
+            if (!root.holdView) root.view = "edit"
+            root.nameWanted(name)
         }
     }
 
+    // A press anywhere lets go of the fields' keys, as a click outside a text box does.
     MouseArea {
         anchors.fill: parent
         propagateComposedEvents: true
         onPressed: function(mouse) {
-            if (workbench.schemeName.editing) workbench.schemeName.blur()
-            if (workbench.hexField.editing)   workbench.hexField.blur()
+            root.fieldsBlurRequested()
             mouse.accepted = false
         }
     }
 
-    // ── Rigid, not filling ────────────────────────────────────────────────────
-    // Pinned to the top at its OWN height, never `anchors.fill`. The dock's card animates its
-    // height to the view's `implicitHeight`, and a column that fills it hands the surplus
-    // (while the card is taller than the content, i.e. whenever a tab switch shrinks the
-    // panel) to every child that defaults to fillHeight — so the header, and the switch under
-    // it, slid down and back on each tab change. This way the card's edge simply reveals or
-    // trims the content, and the header never moves.
-    ColumnLayout {
-        id: mainCol
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.margins: Tokens.spacingMd
-        spacing: Tokens.spacingSm
+    Item {
+        id: frame
+        anchors.fill: parent
+        anchors.margins: root.island ? 0 : Tokens.spacingMd
 
-        // ══ Header ════════════════════════════════════════════════════════════
-        PanelHeader {
-            Layout.fillHeight: false
-            icon:      Icons.asset("Palette")
-            glyph:     "󰸌"
-            title:     Translation.tr("Colours")
-            titleTail: root.view === "library" ? "Library"
-                     : root.view === "album"   ? "Album"
-                     : root.mode === "simple"  ? "Scheme" : "Slots"
-            accent:    root.accent
-            subtitle:  root.picking
-                     ? (root.pickingAlbum ? "Which workspaces follow the album?" : "Which workspaces wear it? The others keep theirs.")
-                     : root.blocked !== ""
-                     ? root.blocked
-                     : root.applyingQuiet
-                     ? ((ColorScheme.runner.label || "Applying") + "…")
-                     : root.restartNote !== ""
-                     ? root.restartNote
-                     : (root.view === "edit" && root.fallbackNote !== "")
-                     ? root.fallbackNote
-                     : root.view === "album"
-                     ? AlbumScheme.reasonText
-                     : (AlbumScheme.active || AlbumScheme.reason === "held")
-                     ? AlbumScheme.reasonText
-                     : root.view === "library"
-                     ? (ColorScheme.presets.length + " saved · click to load · right-click for workspaces")
-                     : root.mode === "simple"
-                     ? "Four colours, whole palette"
-                     : root.draftCount > 0
-                     ? root.draftCount + " unsaved change" + (root.draftCount !== 1 ? "s" : "")
-                     : "Hold individual colours"
-
-            BusyDot {
-                Layout.alignment: Qt.AlignVCenter
-                running: root.applyingQuiet
-                tint: root.accent
-            }
-
-            // ── Light / dark ──────────────────────────────────────────────────
-            // The shell's mode — the same one Settings › Appearance flips, through the same
-            // ColorScheme.switchMode: the palette is re-derived in it, or, if the scheme being worn is a
-            // saved one that holds the other mode too, THAT version is applied. Like Settings, off
-            // while wallpaper theming is off (nothing would change) or a palette is being made.
-            ChipTray {
-                groupShown: !root.showProgress && !root.picking
-                ChipButton {
-                    symbol:  "light_mode"
-                    on:      Config.themeMode === "light"
-                    tint:    root.accent
-                    enabled: Config.wallTheming && !Wallpaper.applying && !ColorScheme.busy
-                    onActivated: ColorScheme.switchMode("light")
-                }
-                ChipButton {
-                    symbol:  "dark_mode"
-                    on:      Config.themeMode === "dark"
-                    tint:    root.accent
-                    enabled: Config.wallTheming && !Wallpaper.applying && !ColorScheme.busy
-                    onActivated: ColorScheme.switchMode("dark")
-                }
-            }
-
-            // ── Group 1: acts on the live palette ─────────────────────────────
-            // Round chips on one pill (ChipTray / ChipButton — the wallpaper and media
-            // panels' header): off is an icon on the tray, on is a filled disc with the
-            // icon filled in.
-            ChipTray {
-                groupShown: !root.showProgress && !root.picking
-
-                // Apps that need restarting — one icon, not a text pill (the subtitle names
-                // the apps): hoisted by the title, it reads as a consequence of the apply
-                // rather than a control competing with it. The chip beside it is "leave them".
-                ChipButton {
-                    visible: ColorScheme.runner.needsRestart && !ColorScheme.busy
-                    symbol:  "restart_alt"
-                    on:      true
-                    tint:    Colors.of(QsWindow.window).warning
-                    onActivated: ColorScheme.runner.restartAll()
-                }
-                ChipButton {
-                    visible: ColorScheme.runner.needsRestart && !ColorScheme.busy
-                    symbol:  "close"
-                    tint:    Colors.of(QsWindow.window).warning
-                    onActivated: ColorScheme.runner.dismissRestart()
-                }
-                ChipButton {
-                    symbol:  "refresh"
-                    tint:    root.accent
-                    // Greyed while every colour is locked and showing: nothing to rebuild. With the
-                    // album driving, it is greyed only while the cover is being read.
-                    enabled: root.albumDriving ? !AlbumScheme.extracting
-                                               : (!ColorScheme.busy && !ColorScheme.settled)
-                    iconAngle: root.regenSpin ? root._regenPhase : 0
-                    onActivated: root.doRegen()
-                }
-                // Always here. Lit = colours are held against the wallpaper (a scheme
-                // applied now persists); unlit = a scheme applied now is temporary.
-                // Click locks what is showing, or releases back to the wallpaper.
-                ChipButton {
-                    symbol:  ColorScheme.locked ? "lock" : "lock_open"
-                    on:      ColorScheme.locked
-                    tint:    root.accent
-                    enabled: !ColorScheme.busy
-                    onActivated: ColorScheme.toggleLock()
-                }
-            }
-
-            // ── Group 2: editor mode + debug ──────────────────────────────────
-            // A lit chip IS the on state — the debug log, or the editor mode in use.
-            // Picking a mode also brings you back to the editor.
-            ChipTray {
-                groupShown: !root.showProgress && !root.picking
-
-                ChipButton {
-                    symbol:  "terminal"
-                    on:      Config.colorApplyDebug
-                    tint:    root.accent
-                    onActivated: Config.colorApplyDebug = !Config.colorApplyDebug
-                }
-                ChipButton {
-                    symbol:  "palette"
-                    fillIcon: false          // filled, the paint dots turn to a blob
-                    on:      root.view === "edit" && root.mode === "simple"
-                    tint:    root.accent
-                    onActivated: { root.mode = "simple"; root.view = "edit" }
-                }
-                ChipButton {
-                    symbol:  "format_list_bulleted"
-                    on:      root.view === "edit" && root.mode === "advanced"
-                    tint:    root.accent
-                    onActivated: { root.mode = "advanced"; root.view = "edit" }
-                }
-            }
-        }
-
-        // ══ Palette | Presets | Album ════════════════════════════════════════
-        // The primary switch (SegmentSwitch: a pill, with a filled indicator that slides to the
-        // chosen segment on a spring). Presets and Album each get a first-class tab rather
-        // than being a mode or a header toggle — both are frequent destinations, and
-        // Album carries its own configuration now. Album's icon stays filled while the music
-        // is driving the shell, so "something is live in there" shows from any tab.
-        SegmentSwitch {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            Layout.rightMargin: root.contentPad
-            visible: !root.showProgress && !root.picking
-            accent: root.accent
-            model: [
-                { value: "edit",    label: root.mode === "advanced" ? "Slots" : "Palette",
-                  icon: root.mode === "advanced" ? "format_list_bulleted" : "palette",
-                  fillIcon: root.mode === "advanced" },     // chosen, the paint dots of `palette` fill in to a blob
-                { value: "library", label: "Presets", icon: "bookmarks" },
-                { value: "album",   label: "Album",   icon: "music_note", lit: AlbumScheme.active }
-            ]
-            current: root.view
-            onPicked: function (v) { root.view = v }
-        }
-
-        // ══ WORKBENCH — build a palette ══════════════════════════════════════
-        // A flat container, no outline — the wallpaper hero's treatment: the card is a ground
-        // for the controls, not a frame round them.
-        ColorSchemeWorkbench {
-            id: workbench
-            panel: root
-        }
-
-        // ══ LIBRARY — saved schemes, their own tab ══════════════════════════
-        // Each card is a miniature of the palette it holds — ITS background, its name in ITS
-        // text colour, a ribbon of its colours — so a preset reads as what it will look like and
-        // not as a label. Kept tight: the ribbon sits right under the name, and the card is only as
-        // tall as the two. The loaded one wears the ring (as the editor's swatches do). Edit and
-        // delete spring in over the card's right edge under the pointer — the name and ribbon give
-        // way — and delete asks twice (ArmLatch). With a handful of schemes, search and sort appear.
-        ColorSchemeLibrary {
-            id: libraryPane
-            panel: root
-        }
-
-        // ══ WORKSPACES — which ones wear the scheme right-clicked ════════════
-        WorkspacePicker {
-            id: picker
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            Layout.rightMargin: root.contentPad
-            visible: root.picking
-            shown: root.picking
-            scheme: root.pickingAlbum ? "" : root.pickingName
-            album: root.pickingAlbum
-            onApplied: list => {
-                if (root.pickingAlbum) { Config.albumWorkspaces = list.slice(); root.pickingAlbum = false }
-                else ColorScheme.assign(root.pickingName, list)
-            }
-            onCancelled: { if (root.pickingAlbum) root.pickingAlbum = false; else ColorScheme.cancelPick() }
-        }
-
-        // ══ ALBUM — follow the cover, and how far it reaches ═════════════════
-        ColorSchemeAlbum {
-            id: albumPane
-            panel: root
-        }
-
-        // ══ Progress — replaces the editor / library while a run is in flight ═
-        Flickable {
-            id: progressPane
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            Layout.preferredHeight: Math.min(progressCol.implicitHeight, 260)
-            contentHeight: progressCol.implicitHeight
-            clip: true
-            interactive: root.showProgress
-            visible: root.showProgress
-
-            ColumnLayout {
-                id: progressCol
-                width: progressPane.width
-                spacing: 1
-
-                RowLayout {
-                    Layout.fillHeight: false
-                    Layout.fillWidth: true
-                    Layout.bottomMargin: Tokens.spacingXs
-                    spacing: Tokens.spacingSm
-
-                    BusyDot { running: ColorScheme.busy; tint: Colors.of(QsWindow.window).primary }
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: ColorScheme.busy
-                            ? (ColorScheme.runner.label || "Applying") + "…"
-                            : ColorScheme.runner.failedCount > 0
-                            ? ColorScheme.runner.failedCount + " step"
-                              + (ColorScheme.runner.failedCount !== 1 ? "s" : "") + " failed"
-                            : "The run stopped early"
-                        variant: "caption"
-                        font.weight: Font.DemiBold
-                        color: ColorScheme.busy ? Colors.of(QsWindow.window).fg : Colors.of(QsWindow.window).warning
-                        elide: Text.ElideRight
-                    }
-                    PanelButton {
-                        variant: "ghost"; accent: Colors.of(QsWindow.window).primary
-                        symbol: root.showDetails ? "keyboard_arrow_up" : "keyboard_arrow_down"
-                        label: Translation.tr("Details")
-                        onActivated: root.showDetails = !root.showDetails
-                    }
-                    PanelButton {
-                        visible: !ColorScheme.busy
-                        variant: "ghost"; accent: Colors.of(QsWindow.window).primary
-                        label: Translation.tr("Dismiss")
-                        onActivated: ColorScheme.runner.clearResult()
-                    }
-                }
-
-                Repeater {
-                    model: root.showDetails ? ColorScheme.runner.steps : []
-                    delegate: RowLayout {
-                        id: stepRow
-                        required property var modelData
-                        Layout.fillWidth: true
-                        spacing: Tokens.spacingSm
-
-                        MaterialIcon {
-                            name: stepRow.modelData.status === "ok"   ? "check"
-                                : stepRow.modelData.status === "fail" ? "close"
-                                : stepRow.modelData.status === "skip" ? "sleep"
-                                : "hourglass_empty"
-                            color: stepRow.modelData.status === "ok"   ? Colors.of(QsWindow.window).success
-                                 : stepRow.modelData.status === "fail" ? Colors.of(QsWindow.window).danger
-                                 : Colors.of(QsWindow.window).fgDim
-                            variant: "caption"
-                        }
-                        StyledText {
-                            Layout.fillWidth: true
-                            text: stepRow.modelData.text
-                            variant: "caption"
-                            emphasis: stepRow.modelData.status === "skip" ? "dim" : "normal"
-                            elide: Text.ElideRight
-                        }
-                    }
-                }
-            }
-        }
-
-        // ══ Footer ══════════════════════════════════════════════════════════
-        // Pills end to end: where the palette on screen comes from, a tray of the secondary
-        // actions, and Apply as the one filled chip (the same look as SegmentSwitch's indicator).
-        RowLayout {
-            id: footer
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            visible: root.view === "edit" && !root.showProgress
+        // ══ The left column: the palette worn, and where to go ═══════════════════
+        ColumnLayout {
+            id: sideCol
+            width: root.sideW
+            height: parent.height
             spacing: Tokens.spacingMd
 
-            readonly property bool staged:    root.mode === "advanced" && root.draftCount > 0
-            readonly property bool showState: Config.wallTheming
-                                              && (root.paletteKey !== "" || AlbumScheme.active)
-
-            // A beat behind the card above it.
-            ViewEnter { target: footer; active: footer.visible; delay: Motion.stagger * 5 }
-
-            ChipTray {
-                groupShown: footer.staged
-                ChipButton {
-                    symbol: "undo"
-                    label:  Translation.tr("Discard")
-                    tint:   root.accent
-                    onActivated: root.discardDraft()
-                }
-            }
-
-            // ── Where the palette on screen comes from ─────────────────────
-            // "Album cover" while the music is driving the shell (the seeds above are
-            // the cover's colours then — Save keeps them as a preset); otherwise
-            // "Custom" = a palette saved for this wallpaper/scene, "Native" = pywal's
-            // extraction. Fills the row as its flexible element. When what it says changes
-            // (a new wallpaper, the album taking over) the line is replaced rather than
-            // rewritten in place (SwapFade, keeping its own copy of what it shows).
-            Rectangle {
-                id: statusChip
+            SchemeWorn {
                 Layout.fillWidth: true
-                Layout.preferredHeight: Tokens.iconXl + Tokens.spacingMd
-                visible: footer.showState && !footer.staged
-                radius: height / 2
-                color: Colors.of(QsWindow.window).surfaceContainer
-
-                readonly property bool album:    AlbumScheme.active
-                readonly property bool accented: statusChip.album || root.wpHasPalette
-                readonly property string glyphName: statusChip.album ? "music_note"
-                    : root.wpHasPalette ? "palette" : "format_paint"
-                readonly property string msg: statusChip.album
-                    ? "Album cover colours"
-                    : (root.wpHasPalette ? "Custom scheme" : "Native scheme")
-                      + " · " + (root.sceneOnScreen
-                                 ? WallpaperEngine.titleFor(root._sceneId)
-                                 : Wallpaper.current)
-
-                property string shownMsg:      ""
-                property string shownGlyph:    ""
-                property bool   shownAccented: false
-                Component.onCompleted: {
-                    statusChip.shownMsg      = statusChip.msg
-                    statusChip.shownGlyph    = statusChip.glyphName
-                    statusChip.shownAccented = statusChip.accented
-                }
-
-                SwapFade {
-                    target:   statusRow
-                    key:      statusChip.msg
-                    shownKey: statusChip.shownMsg
-                    onSwapped: {
-                        statusChip.shownMsg      = statusChip.msg
-                        statusChip.shownGlyph    = statusChip.glyphName
-                        statusChip.shownAccented = statusChip.accented
-                    }
-                }
-
-                RowLayout {
-                    id: statusRow
-                    anchors.fill: parent
-                    anchors.leftMargin:  Tokens.spacingLg
-                    anchors.rightMargin: Tokens.spacingLg
-                    spacing: Tokens.spacingSm
-
-                    MaterialIcon {
-                        name: statusChip.shownGlyph
-                        fill: statusChip.shownAccented && statusChip.shownGlyph !== "palette" ? 1 : 0
-                        color: statusChip.shownAccented ? root.accent : Colors.of(QsWindow.window).fgDim
-                        variant: "caption"
-                    }
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: statusChip.shownMsg
-                        variant: "caption"; emphasis: "dim"; elide: Text.ElideRight
-                    }
-                }
+                Layout.fillHeight: true
+                panel: root
+                opacity: root.picking ? 0.4 : 1
+                Behavior on opacity { NumberAnimation { duration: Motion.fast } }
             }
-            Item { Layout.fillWidth: true; visible: footer.staged || !footer.showState }
-
-            // ── Bind / reset — one tight tray ──────────────────────────────
-            ChipTray {
-                groupShown: footer.showState && !footer.staged
-                ChipButton {
-                    visible: root.wpHasPalette
-                    symbol:  "restart_alt"
-                    label:   Translation.tr("Use native")
-                    tint:    root.accent
-                    enabled: !ColorScheme.busy
-                    onActivated: ColorScheme.clearWallpaperPalette(root.paletteKey,
-                                                                   root.sceneOnScreen)
-                }
-                ChipButton {
-                    symbol:  "wallpaper"
-                    label:   root.wpHasPalette
-                           ? "Update saved"
-                           : ("Save for this " + (root.sceneOnScreen ? "scene" : "wallpaper"))
-                    tint:    root.accent
-                    enabled: !ColorScheme.busy
-                    onActivated: ColorScheme.saveWallpaperPalette(root.paletteKey, root.pending,
-                                                                  root.sceneOnScreen)
-                }
+            SourceRail {
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+                Layout.preferredHeight: 4 * (Tokens.iconXl + Tokens.spacingMd) + Tokens.spacingSm * 2 + Tokens.spacingXs * 2
+                opacity: root.picking ? 0.4 : 1
+                Behavior on opacity { NumberAnimation { duration: Motion.fast } }
+                current: root.view
+                model: [
+                    { value: "edit",    label: Translation.tr("Palette"), icon: "palette",   shape: "cookie9",
+                      figure: root.contrastGrade, big: false },
+                    { value: "library", label: Translation.tr("Presets"), icon: "bookmarks", shape: "clover",
+                      figure: String(ColorScheme.presets.length + ColorScheme.classics.length) },
+                    { value: "album",   label: Translation.tr("Album"),   icon: "music_note", shape: "sunny",
+                      figure: Config.albumScheme ? Translation.tr("On") : Translation.tr("Off"), big: false,
+                      live: AlbumScheme.active },
+                    { value: "gradient", label: Translation.tr("Gradient"), icon: "opacity", shape: "burst",
+                      figure: Config.barGradient?.on === true ? Translation.tr("On") : Translation.tr("Off"), big: false,
+                      live: Config.barGradient?.on === true }
+                ]
+                onPicked: function (v) { root.view = v }
             }
+        }
 
-            ChipTray {
-                // Hold to wear the pending scheme on the whole shell; let go and it is gone
-                // (ColorScheme.peek — a preview layer, nothing written).
-                ChipButton {
-                    symbol: "visibility"
-                    label:  Translation.tr("Peek")
-                    on:     ColorScheme.peeking
-                    tint:   root.accent
-                    enabled: !ColorScheme.busy
-                    onPressedChanged: if (pressed) ColorScheme.peek(root.pending); else ColorScheme.endPeek()
+        // ══ The page on show ═════════════════════════════════════════════════════
+        Item {
+            id: pageArea
+            anchors.left: sideCol.right
+            anchors.leftMargin: Tokens.spacingMd
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+
+            SchemeEditor {
+                id: editor
+                anchors.fill: parent
+                panel: root
+            }
+            SchemePresets {
+                anchors.fill: parent
+                panel: root
+            }
+            SchemeAlbum {
+                anchors.fill: parent
+                panel: root
+            }
+            SchemeGradient {
+                anchors.fill: parent
+                panel: root
+            }
+            SchemeProgress {
+                anchors.fill: parent
+                panel: root
+            }
+            // Which workspaces wear the scheme (or follow the album): the page folds into the picker.
+            WorkspacePicker {
+                id: picker
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                visible: root.picking
+                shown: root.picking
+                scheme: root.pickingAlbum ? "" : root.pickingName
+                album: root.pickingAlbum
+                onApplied: list => {
+                    if (root.pickingAlbum) { Config.albumWorkspaces = list.slice(); root.pickingAlbum = false }
+                    else ColorScheme.assign(root.pickingName, list)
                 }
-                // After a landed apply it turns into a tick (Verdict: the one "it worked" colour that
-                // does not follow the wallpaper) and settles back.
-                ChipButton {
-                    symbol: root.justApplied ? "check" : "palette"
-                    fillIcon: false          // filled, the paint dots turn to a blob
-                    on:     true
-                    tint:   root.justApplied ? Verdict.tint(true) : root.accent
-                    label:  root.justApplied
-                          ? "Applied"
-                          : root.mode === "simple"
-                          ? "Apply scheme"
-                          : root.draftCount > 0
-                          ? "Hold " + root.draftCount + " colour" + (root.draftCount !== 1 ? "s" : "")
-                          : "Re-apply"
-                    enabled: !ColorScheme.busy
-                    onActivated: root.applyCurrent()
-                }
+                onCancelled: { if (root.pickingAlbum) root.pickingAlbum = false; else ColorScheme.cancelPick() }
             }
         }
     }

@@ -19,7 +19,7 @@ const K = new Function(src + `
              tallyNew, tallyTime, tallyMark, matched, timing, wordScore, points, lit,
              sessionNew, sessionFinish, percent, isHeadphones, litHtml,
              RANKS, judge, rankFor, lineResult, sessionAdd, sessionCombo, sessionBreak, comboRun, comboSurvives, inGrace, GRACE_S, nextSingableStart, firstSingableStart, startedFromStart, START_SLACK, accuracy, lastSingable, singableCount, songDone, result,
-             stepLine, displayAccuracy, MODS, MOD_ORDER, modLabel, modsText, hideModeOf, modList, effectiveMods, modMultiplier, cleanMods, modsOf, rules, RULES_NORMAL, formatScore, songKey, coverName, sanitize, record, withCover, removeSong, list, summary, dbNew, MIN_SCORED_MS };`)();
+             stepLine, displayAccuracy, MODS, MOD_ORDER, modLabel, modsText, hideModeOf, modList, effectiveMods, modMultiplier, cleanMods, modsOf, rules, RULES_NORMAL, callStreamIndex, formatScore, songKey, coverName, sanitize, record, withCover, removeSong, list, summary, dbNew, MIN_SCORED_MS };`)();
 
 let pass = 0;
 const failures = [];
@@ -153,8 +153,11 @@ const rock = ["We will rock you", "We will rock you", "Sing it loud"];
 {
     // Of the words in reach, the best wins: "will" heard right after "we" belongs to the EXACT
     // "will", not to the sound-alike "wheel" that stands first.
-    const { lit } = sing(["we wheel will"], [["we will", true]]);
-    check("matcher: an exact word in reach beats a sound-alike at the cursor", lit, ["0:0", "0:2"]);
+    // (The sound-alike between them is then taken as sung and not heard — one content word may be — so
+    // what is checked is which word was actually HEARD: the `inferred` ones are the gap-fill's.)
+    const r = K.matcherHear(K.matcherSync(K.matcherNew(), 0), ctxOf(["we wheel will"], 0, 0), ["we", "will"], true);
+    check("matcher: an exact word in reach beats a sound-alike at the cursor",
+          r.hits.filter(h => !h.inferred).map(h => h.line + ":" + h.w), ["0:0", "0:2"]);
 }
 {
     // …and a sound-alike line is still not the next line's words until the cursor gets there:
@@ -174,8 +177,11 @@ const rock = ["We will rock you", "We will rock you", "Sing it loud"];
 }
 {
     // A missed word stays dark; the ones after it still land.
+    // One missed content word between two heard is assumed sung (forgiving, 2026-11-14); two are not.
     const { lit } = sing(["we will rock you"], [["we rock you", true]]);
-    check("matcher: a missed middle word stays dark", lit, ["0:0", "0:2", "0:3"]);
+    check("matcher: one missed middle word is taken as sung", lit, ["0:0", "0:1", "0:2", "0:3"]);
+    const two = sing(["alpha bravo charlie delta"], [["alpha delta", true]]);
+    check("matcher: two missed middle words stay dark", two.lit, ["0:0", "0:3"]);
 }
 {
     // A word the recogniser first hears wrong and then corrects: the wrong one is never taken.
@@ -191,8 +197,8 @@ const rock = ["We will rock you", "We will rock you", "Sing it loud"];
 {
     // The lookahead: a word far down the line can't be reached by a single stray sound, and a
     // short function word can't be fuzzily matched.
-    const lines = ["alpha bravo charlie delta echo foxtrot golf"];
-    const r = K.matcherHear(K.matcherSync(K.matcherNew(), 0), ctxOf(lines, 0, 0), ["golf"], true);
+    const lines = ["alpha bravo charlie delta echo foxtrot golf hotel india"];
+    const r = K.matcherHear(K.matcherSync(K.matcherNew(), 0), ctxOf(lines, 0, 0), ["india"], true);
     check("matcher: a word beyond the lookahead is out of reach", r.hits, []);
     ok("matcher: the lookahead is a handful of words", K.LOOKAHEAD >= 3 && K.LOOKAHEAD <= 8);
 }
@@ -330,8 +336,8 @@ ok("grace: it is a handful of seconds", K.GRACE_S >= 3 && K.GRACE_S <= 10);
     const lit0 = { 0: [false, false, true, false] };
     const r2 = K.matcherHear(r1.m, ctxOf(lines, 0, 0, lit0), ["we", "will"], true);
     check("lookback: words just behind the cursor are still reachable", r2.hits.map(h => h.line + ":" + h.w), ["0:0", "0:1"]);
-    const far = K.matcherHear({ line: 0, w: 6, took: 0, prev: [] }, ctxOf(["a b c d e f g h"], 0, 0, {}), ["a"], true);
-    check("lookback: but only so far (not six words back)", far.hits, []);
+    const far = K.matcherHear({ line: 0, w: 8, took: 0, prev: [] }, ctxOf(["a b c d e f g h i j"], 0, 0, {}), ["a"], true);
+    check("lookback: but only so far (not eight words back)", far.hits, []);
 }
 {
     // …but never a word that is already lit, and never into an earlier line.
@@ -349,16 +355,18 @@ ok("grace: it is a handful of seconds", K.GRACE_S >= 3 && K.GRACE_S <= 10);
     // A recogniser drops the small words. Heard on either side, they were sung.
     const lines = ["i want to be there"];
     const r = K.matcherHear(K.matcherSync(K.matcherNew(), 0), ctxOf(lines, 0, 0), ["i", "be", "there"], true);
-    check("gap: 'want to' was dropped, 'want' is long so it stays dark", r.hits.map(h => h.w), [0, 3, 4]);
-    const r2 = K.matcherHear(K.matcherSync(K.matcherNew(), 0), ctxOf(["in the end it does not matter"], 0, 0), ["end", "matter"], true);
-    check("gap: leading small words (in the) are filled; 'it does not' is three, too many to assume", r2.hits.map(h => h.w), [0, 1, 2, 6]);
+    check("gap: 'want to' was dropped: 'to' is small, 'want' is the one content word allowed", r.hits.map(h => h.w), [0, 1, 2, 3, 4]);
+    const r2 = K.matcherHear(K.matcherSync(K.matcherNew(), 0), ctxOf(["in the end it is not all you matter"], 0, 0), ["end", "matter"], true);
+    check("gap: leading small words (in the) are filled; five small words between are too many to assume", r2.hits.map(h => h.w), [0, 1, 2, 8]);
 }
 {
     const lines = ["go to the left now"];
     const r = K.matcherHear(K.matcherSync(K.matcherNew(), 0), ctxOf(lines, 0, 0), ["go", "left"], true);
     check("gap: two small words between two heard are filled (to the)", r.hits.map(h => h.w + (h.inferred ? "*" : "")), ["0", "1*", "2*", "3"]);
     const r2 = K.matcherHear(K.matcherSync(K.matcherNew(), 0), ctxOf(["love song tonight"], 0, 0), ["love", "tonight"], true);
-    check("gap: a content word between two heard is NOT assumed sung", r2.hits.map(h => h.w), [0, 2]);
+    check("gap: one content word between two heard is assumed sung", r2.hits.map(h => h.w), [0, 1, 2]);
+    const r3 = K.matcherHear(K.matcherSync(K.matcherNew(), 0), ctxOf(["love song and dance tonight"], 0, 0), ["love", "tonight"], true);
+    check("gap: two content words between two heard are NOT assumed sung", r3.hits.map(h => h.w), [0, 4]);
 }
 {
     // The leading gap across a line boundary: the cursor is spent its line, the next line's small
@@ -1000,6 +1008,20 @@ ok("headphones: speakers are not", !K.isHeadphones({ "device.form-factor": "spea
 ok("headphones: HDMI is not", !K.isHeadphones({ "device.icon-name": "audio-card-analog", "device.bus": "pci" }));
 ok("headphones: nothing known is not (refuse, don't guess)", !K.isHeadphones({}));
 ok("headphones: undefined is not", !K.isHeadphones(undefined));
+
+// ── Which stream is the Discord call ──────────────────────────────────────────
+{
+    const voice = (binary) => ({ binary, appName: "WEBRTC VoiceEngine", mediaName: "playStream" });
+    const spotify = { binary: "spotify", appName: "Spotify", mediaName: "Spotify" };
+    check("call stream: the voice engine of a Discord class", K.callStreamIndex([spotify, voice("Discord")], ["discord", "vesktop"]), 1);
+    check("call stream: Vesktop is found by the configured class", K.callStreamIndex([voice("vesktop"), spotify], ["discord", "vesktop"]), 0);
+    check("call stream: a class match beats another voice engine", K.callStreamIndex([voice("chromium"), voice("vesktop")], ["vesktop"]), 1);
+    check("call stream: a lone voice engine of an unknown binary is taken (Electron)", K.callStreamIndex([spotify, voice("electron")], ["discord"]), 1);
+    check("call stream: two unknown voice engines are ambiguous", K.callStreamIndex([voice("chromium"), voice("electron")], ["discord"]), -1);
+    check("call stream: a music player is never the call", K.callStreamIndex([spotify], ["spotify"]), -1);
+    check("call stream: nothing at all", K.callStreamIndex([], ["discord"]) + K.callStreamIndex(undefined, undefined), -2);
+    check("call stream: found by media name alone", K.callStreamIndex([{ binary: "discord", appName: "", mediaName: "playStream" }], ["discord"]), 0);
+}
 
 // ── The lit line ──────────────────────────────────────────────────────────────
 check("litHtml: sung words lit, the rest dim; a separator takes the word before it",

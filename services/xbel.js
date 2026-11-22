@@ -97,3 +97,23 @@ function byApp(entries, keyOf, limit) {
     }
     return out
 }
+
+// Every local file in the store, newest first by its latest use in any app, once each, `limit` of them:
+// [{ path, name, time }]. The island's Files page; the dock's jump lists use byApp.
+function recent(entries, limit) {
+    const best = Object.create(null)
+    for (let i = 0; i < entries.length; i++) {
+        const e = entries[i]
+        const m = /^file:\/\/(localhost)?(\/.*)$/.exec(e.href)
+        if (!m) continue
+        let path
+        try { path = decodeURIComponent(m[2]) } catch (err) { continue }
+        let t = 0
+        for (let j = 0; j < e.apps.length; j++) t = Math.max(t, e.apps[j].time || 0)
+        if (!best[path] || t > best[path].time) best[path] = { path: path, name: path.split("/").pop() || path, time: t }
+    }
+    const out = []
+    for (const k in best) out.push(best[k])
+    out.sort((a, b) => b.time - a.time)
+    return out.slice(0, Math.max(0, limit | 0))
+}

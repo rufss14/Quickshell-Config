@@ -108,7 +108,10 @@ Item {
                 }
                 ScreencopyView {
                     anchors.fill: parent
-                    captureSource: peek.visible ? win.modelData.wayland : null
+                    // Not while stream mode hides things: the peek shows windows you can't otherwise
+                    // see (behind others, other workspaces), and this lives in the bar's surface, which
+                    // no compositor rule can black out.
+                    captureSource: peek.visible && !StreamMode.active ? win.modelData.wayland : null
                     live: peek.visible
                 }
             }
@@ -138,6 +141,7 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         y: Config.barExtent + Tokens.spacingXl
         elevation: Tokens.elevationPopup
+        gradient: true
         cornerRadius: Tokens.radiusPill
         width:  chip.implicitWidth + Tokens.spacingLg * 2
         height: chip.implicitHeight + Tokens.spacingSm * 2

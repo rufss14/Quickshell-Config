@@ -40,12 +40,25 @@ import "update"
 //     (two-step) from the header; a finished run is a receipt, with Copy log for the log;
 //   · "nothing pending" says when it last looked.
 //
+// ── On an island (`island`, set by IslandCard; 2026-11-15) ─────────────────────
+// The page opens on the island whose rail holds "update" (UiState routes updateRequestId there instead of to the
+// bar's centre slot). No title row: UpdateIslandHero stands upright on the left (the count, where the updates come
+// from, re-check, the log and Cancel while running), and the same three views fill a plate on the right,
+// scrolling past its height. It starts itself as it is built (startUpdate), says it is up through
+// UiState.updateOpen as before, and closing it closes its island. `wantsExclusiveKeyboard` is the island's ask for
+// the exclusive grab: only while the password or a run's question needs typing, never for a whole run.
+//
 // ── Rigid, not filling ────────────────────────────────────────────────────────
 // The dock animates the card's height to this panel's implicitHeight; the layout is pinned to the top at its
 // OWN height (and every layout child states fillHeight), so the header does not slide while the card springs.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: panel
+
+    // On an island: the layout below the header (IslandCard sets it; the card gives the size).
+    property bool island: false
+    readonly property bool wantsExclusiveKeyboard: panel.island && panel.wantsKeyboard
+    readonly property Item panelRef: panel
     // Reached by the view files in update/.
     property alias activityModel: activityModel
     property alias rebootLatch: rebootLatch
@@ -146,7 +159,27 @@ Item {
         interval: Motion.emphasized + Motion.spatial * 2
         onTriggered: panel.lead = 0
     }
-    Component.onCompleted: Qt.callLater(function () { panel.opened = true })
+    Component.onCompleted: {
+        Qt.callLater(function () { panel.opened = true })
+        // On an island the page IS the request: start as the bar's slot does once it has loaded.
+        if (panel.island) Qt.callLater(() => panel.startUpdate(UiState.pendingUpdateCount))
+    }
+    Component.onDestruction: if (panel.island && UiState.updateOpen) UiState.updateOpen = false
+    // Opened while a check was still counting (the total reads 0 for a moment): when the count lands, the
+    // caught-up card gives way to what is pending. Never during a run.
+    Connections {
+        target: Updates
+        enabled: panel.island
+        function onTotalChanged() {
+            if (state.view === "caught" && Updates.total > 0 && !Updates.runBusy) state.view = "main"
+        }
+    }
+    // Asked again while the page is up (the pill pressed twice): start over, as the bar's slot does.
+    Connections {
+        target: UiState
+        enabled: panel.island
+        function onUpdateRequestIdChanged() { panel.startUpdate(UiState.pendingUpdateCount) }
+    }
     readonly property bool mainOn:    panel.opened && state.view === "main"
     readonly property bool runningOn: panel.opened && state.view === "running"
     readonly property bool caughtOn:  panel.opened && state.view === "caught"
@@ -364,7 +397,7 @@ Item {
     // than growing it off the bar. No implicitWidth: the DOCK gives every panel in the shell the same one,
     // and a centre panel narrower than the two beside it read as a different class of thing hanging off the
     // same bar. A prompt is part of the content, so its answer controls can never be clipped.
-    implicitHeight: Math.min(outer.implicitHeight + Tokens.spacingLg * 2, 600)
+    implicitHeight: panel.island ? 0 : Math.min(outer.implicitHeight + Tokens.spacingLg * 2, 600)
 
     Behavior on implicitHeight { NumberAnimation { duration: Motion.fast; easing.type: Motion.travel } }
 
@@ -466,6 +499,7 @@ Item {
 
     function _close() {
         UiState.updateOpen = false
+        if (panel.island) UiState.closePanel("update")
         mainCol.passField.clear()
         caughtCol.caughtPassField.clear()
     }
@@ -531,11 +565,44 @@ Item {
     //
     // NO card of its own, deliberately — this is a bare Item like every other panel in modules/panels/. Its
     // host is a BarDock Card, which already supplies the fill, the corners and (welded) the ring's outline.
+    // ══ On an island: the loud card on the left, the views on a plate beside it ══
+    readonly property int sideW: Tokens.spacingXl * 14 + Tokens.spacingSm
+    RowLayout {
+        anchors.fill: parent
+        visible: panel.island
+        spacing: Tokens.spacingMd
+        Loader {
+            Layout.fillWidth: false
+            Layout.preferredWidth: panel.sideW
+            Layout.minimumWidth: panel.sideW
+            Layout.fillHeight: true
+            active: panel.island
+            // Not `panel: panel`: inside the hero that name is its own property (a self-binding).
+            sourceComponent: UpdateIslandHero { panel: panelRef }
+        }
+        Rectangle {
+            id: islandRight
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            radius: Tokens.radiusXl
+            color: Colors.of(QsWindow.window).section
+        }
+    }
+
     Item {
         id: card
 
+        // On an island it fills the plate on the right and scrolls there.
+        parent: panel.island ? islandRight : panel
         anchors.fill: parent
         clip: true
+
+        Flickable {
+            id: islandScroll
+            anchors.fill: parent
+            interactive: panel.island && outer.implicitHeight + Tokens.spacingLg * 2 > height
+            contentHeight: outer.implicitHeight + Tokens.spacingLg * 2
+            boundsBehavior: Flickable.StopAtBounds
 
         ColumnLayout {
             id: outer
@@ -552,7 +619,7 @@ Item {
             PanelHeader {
                 id: header
                 Layout.fillHeight: false
-                visible:   state.view !== "caught"
+                visible:   state.view !== "caught" && !panel.island
                 symbol:    panel.heroSymbol()
                 title:     Translation.tr("System")
                 titleTail: Translation.tr("Update")
@@ -638,6 +705,7 @@ Item {
                 panel: panel
             }
         }
+        } // end the island's scroll
     } // end layout
 
     // The reusable pieces (ShellUpdateButton, ActionButton, NewsLine, RebootBanner,

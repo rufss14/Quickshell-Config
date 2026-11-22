@@ -48,6 +48,11 @@ check("a new process has no cpu yet", all(x["name"] != "fresh" for x in r["cpu"]
 check("a reused pid is not charged the old one's ticks", all(x["name"] != "reused" for x in r["cpu"]))
 check("biggest first", r["mem"][0]["name"] == "fresh")
 check("an ended process is gone", all(x["name"] != "gone" for x in r["mem"]))
+g_before = {1: ("gpuapp", 0, 10, 0, 0)}
+g_after = {1: ("gpuapp", 0, 10, 0, 250_000_000)}
+g = tp.rank(g_before, g_after, 0.5, 100, 4)["mem"][0]
+check("gpu: time used over the window is a percent", g["gpu"] == 50.0 and g["members"][0]["gpu"] == 50.0)
+check("gpu: a three-field snapshot still ranks", tp.rank({1: ("a", 0, 1)}, {1: ("a", 0, 1)}, 0.5, 100, 4)["mem"][0]["gpu"] == 0.0)
 check("limit", len(tp.rank(before, after, 0.5, 100, 4, limit=2)["mem"]) == 2)
 check("zero window divides nothing", tp.rank(before, after, 0, 100, 4)["cpu"] == [])
 

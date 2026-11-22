@@ -63,6 +63,7 @@ import sys, os, json, struct, socket, selectors, time, uuid
 import sys as _sys; _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import qspaths   # where secret files live (outside the repo)
 
+import discordlog        # when the call really connected (Discord's own log; RPC doesn't say)
 import secretstore       # the client secret may live in the system keyring (see its header)
 import urllib.request, urllib.parse, urllib.error
 
@@ -208,13 +209,13 @@ def candidate_paths():
     return ["%s/discord-ipc-%d" % (p, i) for p in prefixes for i in range(10)]
 
 
-def avatar_url(user):
-    """A CDN URL an Image can point at, including for users with no avatar set."""
+def avatar_url(user, size=64):
+    """A CDN URL an Image can point at, including for users with no avatar set. `size` is the picture's pixel size."""
     uid = str(user.get("id") or "")
     av  = user.get("avatar")
     if av:
         ext = "gif" if str(av).startswith("a_") else "png"
-        return "https://cdn.discordapp.com/avatars/%s/%s.%s?size=64" % (uid, av, ext)
+        return "https://cdn.discordapp.com/avatars/%s/%s.%s?size=%d" % (uid, av, ext, size)
 
     # Default avatars: the modern (pomelo) scheme keys off the snowflake, the legacy
     # one off the 4-digit discriminator. Users of both kinds are still around.
@@ -289,6 +290,7 @@ class Client:
         # don't hear yourself) — which reads as "muted to 0%" unless you know which row
         # is you.
         self.me = ""
+        self.me_user = None          # { id, name, avatar } for the account Discord is logged in as
         self.channel = None          # {id, name, guild, guildId}
         self.guild_names = {}        # guild_id → name, resolved once each
         self.users = {}              # user_id → participant dict
@@ -305,6 +307,7 @@ class Client:
         self.input_devices, self.output_devices = [], []
         self.status = "DISCONNECTED"
         self.ping = 0
+        self.call_start = 0          # ms epoch the call connected, from Discord's log; 0 = unknown
         self.subscribed_channel = None
         self.dirty = True
 
@@ -448,7 +451,7 @@ class Client:
         if tok and tok.get("access_token"):
             if tok.get("expires_at", 0) > time.time() + 60:
                 try:
-                    self.call("AUTHENTICATE", {"access_token": tok["access_token"]})
+                    self.note_me(self.call("AUTHENTICATE", {"access_token": tok["access_token"]}).get("user"))
                     self.authed = True
                     return
                 except (RuntimeError, TimeoutError) as e:
@@ -461,7 +464,7 @@ class Client:
                 if new:
                     new["client_id"] = self.config["clientId"]
                     save_token(new)
-                    self.call("AUTHENTICATE", {"access_token": new["access_token"]})
+                    self.note_me(self.call("AUTHENTICATE", {"access_token": new["access_token"]}).get("user"))
                     self.authed = True
                     return
                 log("refresh failed; re-authorizing")
@@ -500,7 +503,7 @@ class Client:
                                "redirectUri is registered on the application")
         new["client_id"] = self.config["clientId"]
         save_token(new)
-        self.call("AUTHENTICATE", {"access_token": new["access_token"]})
+        self.note_me(self.call("AUTHENTICATE", {"access_token": new["access_token"]}).get("user"))
         self.authed = True
         emit({"t": "auth", "stage": ""})
 
@@ -619,6 +622,16 @@ class Client:
 
         self.request("GET_SELECTED_VOICE_CHANNEL", {}, done)
 
+    def read_call_start(self):
+        """The call's real connect time from Discord's own log (scripts/discordlog.py); keeps the old value if it
+        can't say."""
+        if not self.channel:
+            return
+        t = discordlog.call_start(self.channel["id"])
+        if t and t != self.call_start:
+            self.call_start = t
+            self.dirty = True
+
     def set_channel(self, data):
         if not data:
             self.channel = None
@@ -626,11 +639,14 @@ class Client:
             self.speaking.clear()
             self.status = "DISCONNECTED"
             self.ping = 0
+            self.call_start = 0
             self.set_channel_subscriptions(None)
             self.dirty = True
             return
 
         cid, gid = str(data.get("id")), data.get("guild_id")
+        if not self.channel or self.channel["id"] != cid:
+            self.call_start = 0          # another channel: the old call's time is not this one's
         self.channel = {
             "id": cid,
             "name": data.get("name") or "",
@@ -645,6 +661,17 @@ class Client:
             self.apply_voice_state(entry)
 
         self.set_channel_subscriptions(cid)
+        self.read_call_start()
+        self.dirty = True
+
+    def note_me(self, user):
+        """Remember who Discord is logged in as: the id (to mark yourself in a call) and the name and picture, so the
+        shell can wear your Discord picture without being in a call. READY and AUTHENTICATE both carry the user."""
+        if not isinstance(user, dict) or not user.get("id"):
+            return
+        self.me = str(user["id"])
+        name = user.get("global_name") or user.get("username") or ""
+        self.me_user = {"id": self.me, "name": str(name)[:64], "avatar": avatar_url(user, 128)}
         self.dirty = True
 
     def on_event(self, msg):
@@ -652,7 +679,7 @@ class Client:
 
         if evt == "READY":
             self.ready = True
-            self.me = str((data.get("user") or {}).get("id") or "")
+            self.note_me(data.get("user"))
 
         elif evt == "VOICE_SETTINGS_UPDATE":
             self.apply_voice_settings(data)
@@ -676,7 +703,11 @@ class Client:
                 self.dirty = True
 
         elif evt == "VOICE_CONNECTION_STATUS":
+            was = self.status
             self.status = data.get("state") or self.status
+            # The log line lands a moment after the join, so look again when the connection state moves.
+            if self.status != was:
+                self.read_call_start()
             avg = data.get("average_ping")
             if avg is not None:
                 self.ping = int(round(avg))
@@ -709,7 +740,9 @@ class Client:
             "outputDevices": self.output_devices,
             "status": self.status,
             "ping": self.ping,
+            "callStart": self.call_start,
             "users": users,
+            "me": self.me_user,
         }
 
     def emit_snapshot(self):

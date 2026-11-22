@@ -2,3 +2,7 @@ WidgetsCatalogueSection 1.0 WidgetsCatalogueSection.qml
 WidgetsDesktopSection 1.0 WidgetsDesktopSection.qml
 WidgetsGalleryCard 1.0 WidgetsGalleryCard.qml
 WidgetsPresetsSection 1.0 WidgetsPresetsSection.qml
+WidgetsPickedSection 1.0 WidgetsPickedSection.qml
+WidgetsOptionsSection 1.0 WidgetsOptionsSection.qml
+WidgetsPhotoSection 1.0 WidgetsPhotoSection.qml
+WidgetsPhotoLookSection 1.0 WidgetsPhotoLookSection.qml

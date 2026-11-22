@@ -53,7 +53,7 @@ Rectangle {
         target: mouse.pressed ? 0.88 : 1
     }
     radius: shape.value
-    color: chip.filled ? chip.accent : Colors.of(QsWindow.window).surfaceHigh
+    color: chip.filled ? chip.accent : Colors.of(QsWindow.window).plate
     opacity: !chip.enabled ? 0.35 : chip.awake ? 1 : 0.4
     scale: dip.value
 

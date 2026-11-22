@@ -1,0 +1,8 @@
+MixerHero 1.0 MixerHero.qml
+MixerPlate 1.0 MixerPlate.qml
+MixerChannel 1.0 MixerChannel.qml
+MixerDevice 1.0 MixerDevice.qml
+MixerApps 1.0 MixerApps.qml
+MixerDevices 1.0 MixerDevices.qml
+MixerMic 1.0 MixerMic.qml
+MixerOptions 1.0 MixerOptions.qml

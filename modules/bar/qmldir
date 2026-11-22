@@ -8,6 +8,7 @@ BarArrange 1.0 BarArrange.qml
 BarDock 1.0 BarDock.qml
 BarPanelDock 1.0 BarPanelDock.qml
 BarToastHost 1.0 BarToastHost.qml
+BarReloadHost 1.0 BarReloadHost.qml
 BarContextMenu 1.0 BarContextMenu.qml
 DockHost 1.0 DockHost.qml
 SideRail 1.0 SideRail.qml
@@ -52,3 +53,4 @@ SideVisualizer 1.0 SideVisualizer.qml
 WorkspaceGlance 1.0 WorkspaceGlance.qml
 PillTip 1.0 PillTip.qml
 ArrangeBackdrop 1.0 ArrangeBackdrop.qml
+SideSpacer 1.0 SideSpacer.qml

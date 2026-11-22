@@ -33,6 +33,14 @@ import "karaoke.js" as KJ
 // scripts/karaoke.py, only while on: pw-record → levels (and Vosk's words). No audio is
 // written anywhere. It is a real input stream, so the shell's microphone indicator shows it.
 //
+// ── The Discord call (2026-11-14) ─────────────────────────────────────────────
+// While Discord says you are in a call (and Config.karaokeDiscord is on), a SECOND helper listens to the call's
+// playback stream — the friends' voices, as one mixed stream — exactly as the first listens to the mic, so they can
+// sing too. It has its own voice gate and its own matcher cursor (two singers are at different words), and they
+// share everything else: one set of lit words, one combo, one score — the room sings as one. The call never hears
+// the song (it is the OTHER end), so the headphones rule is about the mic only. Which stream is the call:
+// KJ.callStreamIndex. No audio is written anywhere, as for the mic.
+//
 // ── Headphones, or it won't run ───────────────────────────────────────────────
 // A microphone hears the song unless it is in your ears, and a cell lit by the music is a
 // match that means nothing. PipeWire names the form factor; unknown counts as not
@@ -244,6 +252,7 @@ Singleton {
     // new grammar.
     onLanguageChanged: {
         root._cover = null
+        root._lastGrammar = ""
         if (helper.running && root.wordsWanted) { root._cycling = true; cycle.restart() }
     }
 
@@ -361,7 +370,7 @@ Singleton {
         running: root.active && root.blocked === "" && root._probed && !root._cycling
         command: ["python3", root.scriptPath, "--target", root._target].concat(
             root.wordsWanted && root.hasVosk ? root.modelDirs.reduce((a, d) => a.concat(["--model", d]), []) : [])
-        stdout: SplitParser { onRead: function (line) { root._onLine(line) } }
+        stdout: SplitParser { onRead: function (line) { root._onLine(line, false) } }
         onRunningChanged: {
             if (running) { root.error = ""; return }
             root.listening = false
@@ -371,6 +380,59 @@ Singleton {
         onExited: function (code) {
             // Ended without being asked (not a stop, not a deliberate restart): start it again.
             if (root.active && !root._cycling && root.error === "") root._died()
+        }
+    }
+
+    // ══ The Discord call ══════════════════════════════════════════════════════
+    // The same helper, pointed at the call's playback stream (a stream node's object.serial is a valid
+    // pw-record --target: the shell's own visualisers do it). Only while Discord says it is in a call.
+    readonly property bool callWanted: Config.karaokeDiscord && Discord.inCall
+    readonly property var _callNode: {
+        if (!root.callWanted) return null
+        const list = Audio.streams
+        const i = KJ.callStreamIndex(list.map(n => {
+            const p = n.properties ?? {}
+            return { binary: p["application.process.binary"] ?? "", appName: p["application.name"] ?? "", mediaName: p["media.name"] ?? "" }
+        }), Discord.windowClasses)
+        return i >= 0 ? list[i] : null
+    }
+    readonly property string _callTarget: root._callNode ? String((root._callNode.properties ?? {})["object.serial"] ?? "") : ""
+    property bool callListening: false
+    property string callError: ""
+    property var _callGate: KJ.gateNew()
+    property real _callVoicedAt: 0
+    property var _callMatcher: KJ.matcherNew()
+    property var _callDeaths: []
+    property bool _callCycling: false
+    property string _lastGrammar: ""          // the grammar line last sent, for a call helper that starts after it
+    // A different stream (the call was rejoined) needs the helper started against it.
+    on_CallTargetChanged: if (callHelper.running) { root._callCycling = true; callCycle.restart() }
+    Timer { id: callCycle; interval: 300; onTriggered: root._callCycling = false }
+
+    function _callDied() {
+        const now = Date.now()
+        root._callDeaths = root._callDeaths.filter(t => now - t < 60000).concat([now])
+        if (root._callDeaths.length > 3) { root.callError = "The call's audio keeps stopping"; return }
+        root._callCycling = true
+        callCycle.restart()
+    }
+    Process {
+        id: callHelper
+        stdinEnabled: true
+        running: root.active && root.blocked === "" && root._probed && root._callTarget !== ""
+                 && !root._cycling && !root._callCycling
+        command: ["python3", root.scriptPath, "--target", root._callTarget].concat(
+            root.wordsWanted && root.hasVosk ? root.modelDirs.reduce((a, d) => a.concat(["--model", d]), []) : [])
+        stdout: SplitParser { onRead: function (line) { root._onLine(line, true) } }
+        onRunningChanged: {
+            if (running) { root.callError = ""; return }
+            root.callListening = false
+            root._callGate = KJ.gateNew()
+            root._callVoicedAt = 0
+            root._callMatcher = KJ.matcherNew()
+        }
+        onExited: function (code) {
+            if (root.active && root._callTarget !== "" && !root._cycling && !root._callCycling && root.callError === "") root._callDied()
         }
     }
 
@@ -393,7 +455,12 @@ Singleton {
     }
     property string grammarNote: ""
 
-    function _send(obj) { if (helper.running) helper.write(JSON.stringify(obj) + "\n") }
+    function _send(obj) {
+        const line = JSON.stringify(obj) + "\n"
+        if (obj.type === "grammar") root._lastGrammar = line
+        if (helper.running) helper.write(line)
+        if (callHelper.running) callHelper.write(line)
+    }
 
     function _syncGrammar() {
         if (!root.wordsActive || root._grammarFailed || !Lyrics.hasSynced || root.lines.length === 0) return
@@ -406,15 +473,36 @@ Singleton {
     onWordsActiveChanged: { root._cover = null; if (root.wordsActive) root._syncGrammar() }
     onLinesChanged: { root._cover = null; root._syncGrammar() }
 
-    function _onLine(line) {
+    // `call`: the line came from the Discord call's helper. It reports the same things, but only levels, words,
+    // the words it cannot hear and its own trouble matter here; the mic's helper owns "ready" and the grammar.
+    function _onLine(line, call) {
         let m
         try { m = JSON.parse(line) } catch (e) { return }
         if (!m) return
+        if (call === true) {
+            if (m.type === "ready") {
+                root.callListening = true
+                root.callError = ""
+                root._callDeaths = []
+                // The grammar the mic has been given, so both listen for the same lines.
+                if (root._lastGrammar !== "" && root.wordsActive) callHelper.write(root._lastGrammar)
+            } else if (m.type === "grammar") {
+                if (Array.isArray(m.oov) && m.oov.length > 0) root._addOov(m.oov)
+            } else if (m.type === "level") {
+                root._callLevel(Number(m.rms), m.voicing === undefined ? undefined : Number(m.voicing))
+            } else if (m.type === "text") {
+                root._heard(String(m.text || ""), !!m.final, true)
+            } else if (m.type === "error") {
+                root.callError = String(m.msg || "The call's audio failed")
+            }
+            return
+        }
         if (m.type === "ready") {
             root.listening = true
             root.wordsReady = !!m.words
             root.wordsReason = m.reason || ""
             root._cover = null
+            root._lastGrammar = ""
             root._oov = ({})
             root._grammarFailed = false
             root._deaths = []
@@ -428,7 +516,7 @@ Singleton {
         } else if (m.type === "level") {
             root._level(Number(m.rms), m.voicing === undefined ? undefined : Number(m.voicing))
         } else if (m.type === "text") {
-            root._heard(String(m.text || ""), !!m.final)
+            root._heard(String(m.text || ""), !!m.final, false)
         } else if (m.type === "error") {
             root.error = String(m.msg || "The microphone failed")
         }
@@ -621,7 +709,8 @@ Singleton {
     property string lastHeard: ""          // the recogniser's latest words, for `status`
     // A hit counts while you are, or just were, actually voicing. The recogniser can put a word
     // to a click or a breath (measured: a stray "one" on quiet noise); the voice gate cannot.
-    readonly property int voiceHoldMs: 800
+    // (1200 since 2026-11-14, was 800: the tracker was made more forgiving.)
+    readonly property int voiceHoldMs: 1200
 
     property var session: KJ.sessionNew()
     property real level: 0
@@ -681,6 +770,9 @@ Singleton {
         root._next = KJ.tallyNew("")
         root._pendings = []
         root._matcher = KJ.matcherNew()
+        root._callMatcher = KJ.matcherNew()
+        root._callGate = KJ.gateNew()
+        root._callVoicedAt = 0
         root._lastPos = 0
         root._voicedAt = 0
         root.lastHeard = ""
@@ -731,7 +823,15 @@ Singleton {
         // A line that starts inside the grace period (or that you joined part-way through) is a warm-up.
         if (idx >= 0 && idx < root.lines.length && KJ.inGrace(root.lines[idx].t, root.graceUntil)) root._warmup[idx] = true
         root._matcher = KJ.matcherSync(root._matcher, idx)
+        root._callMatcher = KJ.matcherSync(root._callMatcher, idx)
         root._syncGrammar()
+    }
+
+    // A reading from the call: its own gate and clock; the timing tick is the mic's (_level), which reads this.
+    function _callLevel(rms, voicing) {
+        const now = Date.now()
+        root._callGate = KJ.gateStep(root._callGate, rms, now, voicing)
+        if (root._callGate.voiced) root._callVoicedAt = now
     }
 
     function _level(rms, voicing) {
@@ -741,8 +841,9 @@ Singleton {
 
         root._gate = KJ.gateStep(root._gate, rms, now, voicing)
         root.level = rms
-        root.voiced = root._gate.voiced
-        if (root.voiced) root._voicedAt = now
+        // Voiced is the mic OR the call (a call level lands every 30 ms; 200 ms covers the gate's hold and a frame).
+        if (root._gate.voiced) root._voicedAt = now
+        root.voiced = root._gate.voiced || (root.callListening && now - root._callVoicedAt <= 200)
 
         // Where the run began, the first time there is a position; checked against the start of the song
         // as soon as there are lyrics to know where that is — even while paused, so the warning is up
@@ -830,7 +931,8 @@ Singleton {
     // after the last one taken (see karaoke.js) — so words you sang once light one word, and a
     // following line that repeats them stays dark until you sing it. Only lines the song has got
     // to (lineOpen) can be lit; and only while you are voicing.
-    function _heard(text, isFinal) {
+    // `call`: heard on the Discord call's stream, which has its own cursor and its own voicing.
+    function _heard(text, isFinal, call) {
         if (!root.wordsActive || root._idx < 0) return
         const clean = KJ.stripUnk(text)
         root.lastHeard = clean.trim()
@@ -846,9 +948,10 @@ Singleton {
                    open: KJ.lineOpen(root.lines, root._idx + 1, pos, root.rules) })
         // Not voicing: the words are still counted as taken (so they are not found later, when you
         // are), but nothing is lit.
-        const voicing = Date.now() - root._voicedAt <= root.voiceHoldMs
-        const r = KJ.matcherHear(root._matcher, voicing ? ctx : [], heard, isFinal, root.rules.strictWords)
-        root._matcher = r.m
+        const voicing = Date.now() - (call ? root._callVoicedAt : root._voicedAt) <= root.voiceHoldMs
+        const r = KJ.matcherHear(call ? root._callMatcher : root._matcher, voicing ? ctx : [], heard, isFinal, root.rules.strictWords)
+        if (call) root._callMatcher = r.m
+        else root._matcher = r.m
         if (r.hits.length === 0) return
         const touched = {}
         for (const h of r.hits) {
@@ -892,7 +995,7 @@ Singleton {
         // Said where it is seen: a song with no model for its language is judged on timing alone, which
         // cannot tell the words from a hum.
         if (root.wordsWanted && root.modelMissing) return "Timing only \u2014 no " + root.languageName + " model"
-        return "Listening"
+        return root.callListening ? "Listening  \u00b7  Discord call" : "Listening"
     }
     // One line for the media panel's header subtitle, where SongRec says "Listening…" too: what it
     // is doing, and the song's score once there is one. A click that couldn't start it speaks here
@@ -950,6 +1053,8 @@ Singleton {
                  + " unhearable=" + Object.keys(root._oov).length
                  + (root._grammarFailed ? " grammarFailed=" + root.grammarNote : "")
                  + " deaths=" + root._deaths.length + (root.error !== "" ? " error=" + root.error : "")
+                 + " call=" + (root.callListening ? "listening" : root.callWanted ? "wanted(stream=" + (root._callTarget || "none") + ")" : "off")
+                 + (root.callError !== "" ? " callError=" + root.callError : "")
         }
     }
 }

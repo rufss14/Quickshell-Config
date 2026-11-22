@@ -96,7 +96,7 @@ Singleton {
         switch (root.reason) {
         case "off":        return "Album colours are off."
         case "no-player":  return "Nothing is playing."
-        case "stopped":    return "Playback stopped — the wallpaper's colours are back."
+        case "stopped":    return "Playback stopped. The wallpaper's colours are back."
         case "ineligible": return "This source doesn't provide reliable cover art, so its "
                                 + "colours are ignored."
         case "no-art":     return "This track has no cover art."
@@ -152,7 +152,8 @@ Singleton {
     // So every transient reason to STOP showing an album palette is held for this long
     // and re-evaluated. Only turning the feature off is immediate, because that one is
     // the user asking and they should see it happen.
-    readonly property int graceMs: 20000
+    // Config.albumHold seconds; -1 holds until something else plays (a day, in effect).
+    readonly property int graceMs: Config.albumHold < 0 ? 86400000 : Math.max(1, Config.albumHold) * 1000
 
     // ── The startup window ────────────────────────────────────────────────────
     // A restored palette is put up before MPRIS has reported anything, held under the
@@ -211,9 +212,10 @@ Singleton {
     onPlayingChanged: root._settle()
     // Turning it on (or Config finishing its async load with it already on) tries the
     // restore; turning it off just settles, which clears.
-    onEnabledChanged: root.enabled ? root._restore() : root._settle()
-    onArtUrlChanged: root._settle()
-    onEligibleChanged: root._settle()
+    onEnabledChanged: { root.enabled ? root._restore() : root._settle(); root._wantPreview() }
+    onArtUrlChanged: { root._settle(); root._wantPreview() }
+    onEligibleChanged: { root._settle(); root._wantPreview() }
+    onPreviewWantedChanged: root._wantPreview()
     // Lock toggled mid-playback: re-decide (a fully-held palette may now show) and
     // re-merge (album moves above/below the held colours).
     onLockedChanged: { if (root.active) root._push(); root._settle() }
@@ -222,7 +224,7 @@ Singleton {
     // than keep showing a dark palette in light mode.
     Connections {
         target: Config
-        function onThemeModeChanged() { root._settle() }
+        function onThemeModeChanged() { root._settle(); root._wantPreview() }
 
         // ── Narrowing the reach has to clean up after itself ──────────────────
         // Going system-wide → shell-only leaves the album's palette sitting in
@@ -395,6 +397,54 @@ Singleton {
             root._cache[root._key(url)] = d
             root.palette = d
             root._push()
+        }
+    }
+
+    // ── A preview, while it is not being followed ─────────────────────────────
+    // The colour scheme page's Album view shows what the cover WOULD give before you switch following on, so the
+    // reach can be set up first and tried with a Peek. A page that wants it sets `previewWanted`; the cover is read
+    // (the same script, the same cache) into `previewPalette`, and `coverPalette` is whichever palette there is.
+    // Nothing is put on screen by it, and while following is on the real palette stands in.
+    property bool previewWanted: false
+    property var  previewPalette: null
+    readonly property var coverPalette: root.palette ?? root.previewPalette
+    property string _previewKey: ""
+
+    function _wantPreview() {
+        if (!root.previewWanted || root.enabled || root.artUrl === "" || !root.eligible) {
+            pproc.running = false
+            root._previewKey = ""
+            root.previewPalette = null
+            return
+        }
+        const k = root._key(root.artUrl)
+        const hit = root._cache[k]
+        if (hit !== undefined) { root.previewPalette = hit; return }
+        if (pproc.running && root._previewKey === k) return
+        pproc.running = false
+        root._previewKey = k
+        root.previewPalette = null
+        pproc.command = ["python3", root.scriptPath, "--scheme"]
+            .concat(Config.themeMode === "light" ? ["--light"] : [])
+            .concat([root.artUrl])
+        pproc.running = true
+    }
+
+    Process {
+        id: pproc
+        running: false
+        property string out: ""
+        stdout: SplitParser { onRead: function(line) { pproc.out += line } }
+        onExited: {
+            const text = pproc.out
+            pproc.out = ""
+            // The cover moved on, or the page closed, while it was being read.
+            if (root._previewKey !== root._key(root.artUrl) || !root.previewWanted) return
+            let d = null
+            try { d = JSON.parse(text) } catch (e) { d = null }
+            const ok = d && d.ok
+            root._cache[root._previewKey] = ok ? d : null
+            root.previewPalette = ok ? d : null
         }
     }
 

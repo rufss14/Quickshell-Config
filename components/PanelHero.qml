@@ -119,7 +119,7 @@ Rectangle {
                         shape: root.warn ? "burst" : root.active ? root.shape : "circle"
                         fillColor: root.warn   ? Colors.of(QsWindow.window).warning
                                  : root.active ? root.accent
-                                 :               Colors.of(QsWindow.window).surfaceHigh
+                                 :               Colors.of(QsWindow.window).plate
                     }
                 }
                 Image {

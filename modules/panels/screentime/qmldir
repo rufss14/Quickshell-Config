@@ -5,3 +5,4 @@ ScreenTimeDayStrip 1.0 ScreenTimeDayStrip.qml
 ScreenTimeHero 1.0 ScreenTimeHero.qml
 ScreenTimeTodayView 1.0 ScreenTimeTodayView.qml
 ScreenTimeWeekView 1.0 ScreenTimeWeekView.qml
+ScreenTimeIslandHero 1.0 ScreenTimeIslandHero.qml

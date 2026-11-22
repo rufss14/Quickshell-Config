@@ -82,6 +82,12 @@ Item {
     // The most the strip may take along its main axis; past it, it scrolls.
     property real maxLength: Infinity
 
+    // Fixed slots (set by the bars' docks, Config.dockSlotCount): the view is the start button
+    // plus this many app slots whatever is running, so the dock never changes length with its apps
+    // and the modules round it stay put. Empty slots show a dot (the workspace pill's), and more
+    // apps than slots scroll. 0 = the dock grows with its apps.
+    property int fixedSlots: 0
+
     // The host binds this to its DockPreview's hover, so moving from a button up
     // onto the preview keeps the preview open.
     property bool previewHovered: false
@@ -136,6 +142,13 @@ Item {
     readonly property real cellRadius: root.barFeedback ? Tokens.corner(Config.barShape, Math.max(0, root.roundness - Tokens.spacingXs))
                                      : root.ii          ? Tokens.radiusPill
                                                         : Tokens.radiusSm
+    // A tile behind each app icon (Config.dockIconPlate). Not on the bar's dock (edge "top"),
+    // whose cells are pill height. The tile sits concentric in the cell, the icon inside it
+    // with a margin of tile all round.
+    readonly property bool plated: Config.dockIconPlate && root.barFeedback && root.edge !== "top"
+    readonly property real plateSize: Math.min(root.button - Tokens.spacingXs * 2, root.iconPx + Tokens.spacingSm)
+    readonly property real plateRadius: Math.max(0, root.cellRadius - (root.button - root.plateSize) / 2)
+    readonly property real tileIconPx: root.plated ? root.iconPx - Tokens.spacingXs * 2 : root.iconPx
 
     // ══ What this strip draws ═════════════════════════════════════════════════
     // Taskbar's lists, or this monitor's cut of them. Everything below reads these,
@@ -182,7 +195,7 @@ Item {
             const i = root.apps.indexOf(k)
             if (i >= 0) at = root.slotPos(i)
         }
-        return at < 0 ? -1 : at + root.button / 2 - root.scroll
+        return at < 0 ? -1 : at + root.button / 2 - (k === "__launcher" || k === "__keep" ? 0 : root.scroll)
     }
 
     // The buttons that aren't apps get the same hover label as a pinned app that
@@ -226,7 +239,7 @@ Item {
     // the buttons glide shut and open again on their own position Behavior. Every place that
     // says where a slot IS asks `slotPos`; a point back to a slot goes through `unGap`.
     readonly property real pinGap: root.barFeedback && root.pinCount > 0 && root.count > root.pinCount
-                                   && root.dragKey === "" && root.insertAt < 0 ? root.divider : 0
+                                   && root.dragKey === "" && root.insertAt < 0 && !root.fixed ? root.divider : 0
     function slotPos(i) { return root.lead + i * root.slot + (i >= root.pinCount ? root.pinGap : 0) }
     // A distance along the apps (from `lead`) with the pin gap taken out, so whole slots work.
     function unGap(main) { return main >= root.pinCount * root.slot + root.pinGap ? main - root.pinGap : main }
@@ -284,13 +297,37 @@ Item {
         }
     }
 
-    // How far the content runs past `maxLength`, and how far it's scrolled in.
-    readonly property real overflow: Math.max(0, root.fullLength - root.maxLength)
+    readonly property bool fixed: root.fixedSlots > 0
+    // The most the strip shows along its main axis: the fixed slots' length, or `maxLength`.
+    readonly property real viewMax: root.fixed
+        ? Math.min(root.maxLength, root.lead + root.fixedSlots * root.slot - root.gap) : root.maxLength
+
+    // How far the content runs past the view, and how far it's scrolled in. The start buttons
+    // stand still; the apps scroll under them.
+    readonly property real overflow: Math.max(0, root.fullLength - root.viewMax)
     property real scroll: 0
     onOverflowChanged: root.scroll = Math.max(0, Math.min(root.overflow, root.scroll))
+    Behavior on scroll {
+        enabled: root.fixed
+        NumberAnimation { duration: Motion.standard; easing.type: Motion.travel }
+    }
+    // A plain wheel scrolls a fixed dock that has more apps than slots (an app's own wheel,
+    // volume or its windows, is Ctrl+wheel then).
+    // The focused app moved out of view (a new window, a keybind): scroll to it, as the workspace
+    // pill pages to the focused workspace. Later, so `overflow` has caught up with a new app.
+    function _reveal(i) {
+        if (!root.fixed || i < 0) return
+        const first = Math.round(root.scroll / root.slot)
+        if (i < first) root.scroll = i * root.slot
+        else if (i >= first + root.fixedSlots)
+            root.scroll = Math.min(root.overflow, (i - root.fixedSlots + 1) * root.slot)
+    }
+    readonly property bool wheelScrolls: root.fixed && root.overflow > 0
+    // A point along the strip as a place on the scrolling content: the start buttons don't move.
+    function _along(pos) { return pos < root.lead ? pos : pos + root.scroll }
 
-    implicitWidth:  root.vertical ? root.button : Math.min(root.animLength, root.maxLength)
-    implicitHeight: root.vertical ? Math.min(root.animLength, root.maxLength) : root.button
+    implicitWidth:  root.vertical ? root.button : (root.fixed ? root.viewMax : Math.min(root.animLength, root.maxLength))
+    implicitHeight: root.vertical ? (root.fixed ? root.viewMax : Math.min(root.animLength, root.maxLength)) : root.button
 
     // ── Motion character of a button ──────────────────────────────────────────
     // Scale factors, not distances, so there is no token for them; named once so
@@ -358,6 +395,7 @@ Item {
         }
         return -1
     }
+    onFocusIndexChanged: Qt.callLater(() => root._reveal(root.focusIndex))
     readonly property bool gliding: {
         if (root.ii || root.focusIndex < 0 || root.dragKey !== "" || root.insertAt >= 0) return false
         const k = root.apps[root.focusIndex]
@@ -515,7 +553,8 @@ Item {
 
     // One button per wheel notch (120 = one notch, Qt's own unit).
     function _scrollBy(delta) {
-        root.scroll = Math.max(0, Math.min(root.overflow, root.scroll - delta / 120 * root.slot))
+        const next = root.scroll - delta / 120 * root.slot
+        root.scroll = Math.max(0, Math.min(root.overflow, root.fixed ? Math.round(next / root.slot) * root.slot : next))
     }
 
     function _hover(key, on) {
@@ -587,7 +626,7 @@ Item {
     // The slot under a point on the dock, in THIS item's coordinates — for the
     // host's hit-test while an app is dragged in (center measured like dropTarget).
     function insertionAt(x, y) {
-        const main = root.unGap((root.vertical ? y : x) + root.scroll - root.lead)
+        const main = root.unGap(root._along(root.vertical ? y : x) - root.lead)
         return DockJs.insertTarget(root.insertFrom, main, root.slot, root.count, root.pinCount)
     }
 
@@ -701,8 +740,10 @@ Item {
         if (root.kbIndex >= 0) {
             const start = root.kbTailKey !== "" ? root.tailPos(root.kbTailKey)
                                                 : root.slotPos(root.kbIndex)
-            const view  = Math.min(root.fullLength, root.maxLength)
-            if (start < root.scroll) root.scroll = start
+            const view  = root.fixed ? root.viewMax : Math.min(root.fullLength, root.viewMax)
+            // The start buttons stand still, so the apps' window starts after them.
+            const lo = root.scroll + (root.fixed ? root.lead : 0)
+            if (start < lo) root.scroll = Math.max(0, start - (root.fixed ? root.lead : 0))
             else if (start + root.button > root.scroll + view)
                 root.scroll = Math.min(root.overflow, start + root.button - view)
             dwell.stop()
@@ -1085,12 +1126,18 @@ Item {
         HoverHandler { id: stripHover }
 
         // Scrolling the STRIP is Shift+wheel, or a sideways wheel/touchpad swipe —
-        // a plain wheel belongs to the button under the pointer (volume, windows).
+        // a plain wheel belongs to the button under the pointer (volume, windows), except
+        // on a fixed-slot dock that overflows, where the strip takes it (`wheelScrolls`).
         // Handlers on a button see the event first; the modifier filter is what
         // lets a Shift+wheel fall through to these.
         WheelHandler {
             enabled: root.overflow > 0
             acceptedModifiers: Qt.ShiftModifier
+            onWheel: function(event) { root._scrollBy(event.angleDelta.y || event.angleDelta.x) }
+        }
+        WheelHandler {
+            enabled: root.wheelScrolls
+            acceptedModifiers: Qt.NoModifier
             onWheel: function(event) { root._scrollBy(event.angleDelta.y || event.angleDelta.x) }
         }
         WheelHandler {
@@ -1100,20 +1147,18 @@ Item {
             onWheel: function(event) { root._scrollBy(event.angleDelta.x) }
         }
 
+        // The start buttons stand still; the apps scroll under them (`appsView`).
         Item {
-            id: track
-            x: root.vertical ? 0 : -root.scroll
-            y: root.vertical ? -root.scroll : 0
-            width:  root.vertical ? root.button : root.fullLength
-            height: root.vertical ? root.fullLength : root.button
+            id: leadLayer
+            width:  viewport.width
+            height: viewport.height
 
-            // Under every button: a right-click that lands between them.
+            // Under them too: a right-click that lands between them.
             MouseArea {
-                id: bgMouse
                 anchors.fill: parent
                 acceptedButtons: Qt.RightButton
                 onClicked: function(m) {
-                    const s = bgMouse.mapToItem(null, m.x, m.y)
+                    const s = mapToItem(null, m.x, m.y)
                     root.openDockMenu(s.x, s.y)
                 }
             }
@@ -1149,6 +1194,50 @@ Item {
                 x: root.vertical ? (root.button - width) / 2 : at - width / 2
                 y: root.vertical ? at - height / 2 : (root.button - height) / 2
             }
+            // ii: a hairline between the start group and the apps, centred in its gap.
+            Rectangle {
+                visible: root.ii && root.leadSlots > 0
+                readonly property real at: (root.leadSlots * root.slot - root.gap + root.lead) / 2
+                width:  root.vertical ? root.iconPx : Tokens.borderWidth
+                height: root.vertical ? Tokens.borderWidth : root.iconPx
+                x: root.vertical ? (root.button - width) / 2 : at - width / 2
+                y: root.vertical ? at - height / 2 : (root.button - height) / 2
+                color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.15)
+            }
+        }
+
+        // The apps' window: from where the start buttons end. Clipped only while it scrolls, so
+        // a magnified icon may still grow out of a dock that doesn't.
+        Item {
+            id: appsView
+            x: root.vertical ? 0 : root.lead
+            y: root.vertical ? root.lead : 0
+            width:  root.vertical ? root.button : Math.max(0, viewport.width - root.lead)
+            height: root.vertical ? Math.max(0, viewport.height - root.lead) : root.button
+            clip: root.overflow > 0 || root.scroll > 0.5
+        }
+
+        // The track is the strip's own frame, origin at the strip's (less the scroll): every
+        // button's x or y is its slot, start buttons included.
+        Item {
+            id: track
+            parent: appsView
+            x: root.vertical ? 0 : -root.lead - root.scroll
+            y: root.vertical ? -root.lead - root.scroll : 0
+            width:  root.vertical ? root.button : root.fullLength
+            height: root.vertical ? root.fullLength : root.button
+
+            // Under every button: a right-click that lands between them.
+            MouseArea {
+                id: bgMouse
+                anchors.fill: parent
+                acceptedButtons: Qt.RightButton
+                onClicked: function(m) {
+                    const s = bgMouse.mapToItem(null, m.x, m.y)
+                    root.openDockMenu(s.x, s.y)
+                }
+            }
+
             // Pinned | running ("Pinned | running" above): in the pin gap, fading with it.
             Divider {
                 readonly property real at: root.lead + root.pinCount * root.slot + (root.pinGap - root.gap) / 2
@@ -1163,21 +1252,31 @@ Item {
                 Behavior on opacity { NumberAnimation { duration: Motion.respond } }
             }
 
-            // ii: a hairline between the start group and the apps, centred in its gap.
-            Rectangle {
-                visible: root.ii && root.leadSlots > 0
-                readonly property real at: (root.leadSlots * root.slot - root.gap + root.lead) / 2
-                width:  root.vertical ? root.iconPx : Tokens.borderWidth
-                height: root.vertical ? Tokens.borderWidth : root.iconPx
-                x: root.vertical ? (root.button - width) / 2 : at - width / 2
-                y: root.vertical ? at - height / 2 : (root.button - height) / 2
-                color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.15)
-            }
-
             // Behind every button, so their hover washes and icons sit ON it.
             Repeater {
                 model: ScriptModel { values: root.apps }
                 delegate: DockRunPill { strip: root }
+            }
+
+            // Fixed slots: the ones nothing stands in yet, a small dot each, as the workspace
+            // pill draws an empty workspace. Each slides one slot on as an app arrives.
+            Repeater {
+                model: root.fixed ? Math.max(0, root.fixedSlots - root.drawnCount) : 0
+                delegate: Rectangle {
+                    required property int index
+                    readonly property real at: root.slotPos(root.drawnCount + index)
+                    readonly property real dot: Math.max(Tokens.spacingSm, Math.round(root.iconPx / 4))
+                    width:  dot
+                    height: dot
+                    radius: Tokens.corner(Config.barShape, dot / 2)
+                    x: root.vertical ? (root.button - dot) / 2 : at + (root.button - dot) / 2
+                    y: root.vertical ? at + (root.button - dot) / 2 : (root.button - dot) / 2
+                    color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.40)
+                    Behavior on x { NumberAnimation { duration: Motion.emphasized
+                                    easing.bezierCurve: Motion.emphasizedDecel; easing.type: Easing.BezierSpline } }
+                    Behavior on y { NumberAnimation { duration: Motion.emphasized
+                                    easing.bezierCurve: Motion.emphasizedDecel; easing.type: Easing.BezierSpline } }
+                }
             }
 
             // Under the buttons, so the neighbours close over a leaving icon.
@@ -1288,7 +1387,7 @@ Item {
     readonly property int trashSlot:    -100
     readonly property int pinSlotIndex: -200
     function _slotAt(x, y) {
-        const along = (root.vertical ? y : x) + root.scroll
+        const along = root._along(root.vertical ? y : x)
         const t = root.tailPos("__trash")
         if (t >= 0 && along >= t && along < t + root.button) return root.trashSlot
         // The ii overview button is a button, not a place to drop a file.
@@ -1351,9 +1450,12 @@ Item {
         visible: false
         layer.enabled: true
 
-        // Fade only an end there's more content past.
-        readonly property real frac: root.maxLength > 0 && isFinite(root.maxLength)
-                                     ? Math.min(0.25, root.button / root.maxLength) : 0
+        // Fade only an end there's more content past. The head fades from where the start
+        // buttons end, so they stay whole.
+        readonly property real total: root.vertical ? fadeMask.height : fadeMask.width
+        readonly property real frac: fadeMask.total > 0 && root.viewMax > 0 && isFinite(root.viewMax)
+                                     ? Math.min(0.25, root.button / root.viewMax) : 0
+        readonly property real lead: fadeMask.total > 0 ? Math.min(0.5, root.lead / fadeMask.total) : 0
         readonly property real head: root.scroll > 0             ? fadeMask.frac : 0
         readonly property real tail: root.scroll < root.overflow ? fadeMask.frac : 0
 
@@ -1361,8 +1463,9 @@ Item {
             anchors.fill: parent
             gradient: Gradient {
                 orientation: root.vertical ? Gradient.Vertical : Gradient.Horizontal
-                GradientStop { position: 0.0; color: fadeMask.head > 0 ? "transparent" : "white" }
-                GradientStop { position: fadeMask.head;       color: "white" }
+                GradientStop { position: 0.0; color: "white" }
+                GradientStop { position: fadeMask.lead; color: fadeMask.head > 0 ? "transparent" : "white" }
+                GradientStop { position: fadeMask.lead + fadeMask.head; color: "white" }
                 GradientStop { position: 1.0 - fadeMask.tail; color: "white" }
                 GradientStop { position: 1.0; color: fadeMask.tail > 0 ? "transparent" : "white" }
             }

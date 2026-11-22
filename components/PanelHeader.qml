@@ -76,11 +76,16 @@ RowLayout {
     // Actions go on the right (rescan, close, mode toggles…).
     default property alias actions: actionRow.data
 
+    // Only the actions, pushed to the right: for a panel shown as an island page, where the rail
+    // already says which panel this is and the header's buttons are still its controls.
+    property bool bare: false
+
     Layout.fillWidth: true
     spacing: Tokens.spacingLg
 
     // ── Icon ──────────────────────────────────────────────────────────────────
     ShapeBox {
+        visible: !root.bare
         Layout.alignment: Qt.AlignVCenter
         implicitWidth:  root.chipSize
         implicitHeight: root.chipSize
@@ -146,6 +151,7 @@ RowLayout {
         spacing: 1
 
         RowLayout {
+            visible: !root.bare
             spacing: Tokens.spacingSm + 2
 
             StyledText {
@@ -164,7 +170,7 @@ RowLayout {
 
         StyledText {
             Layout.fillWidth: true
-            visible:  root.subtitle !== ""
+            visible:  root.subtitle !== "" && !root.bare
             text:     root.subtitle
             variant:  root.subtitleVariant
             emphasis: "dim"

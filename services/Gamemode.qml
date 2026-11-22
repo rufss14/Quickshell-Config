@@ -320,6 +320,14 @@ Singleton {
 
     function toggle() { if (root._active) root.disable(); else root.enable() }
 
+    // Why an effect (services/gamefx.js `key`) cannot be switched here, "" when it can: the tool it
+    // drives is missing or turned off. The control is disabled with this as its reason.
+    function effectBlocker(key) {
+        if (key === "gamemodeWallpaper") return WallpaperEngine.installed ? "" : "linux-wallpaperengine isn't installed"
+        if (key === "gamemodeClips")     return !Config.clips ? "Clips is turned off in Settings" : Clips.blocker()
+        return ""
+    }
+
     function enable() { root._enable(false) }
 
     // `fromGame`: a registered game turned the mode on (see _onGamesChanged). It skips

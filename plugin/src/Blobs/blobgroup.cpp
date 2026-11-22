@@ -89,6 +89,31 @@ void BlobGroup::setRimColor(const QColor& c) {
     markCookiesDirty();
 }
 
+// The gradient repaints every shape like the rim does, and never restarts the spring physics.
+void BlobGroup::setGradAxis(const QVector4D& v) {
+    if (m_gradAxis == v)
+        return;
+    m_gradAxis = v;
+    emit gradientChanged();
+    markCookiesDirty();
+}
+
+void BlobGroup::setGradMid(qreal m) {
+    if (qFuzzyCompare(m_gradMid, m))
+        return;
+    m_gradMid = m;
+    emit gradientChanged();
+    markCookiesDirty();
+}
+
+void BlobGroup::setGradColor(int i, const QColor& c) {
+    if (m_gradColors[i] == c)
+        return;
+    m_gradColors[i] = c;
+    emit gradientChanged();
+    markCookiesDirty();
+}
+
 void BlobGroup::setCornerFill(bool e) {
     if (m_cornerFill == e)
         return;

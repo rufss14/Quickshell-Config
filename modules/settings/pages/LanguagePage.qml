@@ -14,8 +14,10 @@ import "../../../services"
 // authentication prompt — and may be refused. That's why this page re-reads the
 // locale afterwards and shows what the system actually says, not what we asked for.
 //
-// Rebuilt onto SettingsPage in the overhaul. "What this does" was a card of three
-// paragraphs; it's one caption under Current now.
+// Grouped rows. The shell's language and the locale list are one-of-N rows with a radio mark;
+// the format preview is read-only rows. The weather location lives here because it is a place
+// setting: the weather widget, the clock panel, night light's sunset schedule and the greeter
+// all read it, and the page that sets it should not be one of them.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
@@ -33,6 +35,8 @@ Item {
     // no implicit height, and ~500 rows unwindowed would make the page itself the scroll.
     readonly property int rowHeight:   34
     readonly property int visibleRows: 8
+    // Two short segments (°C, °F) of the connected choice.
+    readonly property int unitWidth: Tokens.fieldHeight * 4
 
     readonly property var filtered: {
         const s = root.search.trim().toLowerCase()
@@ -64,12 +68,14 @@ Item {
     SettingsPage {
         anchors.fill: parent
 
-        bento:     true
+        grouped:   true
         glyph:     "󰗊"
         title:     Translation.tr("Language")
         titleTail: Translation.tr("& region")
         accent:    Colors.of(QsWindow.window).primary
-        subtitle:  root.current !== "" ? root.current : "Reading locale…"
+        // Plain words (language and region); the raw value is the detail of the locale group.
+        subtitle:  root.current === "" ? Translation.tr("Reading locale…")
+                 : root.localeLabel(root.current) !== "" ? root.localeLabel(root.current) : root.current
 
         // ══ The shell's own language ═════════════════════════════════════════
         // Not the system locale below: this is the language of the shell's own text
@@ -78,118 +84,55 @@ Item {
         // converted and leaves the rest in English; `python3 scripts/translations.py
         // status` says how far each one goes.
         Section {
-            span:     3
-            glyph:    "󰗊"
+            grouped:  true
+            symbol:   "translate"
             title:    Translation.tr("Shell language")
             subtitle: Config.uiLanguage === "auto"
                       ? Translation.tr("Follows the system")
                       : Translation.nameOf(Config.uiLanguage)
             help:     Translation.tr("The language of the shell's own text. Only strings that have been prepared for translation change; everything else stays in English. To add a language, copy translations/en_US.json to a new <code>.json and translate the right-hand sides.")
-            accent:   Colors.of(QsWindow.window).primary
 
-            Flow {
-                Layout.fillWidth: true
-                spacing: Tokens.spacingSm
-
-                PanelButton {
-                    capsule: true
-                    label: Translation.tr("Automatic")
-                    variant: Config.uiLanguage === "auto" ? "primary" : "normal"
-                    onActivated: Config.uiLanguage = "auto"
-                }
-                Repeater {
-                    model: Translation.available
-                    PanelButton {
-                        capsule: true
-                        required property string modelData
-                        label: Translation.nameOf(modelData)
-                        variant: Config.uiLanguage === modelData ? "primary" : "normal"
-                        onActivated: Config.uiLanguage = modelData
-                    }
-                }
-            }
-        }
-
-        Section {
-            span:     1
-            glyph:    "󰗡"
-            title:    Translation.tr("Current")
-            help:     Translation.tr("What the system reports right now. Picking a locale below sets the language, date and number formats programs start with — it needs your password, and running programs keep the old one until they restart.")
-            accent:   Colors.of(QsWindow.window).primary
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-                spacing: Tokens.spacingLg
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Automatic")
+                detail: Translation.tr("Follows the system")
+                onTapped: Config.uiLanguage = "auto"
 
                 MaterialIcon {
-                    glyph:  "󰗊"
-                    color: Colors.of(QsWindow.window).primary
-                    variant: "display"
+                    name: Config.uiLanguage === "auto" ? "check_circle" : "radio_button_unchecked"
+                    fill: Config.uiLanguage === "auto" ? 1 : 0
+                    variant: "title"
+                    color: Config.uiLanguage === "auto" ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).fgDim
                 }
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: false
-                    spacing: 0
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: root.current !== "" ? root.current : "—"
+            }
+            Repeater {
+                model: Translation.available
+
+                SettingRow {
+                    id: langRow
+                    required property string modelData
+                    readonly property bool chosen: Config.uiLanguage === langRow.modelData
+
+                    rowTap: true
+                    label:  Translation.nameOf(langRow.modelData)
+                    onTapped: Config.uiLanguage = langRow.modelData
+
+                    MaterialIcon {
+                        name: langRow.chosen ? "check_circle" : "radio_button_unchecked"
+                        fill: langRow.chosen ? 1 : 0
                         variant: "title"
-                        font.weight: Font.DemiBold
-                        elide: Text.ElideRight
-                    }
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: root.localeLabel(root.current) !== ""
-                              ? root.localeLabel(root.current) : "System LANG"
-                        variant: "caption"
-                        emphasis: "dim"
-                        elide: Text.ElideRight
+                        color: langRow.chosen ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).fgDim
                     }
                 }
             }
-
-            // Only after you've tried to apply something.
-            StyledText {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 0
-                visible: root.status !== ""
-                text:    root.status
-                color:   root.failed ? Colors.of(QsWindow.window).danger : Colors.of(QsWindow.window).primary
-                variant: "caption"
-                wrapMode: Text.WordWrap
-            }
-
-        }
-
-        // ── Format preview ────────────────────────────────────────────────
-        // Follows the hovered locale, so the list can be browsed by consequence.
-        Section {
-            id: previewBox
-            span:     1
-            glyph:    "󰱆"
-            title:    Translation.tr("How it looks")
-            subtitle: root.hoverLocale !== "" ? "Previewing " + root.hoverLocale : "Your current formats"
-            accent:   Colors.of(QsWindow.window).primary
-            bodySpacing: Tokens.spacingSm
-
-            readonly property var  loc: Qt.locale(root.previewCode.split(".")[0])
-            readonly property date now: new Date()
-
-            FormatRow { label: Translation.tr("Date");        value: previewBox.now.toLocaleDateString(previewBox.loc, Locale.LongFormat) }
-            FormatRow { label: Translation.tr("Time");        value: previewBox.now.toLocaleTimeString(previewBox.loc, Locale.ShortFormat) }
-            FormatRow { label: Translation.tr("Numbers");     value: Number(1234567.89).toLocaleString(previewBox.loc) }
-            FormatRow { label: Translation.tr("Currency");    value: Number(9.99).toLocaleCurrencyString(previewBox.loc) }
-            FormatRow { label: Translation.tr("Week starts"); value: previewBox.loc.dayName(previewBox.loc.firstDayOfWeek, Locale.LongFormat) }
         }
 
         // ══ Available locales ═════════════════════════════════════════════════
         Section {
-            span:     3
-            glyph:    "󰉹"
+            grouped:  true
+            symbol:   "public"
             title:    Translation.tr("Available locales")
             subtitle: root.locales.length + " installed"
-            accent:   Colors.of(QsWindow.window).primary
 
             InputField {
                 cornerRadius: implicitHeight / 2
@@ -198,6 +141,7 @@ Item {
                 onEdited: function (v) { root.search = v }
             }
 
+            // One segment: the list is a window onto ~500 rows, not 500 segments.
             ListView {
                 Layout.fillWidth: true
                 // As tall as what is there (a few locales are usually installed), up to a cap.
@@ -244,10 +188,10 @@ Item {
                             elide: Text.ElideRight
                         }
                         MaterialIcon {
-                            visible: localeRow.selected
-                            glyph:    "󰄬"
-                            color:   Colors.of(QsWindow.window).primary
+                            name: localeRow.selected ? "check_circle" : "radio_button_unchecked"
+                            fill: localeRow.selected ? 1 : 0
                             variant: "body"
+                            color: localeRow.selected ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).fgDim
                         }
                     }
 
@@ -268,26 +212,173 @@ Item {
                 }
             }
         }
-    }
 
-    component FormatRow: RowLayout {
-        id: fr
-        property string label: ""
-        property string value: ""
-        Layout.fillWidth: true
-        Layout.fillHeight: false
-        spacing: Tokens.spacingMd
-        StyledText {
-            Layout.preferredWidth: 90
-            text: fr.label
-            variant: "caption"
-            emphasis: "dim"
+        // ══ The locale in use, and what it looks like ═════════════════════════
+        // The formats follow the hovered locale in the list, so it can be browsed by consequence.
+        Section {
+            id: previewBox
+            grouped:  true
+            symbol:   "language"
+            title:    Translation.tr("System locale")
+            subtitle: root.hoverLocale !== "" ? Translation.tr("Previewing %1").arg(root.localeLabel(root.hoverLocale) || root.hoverLocale)
+                                              : Translation.tr("Your current formats")
+            help:     Translation.tr("What the system reports right now. Picking a locale in the list sets the language, date and number formats programs start with. It needs your password, and running programs keep the old one until they restart.")
+
+            readonly property var  loc: Qt.locale(root.previewCode.split(".")[0])
+            readonly property date now: new Date()
+
+            SettingRow {
+                label:  root.localeLabel(root.current) !== "" ? root.localeLabel(root.current)
+                      : root.current !== "" ? root.current : "…"
+                detail: root.current !== "" ? Translation.tr("System LANG: %1").arg(root.current) : ""
+            }
+
+            // Only after you've tried to apply something.
+            StyledText {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 0
+                visible: root.status !== ""
+                text:    root.status
+                color:   root.failed ? Colors.of(QsWindow.window).danger : Colors.of(QsWindow.window).primary
+                variant: "caption"
+                wrapMode: Text.WordWrap
+            }
+
+            // The five formats in one compact segment, read-only: a label over its value.
+            GridLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+                columns: 2
+                columnSpacing: Tokens.spacingLg
+                rowSpacing: Tokens.spacingSm
+
+                ColumnLayout {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    spacing: 0
+                    StyledText { text: Translation.tr("Date"); variant: "micro"; emphasis: "dim" }
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: previewBox.now.toLocaleDateString(previewBox.loc, Locale.LongFormat)
+                        variant: "body"; elide: Text.ElideRight
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 0
+                    spacing: 0
+                    StyledText { text: Translation.tr("Time"); variant: "micro"; emphasis: "dim" }
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: previewBox.now.toLocaleTimeString(previewBox.loc, Locale.ShortFormat)
+                        variant: "body"; elide: Text.ElideRight
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 0
+                    spacing: 0
+                    StyledText { text: Translation.tr("Week starts"); variant: "micro"; emphasis: "dim" }
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: previewBox.loc.dayName(previewBox.loc.firstDayOfWeek, Locale.LongFormat)
+                        variant: "body"; elide: Text.ElideRight
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 0
+                    spacing: 0
+                    StyledText { text: Translation.tr("Numbers"); variant: "micro"; emphasis: "dim" }
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: Number(1234567.89).toLocaleString(previewBox.loc)
+                        variant: "body"; elide: Text.ElideRight
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 0
+                    spacing: 0
+                    StyledText { text: Translation.tr("Currency"); variant: "micro"; emphasis: "dim" }
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: Number(9.99).toLocaleCurrencyString(previewBox.loc)
+                        variant: "body"; elide: Text.ElideRight
+                    }
+                }
+            }
         }
-        StyledText {
-            Layout.fillWidth: true
-            text: fr.value
-            variant: "caption"
-            elide: Text.ElideRight
+
+        // ══ Weather location ══════════════════════════════════════════════════
+        // Shell-wide: the weather widget, the clock panel, night light's sunset schedule and the
+        // greeter read it, and the calendar's special dates follow its country.
+        Section {
+            grouped:  true
+            symbol:   "partly_cloudy_day"
+            title:    Translation.tr("Weather location")
+            subtitle: Config.weatherPlace === "" ? "No location set" : Config.weatherPlace
+            help:     Translation.tr("Used by the weather widget, the clock panel, night light's sunset schedule and the greeter. Only the place you pick is ever requested; your location is never looked up from your IP.")
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+                spacing: Tokens.spacingSm
+
+                InputField {
+                    id: cityField
+                    cornerRadius: implicitHeight / 2
+                    Layout.fillWidth: true
+                    placeholder: Translation.tr("City name, then Enter")
+                    // A network request: on Enter, never per keystroke.
+                    onAccepted: function (v) { if (v.trim() !== "") Weather.search(v.trim()) }
+                }
+                BusyDot {
+                    running: Weather.searching
+                    visible: Weather.searching
+                    tint: Colors.of(QsWindow.window).primary
+                }
+            }
+
+            // Search results: one tappable row each; picking one sets the place and clears the list.
+            Repeater {
+                model: Weather.results
+
+                SettingRow {
+                    id: res
+                    required property var modelData
+
+                    rowTap: true
+                    label:  res.modelData.name
+                    detail: res.modelData.detail
+                    onTapped: {
+                        Config.weatherLat     = res.modelData.lat
+                        Config.weatherLon     = res.modelData.lon
+                        Config.weatherPlace   = res.modelData.name
+                        // The calendar's special dates follow this.
+                        Config.weatherCountry = res.modelData.countryCode
+                        Weather.results = []
+                        cityField.clear()
+                    }
+                }
+            }
+
+            SettingRow {
+                label:  Translation.tr("Temperature unit")
+                detail: Config.weatherMetric ? Translation.tr("Celsius") : Translation.tr("Fahrenheit")
+                help:   Translation.tr("Celsius or Fahrenheit for every temperature the weather shows.")
+
+                TabStrip {
+                    connected: true
+                    // A SettingRow's control slot is a plain Item: size by implicitWidth.
+                    implicitWidth: root.unitWidth
+                    accent: Colors.of(QsWindow.window).primary
+                    model: [{ value: true,  label: "°C" },
+                            { value: false, label: "°F" }]
+                    current: Config.weatherMetric
+                    onPicked: function (v) { Config.weatherMetric = v }
+                }
+            }
         }
     }
 }

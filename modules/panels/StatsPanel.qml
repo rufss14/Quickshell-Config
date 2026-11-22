@@ -47,7 +47,7 @@ Item {
     Component.onDestruction: SysStats.releaseTop()
     // Which list the tile shows: the processes using the most CPU, or the most memory.
     property string topBy: "cpu"
-    readonly property var topRows: root.topBy === "cpu" ? SysStats.topCpu : SysStats.topMem
+    readonly property var topRows: (root.topBy === "cpu" ? SysStats.topCpu : SysStats.topMem).slice(0, 5)
 
     readonly property var metrics: SysStats.metrics
     readonly property var alerting: root.metrics.filter(k => SysStats.isAlerting(k))

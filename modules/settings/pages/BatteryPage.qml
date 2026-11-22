@@ -42,10 +42,10 @@ Item {
     readonly property bool full: root.devState === UPowerDeviceState.FullyCharged
 
     readonly property string stateText:
-          root.full     ? "Fully charged"
-        : root.charging ? "Charging"
-        : root.devState === UPowerDeviceState.Discharging ? "On battery"
-        : "Not charging"
+          root.full     ? Translation.tr("Fully charged")
+        : root.charging ? Translation.tr("Charging")
+        : root.devState === UPowerDeviceState.Discharging ? Translation.tr("On battery")
+        : Translation.tr("Not charging")
 
     // Low battery is the shell's one genuine "something is wrong" moment.
     readonly property color chargeAccent:
@@ -54,11 +54,22 @@ Item {
         : Colors.of(QsWindow.window).fg
 
     function fmtTime(secs) {
-        if (!secs || secs <= 0) return "—"
         const h = Math.floor(secs / 3600)
         const m = Math.floor((secs % 3600) / 60)
         return (h > 0 ? h + "h " : "") + m + "m"
     }
+
+    // How long until it is full, or empty. Empty while UPower has no estimate yet (right after a
+    // cable change), so no line says "unknown remaining".
+    readonly property string timeText: {
+        if (!root.dev || root.full) return ""
+        const secs = root.charging ? root.dev.timeToFull : root.dev.timeToEmpty
+        if (!secs || secs <= 0) return ""
+        return (root.charging ? Translation.tr("%1 until full") : Translation.tr("%1 remaining")).arg(root.fmtTime(secs))
+    }
+    readonly property string drawText: root.dev
+        ? (root.charging ? Translation.tr("Drawing %1 W") : Translation.tr("Using %1 W")).arg(Math.abs(root.dev.changeRate).toFixed(1))
+        : ""
 
     readonly property var profiles: PowerSaver.profilesOk && PowerProfiles.hasPerformanceProfile
         ? [PowerProfile.PowerSaver, PowerProfile.Balanced, PowerProfile.Performance]
@@ -68,9 +79,9 @@ Item {
     // `current`/`picked` are `var` — see ChipRow's note on the same trap.
     readonly property var profileSegments: root.profiles.map(p => ({
         value: p,
-        label: p === PowerProfile.PowerSaver  ? "Power saver"
-             : p === PowerProfile.Performance ? "Performance"
-             :                                  "Balanced",
+        label: p === PowerProfile.PowerSaver  ? Translation.tr("Power saver")
+             : p === PowerProfile.Performance ? Translation.tr("Performance")
+             :                                  Translation.tr("Balanced"),
         // Every name here has an icons.js fallback, so a machine without the
         // Material Symbols font gets a glyph rather than a "?".
         icon:  p === PowerProfile.PowerSaver  ? "battery_full"
@@ -78,30 +89,25 @@ Item {
              :                                  "equalizer"
     }))
 
+    // Room for three icon-and-label segments in a row's control slot.
+    readonly property int modeWidth: Tokens.fieldHeight * 13
+
     SettingsPage {
         anchors.fill: parent
 
-        bento:     true
+        grouped:   true
         glyph:     "󰁽"
         title:     Translation.tr("Battery")
         titleTail: root.dev ? Math.round(root.pct) + "%" : ""
         accent:    Colors.of(QsWindow.window).primary
-        subtitle:  root.stateText + (root.dev
-                   ? "  ·  " + (root.charging
-                                ? root.fmtTime(root.dev.timeToFull) + " until full"
-                                : root.fmtTime(root.dev.timeToEmpty) + " remaining")
-                   : "")
+        subtitle:  root.stateText + (root.timeText !== "" ? "  ·  " + root.timeText : "")
 
-        // ══ Charge ════════════════════════════════════════════════════════════
+        // ══ Charge and health ═════════════════════════════════════════════════
+        // The live subject: the ring is the charge, the lines beside it are the cell's state
+        // and its health. Both are readings of the same battery, so they share one card.
         Section {
-            span:   1
-            glyph:  "󱈑"
-            title:  Translation.tr("Charge")
-            accent: Colors.of(QsWindow.window).primary
-            subtitle: root.dev
-                ? (root.charging ? "Drawing " : "Using ")
-                  + Math.abs(root.dev.changeRate).toFixed(1) + " W"
-                : ""
+            id: chargeCard
+            hero: true
 
             RowLayout {
                 Layout.fillWidth: true
@@ -114,7 +120,10 @@ Item {
                     implicitHeight: 120
                     thickness: 11
                     value:  root.pct / 100
-                    accent: root.chargeAccent
+                    // The card is primaryContainer, so the ring draws in its ink; only the
+                    // low-battery state keeps its own colour.
+                    accent: root.pct <= 15 && !root.charging
+                            ? Colors.of(QsWindow.window).danger : chargeCard.ink
 
                     // Charging is the one state that is going somewhere, so the ring
                     // breathes while it does. The only idle motion in settings, and it
@@ -137,142 +146,171 @@ Item {
                             text: Math.round(root.pct)
                             variant: "display"
                             font.bold: true
+                            color: chargeCard.ink
                         }
                         StyledText {
                             Layout.alignment: Qt.AlignHCenter
-                            text: "percent"
+                            text: Translation.tr("percent")
                             variant: "micro"
-                            emphasis: "dim"
+                            color: chargeCard.inkDim
                         }
                     }
                 }
 
-                ColumnLayout {
+                // The reading in two columns where the card is wide (what it is doing, then what
+                // the cell is like), one under the other where it is not.
+                GridLayout {
                     Layout.fillWidth: true
                     Layout.fillHeight: false
-                    spacing: Tokens.spacingXs
+                    Layout.alignment: Qt.AlignVCenter
+                    columns: width >= 460 ? 2 : 1
+                    columnSpacing: Tokens.spacingXl
+                    rowSpacing: Tokens.spacingMd
 
-                    StyledText {
-                        text:  root.stateText
-                        color: root.chargeAccent
-                        variant: "title"
-                        font.weight: Font.DemiBold
-                        Behavior on color { ColorAnimation { duration: Motion.standard } }
-                    }
-                    StyledText {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        text: root.charging
-                            ? root.fmtTime(root.dev ? root.dev.timeToFull : 0) + " until full"
-                            : root.fmtTime(root.dev ? root.dev.timeToEmpty : 0) + " remaining"
-                        variant: "body"
-                        emphasis: "muted"
-                        elide: Text.ElideRight
+                        Layout.preferredWidth: 0
+                        Layout.alignment: Qt.AlignTop
+                        Layout.fillHeight: false
+                        spacing: Tokens.spacingXs
+
+                        StyledText {
+                            text:  root.stateText
+                            color: chargeCard.ink
+                            variant: "title"
+                            font.weight: Font.DemiBold
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: root.timeText !== "" ? root.timeText : root.drawText
+                            variant: "body"
+                            color: chargeCard.inkDim
+                            elide: Text.ElideRight
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            visible: root.timeText !== "" && root.drawText !== ""
+                            text: root.drawText
+                            variant: "body"
+                            color: chargeCard.inkDim
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 0
+                        Layout.alignment: Qt.AlignTop
+                        Layout.fillHeight: false
+                        spacing: Tokens.spacingSm
+
+                        // Health is the one number here about the battery's FUTURE, so it gets a
+                        // bar: 100% is a new cell and the shortfall is the reading.
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: false
+                            visible: root.dev && root.dev.healthSupported
+                            spacing: Tokens.spacingMd
+
+                            HelpTip { text: Translation.tr("How much of the battery's original capacity is left.") }
+
+                            StyledText {
+                                text: Translation.tr("Health")
+                                variant: "caption"
+                                color: chargeCard.inkDim
+                            }
+                            Meter {
+                                Layout.fillWidth: true
+                                value: root.dev && root.dev.healthSupported
+                                       ? root.dev.healthPercentage / 100 : 0
+                                accent: root.dev && root.dev.healthPercentage < 70
+                                        ? Colors.of(QsWindow.window).warning : chargeCard.ink
+                            }
+                            StyledText {
+                                text: root.dev && root.dev.healthSupported
+                                      ? Math.round(root.dev.healthPercentage) + "%" : ""
+                                variant: "title"
+                                font.weight: Font.DemiBold
+                                color: chargeCard.ink
+                            }
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 0
+                            visible: !(root.dev && root.dev.healthSupported)
+                            text: Translation.tr("This battery doesn't report its health.")
+                            variant: "caption"
+                            color: chargeCard.inkDim
+                            wrapMode: Text.WordWrap
+                        }
+
+                        FactRow {
+                            visible: !!root.dev && root.dev.energyCapacity > 0
+                            key:   Translation.tr("Capacity")
+                            value: root.dev ? root.dev.energyCapacity.toFixed(1) + " Wh" : ""
+                            ink:    chargeCard.ink
+                            inkDim: chargeCard.inkDim
+                        }
                     }
                 }
-            }
-        }
-
-        // ══ The cell itself ═══════════════════════════════════════════════════
-        Section {
-            span:     1
-            glyph:    "󰁹"
-            title:    Translation.tr("Health")
-            accent:   Colors.of(QsWindow.window).info
-            help:     Translation.tr("How much of the battery's original capacity is left.")
-
-            // Health is the one number here about the battery's FUTURE, so it gets a
-            // bar: 100% is a new cell and the shortfall is the reading.
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-                visible: root.dev && root.dev.healthSupported
-                spacing: Tokens.spacingMd
-
-                Meter {
-                    Layout.fillWidth: true
-                    value: root.dev && root.dev.healthSupported
-                           ? root.dev.healthPercentage / 100 : 0
-                    accent: root.dev && root.dev.healthPercentage < 70
-                            ? Colors.of(QsWindow.window).warning : Colors.of(QsWindow.window).info
-                }
-                StyledText {
-                    text: root.dev && root.dev.healthSupported
-                          ? Math.round(root.dev.healthPercentage) + "%" : "—"
-                    variant: "title"
-                    font.weight: Font.DemiBold
-                }
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 0
-                visible: !(root.dev && root.dev.healthSupported)
-                text: Translation.tr("This battery doesn't report its health.")
-                variant: "caption"
-                emphasis: "dim"
-                wrapMode: Text.WordWrap
-            }
-
-            FactRow {
-                key:   "Capacity"
-                value: root.dev ? root.dev.energyCapacity.toFixed(1) + " Wh" : "—"
-            }
-            FactRow {
-                key:   "Draw"
-                value: root.dev ? Math.abs(root.dev.changeRate).toFixed(1) + " W" : "—"
             }
         }
 
         // ══ Power mode ════════════════════════════════════════════════════════
-        // A segmented control, not pills: three mutually exclusive modes, and the
-        // selection slides between them so the change is a move rather than a blink.
+        // Mutually exclusive modes as a connected choice: the selection moves between them.
+        // The system's profile and the shell's own costs (battery saver) are separate things, so
+        // they are separate groups, side by side.
         Section {
-            span:     2
-            glyph:    "󰓅"
+            grouped:  true
+            symbol:   "speed"
             title:    Translation.tr("Power mode")
-            accent:   Colors.of(QsWindow.window).primary
-            help:     Translation.tr("Trades battery life against how hard the machine will work.")
 
-            TabStrip {
-                Layout.fillWidth: true
-                accent:  Colors.of(QsWindow.window).primary
-                model:   root.profileSegments
-                enabled: PowerSaver.profilesOk
-                current: PowerSaver.profilesOk ? PowerProfiles.profile : -1
-                // A plain assignment: `profile` is a writable D-Bus property and the
-                // daemon's reply drives the selection back through the binding.
-                onPicked: function (v) { if (PowerSaver.profilesOk) PowerProfiles.profile = v }
-            }
-            StyledText {
-                Layout.fillWidth: true
-                visible: !PowerSaver.profilesOk
-                text: Translation.tr("Needs power-profiles-daemon (or tuned-ppd), which isn't running on this machine.")
-                variant: "caption"
-                emphasis: "dim"
-                wrapMode: Text.Wrap
+            SettingRow {
+                label:  Translation.tr("Profile")
+                detail: PowerSaver.profilesOk ? Translation.tr("How hard the machine may work")
+                    : Translation.tr("Needs power-profiles-daemon (or tuned-ppd), which isn't running on this machine")
+                help:   Translation.tr("Trades battery life against how hard the machine will work.")
+                wrapDetail: true
+
+                TabStrip {
+                    // A SettingRow's control slot is a plain Item: size by implicitWidth.
+                    implicitWidth: root.modeWidth
+                    connected: true
+                    accent:  Colors.of(QsWindow.window).primary
+                    model:   root.profileSegments
+                    enabled: PowerSaver.profilesOk
+                    current: PowerSaver.profilesOk ? PowerProfiles.profile : -1
+                    // A plain assignment: `profile` is a writable D-Bus property and the
+                    // daemon's reply drives the selection back through the binding.
+                    onPicked: function (v) { if (PowerSaver.profilesOk) PowerProfiles.profile = v }
+                }
             }
         }
 
-        // ══ Battery saver (services/PowerSaver) ═══════════════════════════════
-        // The shell's own costs, separate from the system's power profile above.
+        // ══ Battery saver ═════════════════════════════════════════════════════
         Section {
-            span:     2
-            glyph:    "󰂃"
+            grouped:  true
+            symbol:   "battery_charging_full"
             title:    Translation.tr("Battery saver")
-            accent:   Colors.of(QsWindow.window).primary
-            subtitle: PowerSaver.active ? "On — ambient effects are resting" : "Off"
-            help:     Translation.tr("Rests the cava background, wallpaper effects, floating cookies and the beat clock, and caps Wallpaper Engine at 30 fps. Animations stay.")
+            subtitle: PowerSaver.active ? Translation.tr("On now") : ""
 
-            TabStrip {
-                Layout.fillWidth: true
-                accent:  Colors.of(QsWindow.window).primary
-                model: [
-                    { value: "auto", label: "On battery", icon: "battery_charging_full" },
-                    { value: "on",   label: "Always",     icon: "bolt" },
-                    { value: "off",  label: "Never",      icon: "block" }
-                ]
-                current: Config.powerSaver
-                onPicked: function (v) { Config.powerSaver = v }
+            SettingRow {
+                label:  Translation.tr("Rest the shell")
+                detail: PowerSaver.active ? Translation.tr("Ambient effects are resting") : Translation.tr("Everything runs")
+                help:   Translation.tr("Rests the cava background, wallpaper effects, floating cookies and the beat clock, and caps Wallpaper Engine at 30 fps. Animations stay.")
+
+                TabStrip {
+                    implicitWidth: root.modeWidth
+                    connected: true
+                    accent:  Colors.of(QsWindow.window).primary
+                    model: [
+                        { value: "auto", label: Translation.tr("On battery"), icon: "battery_charging_full" },
+                        { value: "on",   label: Translation.tr("Always"),     icon: "bolt" },
+                        { value: "off",  label: Translation.tr("Never"),      icon: "block" }
+                    ]
+                    current: Config.powerSaver
+                    onPicked: function (v) { Config.powerSaver = v }
+                }
             }
         }
     }
@@ -281,6 +319,8 @@ Item {
         id: factRow
         property string key:   ""
         property string value: ""
+        property color  ink:    Colors.of(QsWindow.window).fg
+        property color  inkDim: Colors.of(QsWindow.window).fgDim
 
         Layout.fillWidth: true
         Layout.fillHeight: false
@@ -290,11 +330,12 @@ Item {
             Layout.fillWidth: true
             text:     factRow.key
             variant:  "caption"
-            emphasis: "dim"
+            color:    factRow.inkDim
         }
         StyledText {
             text:    factRow.value
             variant: "caption"
+            color:   factRow.ink
         }
     }
 }

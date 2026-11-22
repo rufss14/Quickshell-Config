@@ -284,6 +284,7 @@ Item {
     readonly property real cardY: card.y
     readonly property real cardW: card.width
     readonly property real cardH: card.height
+    readonly property real cardRadius: card.radius
     // How far the card has faded in, for the cookie field (Drift.setPanels): its pull on the field
     // around it comes and goes with the card's own cookies.
     readonly property real cardOpacity: card.opacity
@@ -303,6 +304,11 @@ Item {
 
         Card {
             id: card
+
+            // The shape change from the bar to an open island: as round as it is tall while it
+            // emerges (a pill's ends), the island's large corner once it is out. Derived from the
+            // height it already animates, so it needs no clock of its own and rests when that does.
+            radius: Math.min(Tokens.radiusXl, card.height / 2)
 
             anchors.left:             dock.edge === "left"   ? parent.left   : undefined
             anchors.right:            dock.edge === "right"  ? parent.right  : undefined

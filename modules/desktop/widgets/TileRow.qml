@@ -27,7 +27,7 @@ Rectangle {
     Layout.fillWidth: true
     implicitHeight: Math.max(Tokens.iconLg + Tokens.spacingSm * 2, inner.implicitHeight + Tokens.spacingSm * 2)
     radius: Tokens.corner(Config.barShape, Tokens.radiusSm)
-    color: row.flash.a > 0 ? row.flash : Colors.of(QsWindow.window).surfaceHigh
+    color: row.flash.a > 0 ? row.flash : Colors.of(QsWindow.window).plate
     Behavior on color { ColorAnimation { duration: Motion.respond } }
 
     StateLayer {

@@ -49,6 +49,9 @@ Item {
     id: root
 
     property bool compact: false
+    // The island page's body (IslandNotifications): compact, but with no header of its own (the page's
+    // hero says what is waiting), one bar for search and the layout, and the list as lifted cards.
+    property bool island: false
     // The room the host has, header and list together (the panel's slot); the list scrolls past
     // it. Ignored when `fill`.
     property real maxHeight: Infinity
@@ -151,11 +154,12 @@ Item {
 
     // ── The list's ceiling ────────────────────────────────────────────────────
     // What's left under everything else that is showing, never more than ten card units.
-    readonly property int _rows: 1 + (dndRow.visible ? 1 : 0) + (tools.visible ? 1 : 0)
+    readonly property int _rows: 1 + (dndRow.visible ? 1 : 0) + (tools.visible ? 1 : 0) + (islandBar.visible ? 1 : 0)
         + (searchRow.visible ? 1 : 0) + (moreRow.visible ? 1 : 0)
         + (strip.visible ? 1 : 0) + (undo.shown ? 1 : 0) + (selBar.visible ? 1 : 0)
     readonly property real _chrome: (root.compact ? slim.implicitHeight : head.implicitHeight)
         + (dndRow.visible ? dndRow.implicitHeight : 0) + (tools.visible ? tools.implicitHeight : 0)
+        + (islandBar.visible ? islandBar.implicitHeight : 0)
         + (searchRow.visible ? searchRow.implicitHeight : 0) + (moreRow.visible ? moreRow.implicitHeight : 0)
         + (strip.visible ? strip.implicitHeight : 0) + (undo.shown ? undo.implicitHeight : 0)
         + (selBar.visible ? selBar.implicitHeight : 0) + col.spacing * root._rows
@@ -188,7 +192,7 @@ Item {
             id: slim
             Layout.fillWidth: true
             Layout.fillHeight: false
-            visible: root.compact
+            visible: root.compact && !root.island
             spacing: Tokens.spacingMd
 
             ScallopChip {
@@ -261,7 +265,7 @@ Item {
             id: tools
             Layout.fillWidth: true
             Layout.fillHeight: false
-            visible: Notifications.count > 0 || Notifications.dnd
+            visible: !root.island && (Notifications.count > 0 || Notifications.dnd)
             spacing: Tokens.spacingMd
 
             ChipTray {
@@ -301,12 +305,54 @@ Item {
             }
         }
 
+        // ── The island's bar: search, and how to look at them ─────────────────
+        // The search field is always there (it is what you reach for in a long history); the two chips are
+        // the layout and select, which the toolbar keeps behind its ⋯.
+        RowLayout {
+            id: islandBar
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            visible: root.island && Notifications.count > 0
+            spacing: Tokens.spacingSm
+
+            // The island pages' search: a raised pill that types its hints, counts what it found out of
+            // everything, and clears itself.
+            SearchPill {
+                id: islandSearch
+                Layout.fillWidth: true
+                color: Colors.of(QsWindow.window).surfaceHigh
+                accent: root.accent
+                lead: Translation.tr("Search")
+                hints: [{ key: Translation.tr("notifications"), text: "" }, { key: Translation.tr("an app"), text: "" },
+                        { key: Translation.tr("a message"), text: "" }]
+                found: islandSearch.text === "" ? -1 : root.shown.length
+                total: Notifications.count
+                onEdited: (value) => root.query = value
+            }
+            ChipButton {
+                symbol: "today"
+                label:  Translation.tr("By time")
+                tonal:  true
+                on:     root.view === "day"
+                tint:   root.accent
+                onActivated: root.view = root.view === "day" ? "app" : "day"
+            }
+            ChipButton {
+                symbol: "checklist"
+                label:  Translation.tr("Select")
+                tonal:  true
+                on:     root.selecting
+                tint:   root.accent
+                onActivated: { if (root.selecting) root.endSelect(); else root.selecting = true }
+            }
+        }
+
         // ── Search: opened from the toolbar ───────────────────────────────────
         RowLayout {
             id: searchRow
             Layout.fillWidth: true
             Layout.fillHeight: false
-            visible: Notifications.count > 0 && (root.searchOpen || root.query !== "")
+            visible: !root.island && Notifications.count > 0 && (root.searchOpen || root.query !== "")
             opacity: 0
             ViewEnter { target: searchRow; active: searchRow.visible; rise: Tokens.spacingSm }
             InputField {
@@ -329,7 +375,7 @@ Item {
             id: moreRow
             Layout.fillWidth: true
             Layout.fillHeight: false
-            visible: Notifications.count > 0 && root.moreMenu
+            visible: !root.island && Notifications.count > 0 && root.moreMenu
             opacity: 0
             spacing: Tokens.spacingMd
             ViewEnter { target: moreRow; active: moreRow.visible; rise: Tokens.spacingSm }
@@ -364,9 +410,12 @@ Item {
             id: strip
             Layout.fillWidth: true
             Layout.fillHeight: false
+            // The island's list is already sectioned by app, and its search finds an app by name.
+            visible: !root.island && root.apps.length > 1
             apps: root.apps
             current: root.app
             accent: root.accent
+            plated: root.island
             onPicked: (app) => root.app = app
         }
 
@@ -440,6 +489,7 @@ Item {
             muteable: root.view === "app"
             collapseAt: root.view === "day" ? 5 : 2
             accent: root.accent
+            plated: root.island
             newSince: root.since
             selecting: root.selecting
             selected: root.selected

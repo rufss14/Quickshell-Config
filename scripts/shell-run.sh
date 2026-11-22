@@ -29,11 +29,14 @@ QS_BIN="${QS_BIN:-qs}"
 CRASH_WINDOW="${QS_CRASH_WINDOW:-120}"
 CRASHES_TO_SAFE=2
 CRASH_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/quickshell/crashes"
+# An absolute path in the test: a bare name would fall back to the real notify-send once the
+# test's stub directory is gone, and the delayed notification below outlives it.
+NOTIFY="${QS_NOTIFY:-notify-send}"
 
 # Notifications go out once the shell is back (it IS the notification server), so a
 # notify-send fired before it is up would wait on nobody. Backgrounded and bounded.
 notify_later() {   # notify_later URGENCY TITLE BODY
-    ( sleep 6; timeout 10 notify-send --app-name=Quickshell --urgency="$1" "$2" "$3" ) >/dev/null 2>&1 &
+    ( sleep 6; timeout 10 "$NOTIFY" --app-name=Quickshell --urgency="$1" "$2" "$3" ) >/dev/null 2>&1 &
 }
 
 is_crash() {
@@ -61,7 +64,7 @@ while :; do
             # Nothing is running to show a notification now; the next login or a manual
             # start does. It is in the log either way.
             echo "shell-run: still crashing in safe mode; not restarting. Crash reports: $CRASH_DIR" >&2
-            timeout 5 notify-send --app-name=Quickshell --urgency=critical "The shell keeps crashing" \
+            timeout 5 "$NOTIFY" --app-name=Quickshell --urgency=critical "The shell keeps crashing" \
                 "It crashed in safe mode too, so it was not restarted. Crash reports: $CRASH_DIR" 2>/dev/null
             exit 1
         fi

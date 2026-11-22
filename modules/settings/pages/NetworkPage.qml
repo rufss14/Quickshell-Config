@@ -12,7 +12,7 @@ import "../../net"
 // Whatever the machine is connected through: Ethernet, Wi-Fi, or nothing yet — what the
 // link is doing, the Wi-Fi radio, a speed test, and DNS.
 //
-// ── It follows the link (2026-10-26) ──────────────────────────────────────────
+// ── It follows the link ───────────────────────────────────────────────────────
 // It was "Wi-Fi", with a browser of networks first; on a machine plugged into a wall that
 // meant a card saying "Wi-Fi is turned off" and the real connection in a details list
 // beside it. Now the card at the top is the CONNECTION, whichever medium carries it: the
@@ -43,6 +43,10 @@ Item {
 
     // "5 servers" says nothing you'd act on; 2 IPv4 vs 3 IPv6 does, when something
     // won't resolve. Neither number is sensitive, so it shows while addresses are masked.
+    // What a fact that isn't there reads. Not a dash: it is a word, so a row never looks like
+    // it lost its value (InfoRow.hasValue compares against it).
+    readonly property string noValue: Translation.tr("None")
+
     function dnsSummary(list) {
         let v4 = 0, v6 = 0
         for (const s of list) {
@@ -52,7 +56,7 @@ Item {
         const parts = []
         if (v4 > 0) parts.push(v4 + " IPv4")
         if (v6 > 0) parts.push(v6 + " IPv6")
-        return parts.length > 0 ? parts.join("  ·  ") : "—"
+        return parts.length > 0 ? parts.join("  ·  ") : root.noValue
     }
 
     // Throughput has no 100%, so it auto-scales AND says so: the peak is printed at the
@@ -85,59 +89,78 @@ Item {
     // the route.
     readonly property bool viaWired: Net.wiredConnected
     readonly property bool linked:   Net.wiredConnected || Net.connected
-    readonly property string mediumName: root.viaWired ? "Ethernet"
+    readonly property string mediumName: root.viaWired ? Translation.tr("Ethernet")
                                        : Net.connected ? Net.ssid
-                                       : Net.hasLink   ? "Cable plugged in"
-                                                       : "Not connected"
+                                       : Net.hasLink   ? Translation.tr("Cable plugged in")
+                                                       : Translation.tr("Not connected")
+
+    // The trace's window. A fresh page has seen a few seconds of traffic, not the minute the
+    // history holds, and a minute-wide window draws that as a stub at the right edge. So the
+    // window is as wide as what has been seen (never under a few seconds) until the minute fills.
+    function traceWindow(history) {
+        const n = history ? history.length : 0
+        return Math.max(24, Math.min(NetStats.rateHistoryLength, n - 1))
+    }
 
     SettingsPage {
         anchors.fill: parent
 
-        bento:     true
+        grouped:   true
         glyph:     root.viaWired ? "󰈀" : Net.glyph()      // wired, or the real signal strength like the bar pill
         title:     Translation.tr("Network")
-        titleTail: root.viaWired ? "· Ethernet" : Net.connected ? "· Wi-Fi" : ""
+        titleTail: root.viaWired ? Translation.tr("Ethernet") : Net.connected ? Translation.tr("Wi-Fi") : ""
         accent:    Colors.of(QsWindow.window).primary
         subtitle: !root.linked
-                    ? (Net.hasWifi ? (Net.wifiBlocked ? "Wi-Fi blocked by hardware"
-                                     : !Net.wifiEnabled ? "Wi-Fi is off" : "Not connected")
-                                   : "Not connected")
-                : Net.online ? (root.viaWired ? "Online via Ethernet" : "Online via " + Net.ssid)
-                             : "Connected, but no route to the internet"
+                    ? (Net.hasWifi ? (Net.wifiBlocked ? Translation.tr("Wi-Fi blocked by hardware")
+                                     : !Net.wifiEnabled ? Translation.tr("Wi-Fi is off") : Translation.tr("Not connected"))
+                                   : Translation.tr("Not connected"))
+                : Net.online ? (root.viaWired ? Translation.tr("Online via Ethernet") : Translation.tr("Online via %1").arg(Net.ssid))
+                             : Translation.tr("Connected, but no route to the internet")
 
         // ══ The connection ════════════════════════════════════════════════════
+        // The live subject. It is a loud card; the medium, its state, the rates and the
+        // addresses are all one reading of the same link.
         Section {
-            span:     3
+            id: connCard
+            hero:     true
             glyph:    root.viaWired ? "󰈀" : Net.glyph()
             title:    root.mediumName
-            subtitle: !root.linked ? "Nothing is carrying traffic"
-                    : (Net.online ? "Online" : "No internet")
+            subtitle: !root.linked ? Translation.tr("Nothing is carrying traffic")
+                    : (Net.online ? Translation.tr("Online") : Translation.tr("No internet"))
                       + (root.viaWired && Net.wiredSpeedLabel() !== "" ? "  ·  " + Net.wiredSpeedLabel() : "")
                       + (!root.viaWired && Net.connected && Net.isSecured(Net.active) ? "  ·  " + Net.securityLabel(Net.active) : "")
             accent:   !root.linked ? Colors.of(QsWindow.window).fgDim
                     : Net.online ? Colors.of(QsWindow.window).success : Colors.of(QsWindow.window).warning
-            help:     Translation.tr("The connection you're on. Addresses are hidden until you press their eye — handy when screen-sharing.")
+            help:     Translation.tr("The connection you're on. Addresses are hidden until you press their eye, which is handy when screen-sharing.")
 
             // The live rate, each way: a minute of it, against a stated axis.
-            ColumnLayout {
+            GridLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
-                spacing: Tokens.spacingSm
+                columns: width >= 600 ? 2 : 1
+                columnSpacing: Tokens.spacingXl
+                rowSpacing: Tokens.spacingSm
                 visible: NetStats.iface !== ""
 
                 RateTrace {
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 0
                     glyph:   "󰇚"
-                    label:   NetStats.bytes(NetStats.rxTotal) + " down"
+                    label:   Translation.tr("%1 down").arg(NetStats.bytes(NetStats.rxTotal))
                     history: NetStats.rxHistory
-                    tint:    Colors.of(QsWindow.window).primary
+                    tint:    connCard.ink
+                    ink:     connCard.ink
+                    inkDim:  connCard.inkDim
                 }
                 RateTrace {
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 0
                     glyph:   "󰕒"
-                    label:   NetStats.bytes(NetStats.txTotal) + " up"
+                    label:   Translation.tr("%1 up").arg(NetStats.bytes(NetStats.txTotal))
                     history: NetStats.txHistory
-                    tint:    Colors.of(QsWindow.window).info
+                    tint:    connCard.inkDim
+                    ink:     connCard.ink
+                    inkDim:  connCard.inkDim
                 }
             }
 
@@ -153,23 +176,29 @@ Item {
                 InfoRow {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 0
-                    label:  root.viaWired ? "Wired IP" : "Address"
-                    value:  (root.viaWired ? Net.wiredAddress : Net.address) === "" ? "—"
+                    ink:    connCard.ink
+                    inkDim: connCard.inkDim
+                    label:  root.viaWired ? Translation.tr("Wired IP") : Translation.tr("Address")
+                    value:  (root.viaWired ? Net.wiredAddress : Net.address) === "" ? root.noValue
                             : (root.viaWired ? Net.wiredAddress : Net.address)
                     secret: true
                 }
                 InfoRow {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 0
+                    ink:    connCard.ink
+                    inkDim: connCard.inkDim
                     label:  Translation.tr("Gateway")
-                    value:  NetStats.gateway === "" ? "—" : NetStats.gateway
+                    value:  NetStats.gateway === "" ? root.noValue : NetStats.gateway
                     secret: true
                 }
                 InfoRow {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 0
+                    ink:    connCard.ink
+                    inkDim: connCard.inkDim
                     label: Translation.tr("Interface")
-                    value: NetStats.iface === "" ? "—"
+                    value: NetStats.iface === "" ? root.noValue
                          : NetStats.mtu > 0      ? NetStats.iface + "  ·  MTU " + NetStats.mtu
                                                  : NetStats.iface
                 }
@@ -177,17 +206,21 @@ Item {
                 InfoRow {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 0
+                    ink:    connCard.ink
+                    inkDim: connCard.inkDim
                     label:  "MAC"
-                    value:  NetStats.mac === "" ? "—" : NetStats.mac
+                    value:  NetStats.mac === "" ? root.noValue : NetStats.mac
                     secret: true
                 }
                 // The Wi-Fi address as well, when Ethernet is the one carrying the machine.
                 InfoRow {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 0
+                    ink:    connCard.ink
+                    inkDim: connCard.inkDim
                     visible: root.viaWired && Net.connected
                     label:  Translation.tr("Wi-Fi IP")
-                    value:  Net.address === "" ? "—" : Net.address
+                    value:  Net.address === "" ? root.noValue : Net.address
                     secret: true
                 }
             }
@@ -196,7 +229,7 @@ Item {
         // rfkill is invisible in the panel: the toggle just refuses to move. Knowing
         // it's a function key is the difference between five seconds and a driver hunt.
         Section {
-            span:     3
+            fullRow: true
             visible: Net.hasWifi && Net.wifiBlocked
             glyph:    "󰤮"
             title:    Translation.tr("Radio blocked")
@@ -209,15 +242,14 @@ Item {
         // ══ Wi-Fi ═════════════════════════════════════════════════════════════
         // Only where there is a radio. Off, it is a line and a switch, not an empty list.
         Section {
-            span:     1
+            grouped:  true
             visible:  Net.hasWifi
-            glyph:    Net.wifiEnabled ? "󰤨" : "󰤮"
+            symbol:   Net.wifiEnabled ? "wifi" : "wifi_off"
             title:    Translation.tr("Wi-Fi")
             subtitle: !Net.wifiEnabled ? "Off"
                     : Net.scanning ? "Scanning…"
                     : Net.networks.length + (Net.networks.length === 1 ? " network in range" : " networks in range")
             help:     Translation.tr("Join, forget, or connect to a hidden network.")
-            accent:   Colors.of(QsWindow.window).primary
 
             actions: [
                 BusyDot { running: Net.wifiEnabled && Net.scanning; tint: Colors.of(QsWindow.window).primary },
@@ -254,8 +286,8 @@ Item {
                 StyledText {
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
-                    text: root.viaWired ? "You're on Ethernet — nothing needs Wi-Fi"
-                                        : "Turn it on to see networks"
+                    text: root.viaWired ? Translation.tr("You're on Ethernet, so nothing needs Wi-Fi")
+                                        : Translation.tr("Turn it on to see networks")
                     variant: "caption"
                     emphasis: "dim"
                     wrapMode: Text.WordWrap
@@ -265,19 +297,18 @@ Item {
 
         // ══ Speed test ════════════════════════════════════════════════════════
         Section {
-            span:     1
-            glyph:    "󰓅"
+            grouped:  true
+            symbol:   "speed"
             title:    Translation.tr("Speed test")
-            subtitle: SpeedTest.running ? "Measuring…" : SpeedTest.downBps > 0 ? "Last run" : "Not run yet"
+            subtitle: SpeedTest.running ? Translation.tr("Measuring…") : SpeedTest.downBps > 0 ? Translation.tr("Last run") : Translation.tr("Not run yet")
             help:     Translation.tr("What the link can carry, measured only when you press Run. It contacts a third party and moves real data, so both are named under the trace.")
-            accent:   Colors.of(QsWindow.window).primary
 
             actions: [
                 BusyDot { running: SpeedTest.running; tint: Colors.of(QsWindow.window).primary },
                 ChipTray {
                     ChipButton {
                         symbol: SpeedTest.running ? "close" : "play_arrow"
-                        label:  SpeedTest.running ? "Cancel" : "Run test"
+                        label:  SpeedTest.running ? Translation.tr("Cancel") : Translation.tr("Run test")
                         on:     !SpeedTest.running
                         tint:   Colors.of(QsWindow.window).primary
                         onActivated: SpeedTest.running ? SpeedTest.cancel() : SpeedTest.start()
@@ -302,61 +333,58 @@ Item {
                 busy:  SpeedTest.phase === "up"
             }
 
+            // Latency is a fact of its own: a row says "not measured yet" outright, where a
+            // placeholder inside the trace's empty box read as a stray label.
+            SettingRow {
+                label:  Translation.tr("Latency")
+                detail: SpeedTest.latencyMs >= 0 ? "" : Translation.tr("Not measured yet")
+                StyledText {
+                    visible: SpeedTest.latencyMs >= 0
+                    text: SpeedTest.ms(SpeedTest.latencyMs)
+                    variant: "body"
+                    font.weight: Font.DemiBold
+                    font.features: ({ tnum: 1 })
+                }
+            }
+
             // The live trace keeps its last shape afterwards, so a finished test still
-            // shows whether the link was steady. Reserved height, so nothing jumps.
+            // shows whether the link was steady. It exists only once there is a shape to show.
             RowLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
+                visible: SpeedTest.liveTrace.length > 1
                 spacing: Tokens.spacingSm
 
                 ColumnLayout {
                     Layout.preferredHeight: root.traceH
                     spacing: 0
-                    opacity: SpeedTest.liveTrace.length > 1 ? 1.0 : 0.0
-                    Behavior on opacity { NumberAnimation { duration: Motion.fast } }
 
                     StyledText { text: NetStats.rate(root.traceCeiling); variant: "micro"; emphasis: "dim" }
                     Item { Layout.fillHeight: true }
                     StyledText { text: "0"; variant: "micro"; emphasis: "dim" }
                 }
 
-                Item {
+                Sparkline {
                     Layout.fillWidth: true
                     Layout.preferredHeight: root.traceH
-
-                    Sparkline {
-                        anchors.fill: parent
-                        capacity: SpeedTest.traceCapacity
-                        accent: SpeedTest.phase === "up" ? Colors.of(QsWindow.window).info : Colors.of(QsWindow.window).primary
-                        values: SpeedTest.liveTrace.map(v => v / root.traceCeiling)
-                        sampleInterval: NetStats.rateInterval
-                        gridlines: 1
-                        // Lightly damped: the wobble IS the reading here.
-                        damping: 2
-                        opacity: SpeedTest.liveTrace.length > 1 ? 1.0 : 0.0
-                        Behavior on opacity { NumberAnimation { duration: Motion.fast } }
-                    }
-
-                    StyledText {
-                        anchors.centerIn: parent
-                        text: "Latency " + SpeedTest.ms(SpeedTest.latencyMs)
-                        variant: "micro"
-                        emphasis: "dim"
-                        opacity: SpeedTest.liveTrace.length > 1 ? 0.0 : 1.0
-                        Behavior on opacity { NumberAnimation { duration: Motion.fast } }
-                    }
+                    capacity: SpeedTest.traceCapacity
+                    accent: SpeedTest.phase === "up" ? Colors.of(QsWindow.window).info : Colors.of(QsWindow.window).primary
+                    values: SpeedTest.liveTrace.map(v => v / root.traceCeiling)
+                    sampleInterval: NetStats.rateInterval
+                    gridlines: 1
+                    // Lightly damped: the wobble IS the reading here.
+                    damping: 2
                 }
             }
 
             // The only part of the shell that contacts a third party and moves real
-            // data — so both facts are on the card, before you press.
+            // data, so both facts are on the card, before you press.
             StyledText {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 0
                 text: SpeedTest.phase === "error"
                     ? SpeedTest.error
-                    : "Single stream via " + SpeedTest.endpoint
-                      + "  ·  transfers " + SpeedTest.dataCostLabel
+                    : Translation.tr("Single stream via %1  ·  transfers %2").arg(SpeedTest.endpoint).arg(SpeedTest.dataCostLabel)
                 color: SpeedTest.phase === "error" ? Colors.of(QsWindow.window).warning : Colors.of(QsWindow.window).fgDim
                 variant: "micro"
                 wrapMode: Text.WordWrap
@@ -365,58 +393,42 @@ Item {
 
         // ══ DNS ═══════════════════════════════════════════════════════════════
         Section {
-            span:     3
-            glyph:    "󰇖"
+            grouped:  true
+            symbol:   "dns"
             title:    "DNS"
             // "Automatic" and a preset look identical in resolv.conf, so this is the
             // only thing that says which one you're on.
             subtitle: Dns.activeId === "auto"   ? "From DHCP"
                     : Dns.activeId === "custom" ? "Set by hand"
                                                 : Dns.presetFor(Dns.activeId).name
-            accent:   Colors.of(QsWindow.window).primary
             help:     Translation.tr("Which resolver answers your lookups. Changing it reconnects the link for a moment.")
-            bodySpacing: Tokens.spacingXs
 
-            // Two columns of choices: four one-line options down the full width put
-            // each name at the left edge and its address at the right.
-            GridLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-                columns: width >= 640 ? 2 : 1
-                columnSpacing: Tokens.spacingMd
-                rowSpacing: Tokens.spacingXs
+            // One row per resolver, the one in use marked: a one-of-N list.
+            Repeater {
+                model: Dns.presets
 
-                Repeater {
-                    model: Dns.presets
-
-                    DnsChoice {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        Layout.preferredWidth: 0
-                        preset:   modelData
-                        selected: Dns.activeId === modelData.id
-                        enabled:  !Dns.busy
-                        onPicked: Dns.applyPreset(modelData.id)
-                    }
-                }
-
-                // Only when the profile matches no preset — a row you can't choose, only
-                // arrive at.
                 DnsChoice {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 0
-                    visible:  Dns.activeId === "custom"
-                    preset:   ({ id: "custom", name: "Custom", detail: Dns.configured.join(", ") })
-                    selected: true
-                    enabled:  false
+                    required property var modelData
+                    preset:   modelData
+                    selected: Dns.activeId === modelData.id
+                    enabled:  !Dns.busy
+                    onPicked: Dns.applyPreset(modelData.id)
                 }
+            }
+
+            // Only when the profile matches no preset — a row you can't choose, only
+            // arrive at.
+            DnsChoice {
+                visible:  Dns.activeId === "custom"
+                preset:   ({ id: "custom", name: "Custom", detail: Dns.configured.join(", ") })
+                selected: true
+                enabled:  false
             }
 
             // What's resolving right now. The profile is intent, resolv.conf is fact.
             InfoRow {
-                Layout.topMargin: Tokens.spacingSm
                 label:   Translation.tr("In use")
-                value:   NetStats.dns.length === 0 ? "—" : NetStats.dns.join("\n")
+                value:   NetStats.dns.length === 0 ? root.noValue : NetStats.dns.join("\n")
                 summary: root.dnsSummary(NetStats.dns)
                 secret:  true
                 wrap:    true
@@ -435,10 +447,10 @@ Item {
                     Layout.preferredWidth: 0
                     // The auth case names the fix: "not authorised" with no polkit
                     // agent is indistinguishable from a broken button.
-                    text: Dns.busy          ? "Reconnecting…"
-                        : Dns.authError     ? "Needs a polkit agent — install and start hyprpolkitagent."
+                    text: Dns.busy          ? Translation.tr("Reconnecting…")
+                        : Dns.authError     ? Translation.tr("Needs a polkit agent. Install and start hyprpolkitagent.")
                         : Dns.error !== ""  ? Dns.error
-                        : "Changing DNS reconnects the link for a moment."
+                        : Translation.tr("Changing DNS reconnects the link for a moment")
                     color: Dns.error !== "" ? Colors.of(QsWindow.window).warning : Colors.of(QsWindow.window).fgDim
                     variant: "caption"
                     wrapMode: Text.WordWrap
@@ -457,6 +469,9 @@ Item {
         property string label: ""
         property var    history: []
         property color  tint: Colors.of(QsWindow.window).primary
+        // Text colours: on the hero card they are its on-container ink.
+        property color  ink:    Colors.of(QsWindow.window).fg
+        property color  inkDim: Colors.of(QsWindow.window).fgDim
 
         readonly property real peak: root.peakOf(trace.history)
 
@@ -482,26 +497,27 @@ Item {
                 text: NetStats.rateIn(trace.shownRate, trace.peak)
                 variant: "body"
                 font.weight: Font.DemiBold
+                color: trace.ink
             }
             StyledText {
                 text: trace.label
                 variant: "micro"
-                emphasis: "dim"
+                color: trace.inkDim
             }
         }
 
         ColumnLayout {
             Layout.preferredHeight: root.traceH
             spacing: 0
-            StyledText { text: NetStats.rateIn(trace.peak, trace.peak); variant: "micro"; emphasis: "dim" }
+            StyledText { text: NetStats.rateIn(trace.peak, trace.peak); variant: "micro"; color: trace.inkDim }
             Item { Layout.fillHeight: true }
-            StyledText { text: "0"; variant: "micro"; emphasis: "dim" }
+            StyledText { text: "0"; variant: "micro"; color: trace.inkDim }
         }
 
         Sparkline {
             Layout.fillWidth: true
             Layout.preferredHeight: root.traceH
-            capacity: NetStats.rateHistoryLength
+            capacity: root.traceWindow(trace.history)
             accent:   trace.tint
             values:   trace.history.map(v => v / trace.peak)
             sampleInterval: NetStats.rateInterval
@@ -530,6 +546,8 @@ Item {
                                        ? root.meanTail(SpeedTest.liveTrace, 2)
                                        : speedRow.bps
 
+        Layout.fillWidth: true
+        Layout.fillHeight: false
         spacing: Tokens.spacingMd
 
         MaterialIcon {
@@ -564,71 +582,30 @@ Item {
         StyledText {
             Layout.preferredWidth: 76
             horizontalAlignment: Text.AlignRight
-            text: SpeedTest.mbps(speedRow.shownBps)
+            text: speedRow.shownBps < 0 ? Translation.tr("Not run") : SpeedTest.mbps(speedRow.shownBps)
             variant: "body"
             font.weight: speedRow.bps >= 0 ? Font.DemiBold : Font.Normal
             emphasis: speedRow.shownBps >= 0 ? "normal" : "dim"
         }
     }
     // ── DnsChoice ─────────────────────────────────────────────────────────────
-    // One resolver option: radio dot, name, what it is. Radios rather than a dropdown:
-    // four options that are the whole point of the card.
-    component DnsChoice: Item {
+    // One resolver option, as a row you tap anywhere on: radio mark, name, what it is.
+    // Radios rather than a dropdown: four options that are the whole point of the group.
+    component DnsChoice: SettingRow {
         id: choice
 
         property var  preset:   null
         property bool selected: false
         signal picked()
 
-        implicitHeight: Math.max(choiceRow.implicitHeight + Tokens.spacingXs * 2, Tokens.pillHeight)
+        rowTap: true
+        label:  choice.preset ? choice.preset.name : ""
+        detail: choice.preset ? choice.preset.detail : ""
         opacity: choice.enabled ? 1.0 : 0.55
-
-        Rectangle {
-            anchors.fill: parent
-            radius: Tokens.radiusSm
-            color: choice.selected ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.12)
-                 : choiceHover.hovered && choice.enabled ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)
-                                                         : "transparent"
-            border.width: choice.selected ? Tokens.borderWidth : 0
-            border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.35)
-            Behavior on color { ColorAnimation { duration: Motion.fast } }
-        }
-
-        RowLayout {
-            id: choiceRow
-            anchors.left:  parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin:  Tokens.spacingMd
-            anchors.rightMargin: Tokens.spacingMd
-            spacing: Tokens.spacingMd
-
-            MaterialIcon {
-                name:  choice.selected ? "check_circle" : "radio_button_unchecked"
-                fill:  choice.selected ? 1 : 0
-                color: choice.selected ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).fgDim
-                font.pixelSize: Tokens.iconMd
-            }
-            StyledText {
-                text: choice.preset ? choice.preset.name : ""
-                variant: "body"
-                font.weight: choice.selected ? Font.DemiBold : Font.Normal
-            }
-            StyledText {
-                Layout.fillWidth: true
-                horizontalAlignment: Text.AlignRight
-                text: choice.preset ? choice.preset.detail : ""
-                variant: "micro"
-                emphasis: "dim"
-                elide: Text.ElideRight
-            }
-        }
-
-        HoverHandler { id: choiceHover; enabled: choice.enabled }
-        TapHandler {
-            enabled: choice.enabled && !choice.selected
-            onTapped: choice.picked()
-        }
+        symbol:      choice.selected ? "check_circle" : "radio_button_unchecked"
+        symbolFill:  choice.selected ? 1 : 0
+        symbolColor: choice.selected ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).fgDim
+        onTapped: if (!choice.selected) choice.picked()
     }
 
     // ── InfoRow ───────────────────────────────────────────────────────────────
@@ -640,8 +617,11 @@ Item {
         id: infoRow
         property string label: ""
         property string value: ""
-        property color  tint:  Colors.of(QsWindow.window).fg
+        property color  tint:  infoRow.ink
         property bool   wrap:  false
+        // Text colours: on the hero card they are its on-container ink.
+        property color  ink:    Colors.of(QsWindow.window).fg
+        property color  inkDim: Colors.of(QsWindow.window).fgDim
 
         // A status lamp beside the value.
         property bool   dot:   false
@@ -653,7 +633,7 @@ Item {
         // knowing (see dnsSummary).
         property string summary:  ""
 
-        readonly property bool hasValue: infoRow.value !== "" && infoRow.value !== "—"
+        readonly property bool hasValue: infoRow.value !== "" && infoRow.value !== root.noValue
         readonly property bool masked:   infoRow.secret && !infoRow.revealed && infoRow.hasValue
 
         Layout.fillWidth: true
@@ -665,7 +645,7 @@ Item {
             Layout.alignment: infoRow.wrap ? Qt.AlignTop : Qt.AlignVCenter
             text:     infoRow.label
             variant:  "body"
-            emphasis: "muted"
+            color:    infoRow.inkDim
         }
         Rectangle {
             visible: infoRow.dot
@@ -682,7 +662,7 @@ Item {
             Layout.alignment: infoRow.wrap ? Qt.AlignTop : Qt.AlignVCenter
             text:     infoRow.masked ? (infoRow.summary !== "" ? infoRow.summary : "••••••••••")
                                      : infoRow.value
-            color:    infoRow.masked ? Colors.of(QsWindow.window).fgDim : infoRow.tint
+            color:    infoRow.masked ? infoRow.inkDim : infoRow.tint
             variant:  "body"
             // Masked is always one line — row height mustn't leak how many nameservers.
             wrapMode: infoRow.wrap && !infoRow.masked ? Text.WordWrap : Text.NoWrap
@@ -704,7 +684,8 @@ Item {
                 variant:   "ghost"
                 visible:   infoRow.secret && infoRow.hasValue
                 glyph:     infoRow.revealed ? "󰈈" : "󰈉"      // eye / eye-off
-                glyphTint: infoRow.revealed ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).fgDim
+                accent:    infoRow.ink
+                glyphTint: infoRow.revealed ? infoRow.ink : infoRow.inkDim
                 onActivated: infoRow.revealed = !infoRow.revealed
             }
         }

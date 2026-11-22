@@ -17,82 +17,53 @@ import "../hud"
 // inspector working inside them.
 //
 //     ╭──────────────────────────────────────────────────────────────────────────╮
-//     │  ✿        ╭─ Clips ────────╮  (✿) Your workspaces  (󰌾󰍃󰜉󰐥)  ╭─ Voice ───────╮   │
-//     │     ✿     │ ▮▮▮▯ ─ now    │      9 windows on 4 workspaces   │ ◉ ◉ ◉   Mic  │   │
-//     │           ╰────────────────╯  [ 󰍉 Search 9 windows       ]  ╰───────────────╯   │
-//     │           ╭─────────────────────────────────────────────────────────────╮  ✿  │
-//     │    ✿      │   ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐     the workspaces, in       │     │
-//     │           │   └───┘ └───┘ └───┘ └───┘ └───┘     one card, dead centre    │     │
-//     │           ╰─────────────────────────────────────────────────────────────╯     │
-//     │           ╭─ Performance ──╮ ╭ 󰕾 ━━●── │ 󰃠 ━━━●─ ╮ ╭─ Input ───────╮  ✿     │
-//     │      ✿    ╰────────────────╯ ╰── the island ─────╯ ╰───────────────╯         │
+//     │             [ 🔍 Search 9 windows ]        (timer undo ☰ More) (🔒⏻↻⏼)   │
+//     │  ╭─ the workspaces ─────────────────────────────╮ ╭─ drawer (More) ────╮ │
+//     │  │  ┌───┐ ┌───┐ ┌───┐     the grid, with the     │ │ What's new · Ask · │ │
+//     │  │  └───┘ └───┘ └───┘     cookie field behind    │ │ News · Notifs      │ │
+//     │  │ ⇧ All spaces  ⌃ Select  ?          key hints │ │                    │ │
+//     │  ╰──────────────────────────────────────────────╯ ╰────────────────────╯ │
+//     │  ╭ Replay clips ╮ ╭ Voice chat ╮ ╭ Performance ╮ ╭ Key display ╮  (More)  │
+//     │           ╭ now playing · volume · brightness · switches ╮  (or the pick)  │
 //     ╰──────────────────────────────────────────────────────────────────────────╯
-//                    (✿ = the cookie field, drifting across all of it)
 //
-// ── The HUD in the corners (2026-10-20) ───────────────────────────────────────
-// The HUD's cards (modules/hud — each usable here and pinnable on screen) frame the
-// workspaces, so the grid stays in the middle of the screen (the user's call; a rail beside
-// the grid pushed it off centre): Clips and Voice in the top corners with the header
-// between them, Performance and Input in the bottom ones with the island between them. Every card
-// is ONE fixed height (HudCard.bodyHeight), so the grid's room never depends on the cards'
-// widths, which follow the grid. Below, the cards give way to the island as it springs wider
-// (a picked window's inspector) — on a 1920 screen they never need to. A card's move chip
-// ARRANGES the HUD (Hud.arranging): this whole stage fades out, the dim lifts, and
+// Folded (the default) it is the top row, the workspaces' card and the island. More
+// (Config.overviewMore, Ctrl+M, `qs ipc call overview more`) springs a drawer in beside the card and a row of two HUD cards (modules/hud: Replay clips and Key display,
+// each usable here and pinnable on screen) in under it; the card's room follows the TARGET so the cells
+// glide once while the cards spring (`stage.more`).
+// Arranging the HUD (Hud.arranging, `qs ipc call hud arrange`) fades the stage out, lifts the dim, and
 // HudArrange draws the widgets at their real places to drag.
 //
-// ── The cookie field, everywhere (2026-10-20) ─────────────────────────────────
+// ── The cookie field, everywhere ──────────────────────────────────────────────
 // One full-screen window onto the shared field (DriftShapes) sits on the dim, behind every
 // card; each card draws its own window onto the SAME field, so a cookie crossing from the
-// open dim into a card is the same cookie on both sides.
+// open dim into a card is the same cookie on both sides. Every DriftShapes here takes the same
+// `shift` (UiState.overviewDrift), the parallax against the pointer.
 //
-// ── The redesign (2026-10-17): the panels' look ───────────────────────────────
-// The wallpaper, colour and now-playing panels' language, at full-screen size (Caelestia's
-// dashboard is the reference for a bento of rounded tiles; every line is this shell's):
-//   · a PanelHeader — the cookie chip, a title with its accent word, a live subtitle — with the
-//     search pill and the power tray as its actions;
-//   · the workspaces in ONE container card with the shared cookie field drifting behind them
-//     (DriftShapes), the cells a little see-through like section cards, so an empty workspace
-//     shows the field going by;
-//   · the bottom island (OverviewIsland) is volume and brightness until a window is picked, and
-//     then springs into that window's INSPECTOR (WindowInspector): a live preview, what it is,
-//     float / pin / fullscreen / centre, send it to a workspace, close it (twice).
-// Motion: the stage arrives out of a slight zoom; the header drops in, the island rises, the
-// grid ripples out from the workspace you are on; a moved window rings the cell it lands in;
-// the focused workspace wears its number on a slowly winding cookie.
-//
-// ── Motion, the second pass (2026-10-20) ──────────────────────────────────────
-// The user: "more cool and smooth animations across the whole overview, at the same quality
-// as the rest of the shell". What moves, in order of appearance:
-//   · the cookie field SWELLS into place with the dim (its shapes grow from 0.85 — the
-//     field's positions stay put, DriftShapes maps through the scale);
-//   · the top strip drops in and the bottom one rises a beat later; each HUD card flies in
-//     from ITS OWN CORNER (diagonally, on top of its PopIn spring), so the four close in on
-//     the grid; the grid's cells ripple out from where you are and their windows follow them,
-//     a beat behind (WorkspaceGrid);
-//   · leaving plays the same moves backwards, fast (`exit`), where it used to cut the strips
-//     out in one frame and fade only the grid;
-//   · under the pointer: the cards lean toward it with a light on the edge facing it
-//     (HudCard), and the whole cookie field glides a little AGAINST it — a parallax, the
-//     field behind, the cards in front (UiState.overviewDrift, read by every DriftShapes here);
-//   · rest on a workspace and its peek card hangs off it (WorkspaceGrid), the grid lifted over
-//     its neighbours while it does.
+// ── What moves ────────────────────────────────────────────────────────────────
+// The stage arrives out of a slight zoom: the top row drops in, the island and the HUD row rise a
+// beat later, the grid's cells ripple out from the workspace you are on and their windows follow.
+// Leaving runs it backwards, fast (`exit`).
 //
 // ── No canvas ─────────────────────────────────────────────────────────────────
-// No frame band, strips or tinted well (the user's call, 2026-10-04): the islands stand on
-// an even dim. Hyprland's blur stays on for this surface but with `ignore_alpha`
-// (hypr/rules.lua), so it frosts only what's behind the cards. Keep `dimAlpha` below that
-// threshold, or the whole screen blurs.
+// No frame band, strips or tinted well: the cards stand on an even dim. Hyprland's blur stays on for this
+// surface; `ignore_alpha` (hypr/rules.lua) would frost only what's behind the cards — keep `dimAlpha`
+// below that threshold if it is set, or the whole screen blurs.
 //
 // ── What's here ───────────────────────────────────────────────────────────────
 //   · Search: type and the grid fades every window that doesn't match, across every
 //     workspace, and picks the best; Enter goes there. Focus stays in the field; the keys it
-//     doesn't need (← →, Tab, digits on an empty field, Ctrl+…) are taken first.
+//     doesn't need (← →, Tab, digits on an empty field, Ctrl+…) are taken first. Operators
+//     (`ws:2`, `app:kitty`, `is:floating`) become chips inside the field; the flag chips hang
+//     under it while you search or rest the pointer on it.
 //   · Workspaces (WorkspaceGrid): drag windows between them, click to go. Alt+Tab
 //     (services/Switcher) lifts, rings and labels its pick here, turning to its page.
 //     Right-click a window to pick it (again to let it go). Don't add a second LIST of the
-//     same windows — one was built and dropped (2026-10-04, "the same feature").
-//   · The pick's inspector, and its keys: Ctrl+F float, Ctrl+P pin, Ctrl+Enter fullscreen,
-//     Ctrl+W close (twice), Ctrl+1…0 send it to that workspace of the page.
+//     same windows — one was built and dropped ("the same feature").
+//   · The footer of that card: Shift / Ctrl as toggles with their "?" card, and the keys that act now.
+//   · The island: now playing, volume and brightness; a pick's inspector (WindowInspector) with its keys
+//     (Ctrl+F float, Ctrl+P pin, Ctrl+Enter fullscreen, Ctrl+W close (twice), Ctrl+1…0 send); a
+//     selection's (BulkInspector); a HUD widget's while one is being placed.
 //   · Power: PowerPanel, two-step as ever.
 //
 // Nothing here exists while it's closed: the window is unmapped, Hypr's refresh is
@@ -194,8 +165,8 @@ PanelWindow {
     // A leave's flight has finished and the overview is closing on its LAST FULL FRAME (stand-ins
     // landed, dim up): nothing in the shell fades it. Hyprland's layer fade-out does — the one
     // thing that can take the compositor's blur away gradually, since blur follows the layer's
-    // alpha. Blanking the overlay first (what this did until 2026-10-24) dropped the blur, and
-    // the dim, in a single frame: the flash on arriving.
+    // alpha. Blanking the overlay first would drop the blur, and the dim, in a single frame: a flash
+    // on arriving.
     property bool landed: false
     // ── Revealed ──────────────────────────────────────────────────────────────
     // The overview's visuals (the dim, the field, the stage, the cards' entrances, the grid's
@@ -209,7 +180,7 @@ PanelWindow {
     property bool sessionsOpen: false
     // The window Space is holding up big ("" = none).
     property string bigAddress: ""
-    // ── Shift and Ctrl: toggles (2026-10-24) ──────────────────────────────────
+    // ── Shift and Ctrl: toggles ──────────────────────────────────
     // TAP either (a press and release with nothing between) or click its chip (OverviewModifiers):
     // Shift opens the grid to all ten and makes a click on a cell SEND your window there; Ctrl makes a
     // click on a window SELECT it and a drag SWAP. Held, they work as they always did, so what the
@@ -220,7 +191,7 @@ PanelWindow {
     property bool ctrlOn: false
     property bool _shiftTap: false
     property bool _ctrlTap: false
-    // Typing in a field that isn't the search (the left face's AI box, OverviewFeed): Shift there
+    // Typing in a field that isn't the search (the drawer's AI box, OverviewFeed): Shift there
     // is a capital letter, not a tap — the letter's own press is taken by that field and never
     // reaches here to cancel it.
     function _typingElsewhere() {
@@ -316,7 +287,7 @@ PanelWindow {
             case "ctrl": root.ctrlOn = true; break
             case "sessions": root.sessionsOpen = true; break
             case "help": mods.helpOpen = true; break
-            case "feed": grid.feedPage(parseInt(arg) || 0); break
+            case "feed": Config.overviewMore = true; Config.overviewFeedPage = parseInt(arg) || 0; break
             case "peek": grid.peekWs = parseInt(arg) || Hypr.focusedWorkspaceId; break
             default: return "unknown state: " + name
             }
@@ -584,8 +555,7 @@ PanelWindow {
         scale:   root.revealed && !Hud.arranging && !root.lending ? 1 : 0.96
         transformOrigin: Item.Center
         // A leave fades it over the first half of the zoom, so the cell that is growing has
-        // the neighbours going with it, not gone before it moves (it used to be 200ms of
-        // emphasizedDecel — nearly out in two frames).
+        // the neighbours going with it, not gone before it moves.
         Behavior on opacity {
             NumberAnimation {
                 duration: root.leaving ? Math.round(Motion.zoomOut / 2) : root.revealed ? Motion.spatial : Motion.exit
@@ -601,10 +571,8 @@ PanelWindow {
             }
         }
 
-        // The top strip drops in and the bottom one rises a beat later, so the edges settle
-        // onto the middle rather than all of it at once; the HUD cards fly in from their own
-        // corners (`fly`). Leaving runs it backwards, fast and accelerating — it used to cut
-        // the strips out in one frame (a 0 duration) and fade only the grid.
+        // The top row (and the drawer) drop in and the HUD row and island rise a beat later, so the edges
+        // settle onto the middle rather than all of it at once. Leaving runs it backwards, fast and accelerating.
         property real arrive: root.revealed ? 0 : 1
         property real arriveLow: root.revealed ? 0 : 1
         Behavior on arrive {
@@ -624,258 +592,222 @@ PanelWindow {
                 }
             }
         }
-        // How far a corner card travels in from its corner.
-        readonly property real fly: Tokens.spacingXxl * 1.5
 
-        // ── One composition, centred ──────────────────────────────────────────
-        // The workspaces in the middle, framed: a HUD card in each corner (Clips and Voice
-        // above, Performance and Input below), the header between the top two and the island between
-        // the bottom two (2026-10-20 — the user: the workspaces "keep being on the center"; the
-        // header joined the top strip when Performance shrank to a corner card, which left the
-        // middle of it free). The island has a fixed slot (the inspector's height), so picking
-        // a window grows the island downward and nothing above it moves.
+        // ── One composition ───────────────────────────────────────────────────
+        // A slim top row (the search, and the tray), the workspaces' card as the hero, and the island
+        // under it. More adds a drawer BESIDE the card and a row of the two HUD cards UNDER it; both
+        // arrive on one spring (`more`), and the grid's room follows the TARGET, so the cells glide once
+        // while the card itself springs. The island has a fixed slot (the inspector's height), so a pick
+        // grows it downward and nothing above it moves.
         readonly property int gap: Tokens.spacingXl
         // The inspector's two rows: the window (96) and its tools (a chip's height).
         readonly property int islandSlot: 96 + Tokens.spacingMd + Tokens.fieldHeight + Tokens.spacingLg * 2
-        // The HUD strips: one card height (HudCard's, a constant), and the corner cards' width.
-        // Below the grid the island needs its slot even if a card is shorter.
-        readonly property real stripH: Math.max(clipsCard.item ? clipsCard.item.implicitHeight : 0,
-                                                header.implicitHeight + search.height + filters.implicitHeight + Tokens.spacingMd * 2)
-        readonly property real bottomH: Math.max(stage.stripH, stage.islandSlot)
-        // The middle card's size: the room, always (the grid fills it, whatever's busy).
-        readonly property real cardW: Math.max(0, middle.roomW) + middle.pad * 2
-        readonly property real cardH: Math.max(0, middle.roomH) + middle.pad * 2
-        readonly property real sideW: Math.min(Tokens.sideCardUnit * 11, Math.floor((stage.cardW - stage.gap * 2) / 3))
-        readonly property real flankW: Math.max(0, Math.min(stage.sideW, Math.floor((stage.cardW - island.boxWidth) / 2) - stage.gap))
-        Item {
-            id: group
-            anchors.centerIn: parent
-            width: stage.cardW
-            height: stage.stripH + stage.gap + stage.cardH + stage.gap + stage.bottomH
+        readonly property real topH: power.implicitHeight
+        readonly property real midTop: stage.topH + stage.gap
+        readonly property real islandTop: stage.height - stage.islandSlot
+        // The drawer's width, and the HUD row's height (the Clips card's, which every card is).
+        readonly property real drawerW: Math.min(Math.round(Tokens.sideCardUnit * 9), Math.floor(stage.width * 0.32))
+        property real hudFull: 0
+        Binding {
+            target: stage
+            property: "hudFull"
+            value: clipsCard.item ? clipsCard.item.implicitHeight : 0
+            when: clipsCard.item !== null
+            restoreMode: Binding.RestoreNone
         }
+        // 0 = folded, 1 = More; a hair of overshoot on the spring is the card settling.
+        SpringValue { id: moreSv; target: Config.overviewMore ? 1 : 0; spec: Motion.springSpatial; epsilon: 0.002 }
+        readonly property real more: Math.max(0, moreSv.value)
+        // What the grid is given (the targets) and what is drawn (the spring).
+        readonly property real midWTarget: stage.width - (Config.overviewMore ? stage.drawerW + stage.gap : 0)
+        readonly property real midHTarget: stage.islandTop - stage.gap - stage.midTop - (Config.overviewMore ? stage.hudFull + stage.gap : 0)
+        readonly property real midW: stage.width - (stage.drawerW + stage.gap) * stage.more
+        readonly property real midH: stage.islandTop - stage.gap - stage.midTop - (stage.hudFull + stage.gap) * stage.more
 
-        // ── The header: what this is, the search, power — top centre ──────────
-        // A panel's header (PanelHeader) over the search field, between the top two cards.
+        // ── The top row: the search, and the tray (timer, undo, sessions, More, power) ─────
         // Wrapped, not faded directly: a Surface's own opacity is its translucency, and an
         // entrance must not overwrite it.
         Item {
             id: topRow
-            anchors.top: group.top
-            anchors.left: group.left
-            anchors.right: group.right
-            anchors.leftMargin: stage.sideW + stage.gap * 2
-            anchors.rightMargin: stage.sideW + stage.gap * 2
-            height: stage.stripH
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: stage.topH
             opacity: 1 - stage.arrive
             transform: Translate { y: -stage.arrive * Tokens.spacingXl }
 
             readonly property bool searching: Switcher.query.trim() !== ""
 
-            ColumnLayout {
-                anchors.left: parent.left
+            RowLayout {
+                id: tray
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Tokens.spacingMd
-
-                PanelHeader {
-                    id: header
-                    Layout.fillHeight: false
-                    // Screen scale: the hero of the strip between the four cards.
-                    chipSize: Tokens.iconXl + Tokens.spacingLg
-                    titleVariant: "headline"
-                    subtitleVariant: "label"
-                    symbol: topRow.searching ? "search" : "grid_view"
-                    // The chip is an M3E shape and morphs when the search starts (cookie → sunny).
-                    morph: topRow.searching ? "sunny" : "cookie9"
-                    title: topRow.searching ? "Matching" : "Your"
-                    titleTail: topRow.searching ? "windows" : "workspaces"
-                    accent: Colors.of(QsWindow.window).primary
-                    // Counts and what is picked; the keys have their own row (OverviewHints).
-                    subtitle: Switcher.active ? "Let go of Alt to switch  ·  Esc to stay"
-                        : topRow.searching
-                            ? (Switcher.list.length === 0 ? "No window matches"
-                               : Switcher.list.length + (Switcher.list.length === 1 ? " window" : " windows"))
-                        : Switcher.marked.length > 0 ? Switcher.marked.length + " selected"
-                        : Switcher.picked ? (Switcher.picked.title || Switcher.picked.appName || "")
-                        : Hypr.windows.length + (Hypr.windows.length === 1 ? " window" : " windows")
-
-                    // A running timer, reminders due, unseen notifications — only when there are.
-                    OverviewChips {
-                        Layout.alignment: Qt.AlignVCenter
-                        live: root.shown
+                // A running timer, reminders due, Undo, Sessions and More.
+                // Built while the overview is up, not before: a tray built hidden never measures its chips
+                // (an invisible item is not laid out), so it would stay a dot after they showed.
+                Loader {
+                    Layout.alignment: Qt.AlignVCenter
+                    active: root.visible
+                    sourceComponent: OverviewChips {
+                        live: true
                         screen: root.screen
                         sessionsOpen: root.sessionsOpen
                         onSessionsAsked: root.sessionsOpen = !root.sessionsOpen
                         onUndoAsked: root.undoMove()
                     }
-                    PowerPanel {
-                        id: power
-                        Layout.alignment: Qt.AlignVCenter
-                    }
+                }
+                PowerPanel {
+                    id: power
+                    Layout.alignment: Qt.AlignVCenter
+                }
+            }
+
+            // Centred over the workspaces' card, as wide as the tray lets it be.
+            InputField {
+                id: search
+                readonly property real cx: stage.midW / 2
+                readonly property real half: Math.min(search.cx, tray.x - stage.gap - search.cx)
+                width: Math.max(Tokens.sideCardUnit * 6, Math.min(Tokens.sideCardUnit * 14, search.half * 2))
+                x: search.cx - search.width / 2
+                anchors.verticalCenter: parent.verticalCenter
+                height: Tokens.fieldHeight
+                cornerRadius: height / 2
+                // A flat pill on the section tone: no outline, no shadow, no tracing frame (it is
+                // focused for the whole life of the overview, so a frame would be always on).
+                castsShadow: false
+                borderWidth: 0
+                trace: false
+                color: Colors.of(QsWindow.window).surfaceHigh
+                trailingSpace: topRow.searching ? found.implicitWidth + Tokens.spacingMd : 0
+                icon: "search"
+                placeholder: root.ops.length > 0 ? ""
+                    : Hypr.windows.length === 1 ? Translation.tr("Search 1 window") : Translation.tr("Search %1 windows").arg(Hypr.windows.length)
+                leadingSpace: opChips.width > 0 ? opChips.width + Tokens.spacingXs : 0
+
+                onEdited: value => root.edited(value)
+                onAccepted: {
+                    if (Switcher.index >= 0) Switcher.activate(Switcher.index)
+                    else if (Switcher.list.length > 0 && Switcher.query.trim() !== "") Switcher.activate(0)
+                }
+                onKeyPressed: event => root.steer(event)
+
+                // How many windows the words match.
+                StyledText {
+                    id: found
+                    anchors.right: parent.right
+                    anchors.rightMargin: Tokens.spacingMd
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: topRow.searching
+                    text: Translation.tr("%1 of %2").arg(Switcher.list.length).arg(Hypr.windows.length)
+                    variant: "caption"
+                    emphasis: "dim"
+                    font.features: { "tnum": 1 }
                 }
 
-                InputField {
-                    id: search
-                    Layout.fillWidth: true
-                    // A plain field's height, not the power tray's: at the tray's height the
-                    // empty pill was the heaviest thing in the strip (2026-10-20).
-                    Layout.preferredHeight: Tokens.fieldHeight
-                    elevation: Tokens.elevationCard
-                    cornerRadius: height / 2
-                    // Always focused here, so a full accent frame would be on for the whole life of the overview and
-                    // compete with the focused cell: a quiet rim instead, no tracing outline.
-                    trace: false
-                    border.color: search.focused ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.45)
-                                                 : Colors.of(QsWindow.window).outlineFor(search.elevation)
-                    icon: "search"
-                    // No count: the subtitle above already gives it.
-                    placeholder: root.ops.length > 0 ? "" : "Search windows   ·   ws:2   app:kitty   is:floating"
-                    leadingSpace: opChips.width > 0 ? opChips.width + Tokens.spacingXs : 0
-
-                    onEdited: value => root.edited(value)
-                    onAccepted: {
-                        if (Switcher.index >= 0) Switcher.activate(Switcher.index)
-                        else if (Switcher.list.length > 0 && Switcher.query.trim() !== "") Switcher.activate(0)
-                    }
-                    onKeyPressed: event => root.steer(event)
-
-                    // The operators, inside the field, before the text; a click on one takes it off.
-                    Row {
-                        id: opChips
-                        anchors.left: parent.left
-                        anchors.leftMargin: Tokens.spacingMd * 2 + Tokens.iconSm
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Tokens.spacingXs
-                        Repeater {
-                            model: root.ops
-                            delegate: Item {
-                                id: opChip
-                                required property string modelData
-                                height: Tokens.iconXl - Tokens.spacingSm
-                                width: opRow.implicitWidth + Tokens.spacingMd
-                                SpringValue { id: opPop; target: 1; spec: Motion.springSpatialFast; epsilon: 0.002; Component.onCompleted: jump(0.6) }
-                                scale: opPop.value
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: height / 2
-                                    color: opHover.hovered ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).primaryContainer
-                                    Behavior on color { ColorAnimation { duration: Motion.respond } }
-                                }
-                                Row {
-                                    id: opRow
-                                    anchors.centerIn: parent
-                                    spacing: Tokens.spacingXs
-                                    StyledText {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: opChip.modelData
-                                        variant: "caption"
-                                        font.weight: Font.DemiBold
-                                        color: opHover.hovered ? Colors.of(QsWindow.window).fgOnPrimary : Colors.of(QsWindow.window).fgOnPrimaryContainer
-                                    }
-                                    MaterialIcon {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        name: "close"
-                                        font.pixelSize: Tokens.iconSm - 2
-                                        color: opHover.hovered ? Colors.of(QsWindow.window).fgOnPrimary : Colors.of(QsWindow.window).fgOnPrimaryContainer
-                                    }
-                                }
-                                HoverHandler { id: opHover; cursorShape: Qt.PointingHandCursor }
-                                TapHandler { onTapped: root.removeOp(opChip.modelData) }
+                // The operators, inside the field, before the text; a click on one takes it off.
+                Row {
+                    id: opChips
+                    anchors.left: parent.left
+                    anchors.leftMargin: Tokens.spacingMd * 2 + Tokens.iconSm
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Tokens.spacingXs
+                    Repeater {
+                        model: root.ops
+                        delegate: Item {
+                            id: opChip
+                            required property string modelData
+                            height: Tokens.iconXl - Tokens.spacingSm
+                            width: opRow.implicitWidth + Tokens.spacingMd
+                            SpringValue { id: opPop; target: 1; spec: Motion.springSpatialFast; epsilon: 0.002; Component.onCompleted: jump(0.6) }
+                            scale: opPop.value
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: height / 2
+                                color: opHover.hovered ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).primaryContainer
+                                Behavior on color { ColorAnimation { duration: Motion.respond } }
                             }
+                            Row {
+                                id: opRow
+                                anchors.centerIn: parent
+                                spacing: Tokens.spacingXs
+                                StyledText {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: opChip.modelData
+                                    variant: "caption"
+                                    font.weight: Font.DemiBold
+                                    color: opHover.hovered ? Colors.of(QsWindow.window).fgOnPrimary : Colors.of(QsWindow.window).fgOnPrimaryContainer
+                                }
+                                MaterialIcon {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    name: "close"
+                                    font.pixelSize: Tokens.iconSm - 2
+                                    color: opHover.hovered ? Colors.of(QsWindow.window).fgOnPrimary : Colors.of(QsWindow.window).fgOnPrimaryContainer
+                                }
+                            }
+                            HoverHandler { id: opHover; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: root.removeOp(opChip.modelData) }
                         }
                     }
                 }
+            }
 
-                // The flag operators as chips (OverviewFilters): `is:floating` typed for you.
-                // …and, on the same line, the keys that do something now (OverviewHints).
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: false
-                    spacing: Tokens.spacingLg
-                    OverviewFilters {
-                        id: filters
-                        Layout.alignment: Qt.AlignVCenter
-                        onToggled: flag => root.toggleOp(flag)
-                    }
-                    OverviewHints {
-                        Layout.fillWidth: true
-                        Layout.alignment: Qt.AlignVCenter
-                        mode: Switcher.marked.length > 0 ? "marks" : topRow.searching ? "search" : Switcher.picked ? "pick" : "idle"
-                    }
-                }
+            // The flag operators (`is:floating` typed for you) hang under the field while you search, or while
+            // the pointer rests on it, over the card's top margin: nothing below moves for them.
+            Item {
+                id: filterZone
+                x: search.x
+                y: search.y
+                width: search.width
+                height: search.height + Tokens.spacingXs + filters.implicitHeight
+                HoverHandler { id: filterHover }
+            }
+            OverviewFilters {
+                id: filters
+                z: 6
+                readonly property bool on: topRow.searching || root.ops.length > 0 || filterHover.hovered
+                anchors.horizontalCenter: search.horizontalCenter
+                y: search.y + search.height + Tokens.spacingXs + (filters.on ? 0 : -Tokens.spacingSm)
+                opacity: filters.on ? 1 : 0
+                visible: opacity > 0.01
+                Behavior on opacity { NumberAnimation { duration: filters.on ? Motion.standard : Motion.fast } }
+                Behavior on y { NumberAnimation { duration: Motion.spatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.emphasizedDecel } }
+                onToggled: flag => root.toggleOp(flag)
             }
         }
 
-        // ── Sessions: the header chip's card, hanging under the header ────────
+        // ── Sessions: the tray chip's card, hanging under the tray ────────────
         OverviewSessions {
             z: 3
             anchors.top: topRow.bottom
             anchors.topMargin: -Tokens.spacingSm
-            anchors.horizontalCenter: topRow.horizontalCenter
+            anchors.right: topRow.right
             width: Math.min(topRow.width, Tokens.sideCardUnit * 9)
             shown: root.sessionsOpen && root.shown && !root.leaving
         }
 
-        // ── The middle: the workspaces, in one card with the cookie field ─────
-        // Alt+Tab and search live IN the grid (Switcher): the pick is lifted, ringed and
-        // labelled where it really is, the rest step back.
+        // ── The room the grid is given ────────────────────────────────────────
         Item {
             id: middle
-            anchors.fill: parent
             readonly property int pad: Tokens.spacingXl
-            // The room the grid may take: the stage, less the two HUD strips.
-            readonly property real roomW: middle.width - middle.pad * 2
-            readonly property real roomH: middle.height - stage.stripH - stage.bottomH
-                                          - stage.gap * 2 - middle.pad * 2
+            // The footer's row (the Shift / Ctrl chips and the key hints) under the cells.
+            readonly property real footerBand: mods.implicitHeight + Tokens.spacingSm
+            readonly property real roomW: stage.midWTarget - middle.pad * 2
+            readonly property real roomH: stage.midHTarget - middle.pad * 2 - middle.footerBand
         }
 
-        // ── The HUD above: Clips and Voice, in the top corners ──────────
-        // Built while the overview is up (and for its fade out), so its cards sample
-        // nothing the rest of the time. Drop in with the header.
-        Loader {
-            id: clipsCard
-            anchors.left: group.left
-            anchors.top: group.top
-            width: stage.sideW
-            active: root.visible && Config.overviewMore
-            // NOT asynchronous, unlike the other three: its height is the strips' (stripH),
-            // and a card arriving a few frames late would move the whole stage when it did.
-            asynchronous: false
-            opacity: 1 - stage.arrive
-            transform: Translate { x: -stage.arrive * stage.fly; y: -stage.arrive * stage.fly * 0.6 }
-            sourceComponent: HudClipsCard { index: 0; running: root.revealed }
-        }
-        Loader {
-            id: voiceCard
-            anchors.right: group.right
-            anchors.top: group.top
-            width: stage.sideW
-            active: root.visible && Config.overviewMore
-            // Built across frames (incubated), not all on the overview's first one.
-            asynchronous: true
-            opacity: 1 - stage.arrive
-            transform: Translate { x: stage.arrive * stage.fly; y: -stage.arrive * stage.fly * 0.6 }
-            sourceComponent: HudVoiceCard { index: 1; running: root.revealed }
-        }
-
-        Item {
-            id: cardSlot
-            anchors.horizontalCenter: group.horizontalCenter
-            anchors.top: group.top
-            anchors.topMargin: stage.stripH + stage.gap
-            width: stage.cardW
-            height: stage.cardH
-        }
-
-        // ── The middle card: the workspaces (and, beside the busy ones when there's room,
-        // the notification centre — WorkspaceGrid `notesOn`) ─────────────────────────────
-        Surface {
+        // ── The workspaces: one card with the cookie field behind it ──────────
+        // Alt+Tab and search live IN the grid (Switcher): the pick is lifted, ringed and
+        // labelled where it really is, the rest step back.
+        GroundCard {
             id: gridCard
-            anchors.fill: cardSlot
-            elevation: Tokens.elevationCard
-            // The hero: a little denser than the HUD cards around it (they sit back, HudCard).
-            itemOpacity: Math.min(1, Tokens.surfaceOpacity * 1.08)
-            cornerRadius: Tokens.radiusXl + Tokens.spacingXs
+            x: 0
+            y: stage.midTop
+            width: stage.midW
+            height: stage.midH
+            // The hero: a little denser than the cards around it (they sit back).
+            fillAlpha: Math.min(1, Tokens.surfaceOpacity * 1.08)
+            radius: Tokens.radiusXl + Tokens.spacingXs
             // Over its neighbours while a workspace's peek card overhangs them.
             z: grid.peeking ? 1 : 0
             // Arrives on a spring out of 0.94, a beat after the stage.
@@ -884,102 +816,105 @@ PanelWindow {
                 NumberAnimation { duration: Motion.spatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spring }
             }
 
-            DriftShapes {
-                anchors.fill: parent
-                visible: root.shown
-                radius: gridCard.radius
-                fade: 0
-                seam: false
-                shift: UiState.overviewDrift
-            }
+            // The grid itself is not here: it is drawn in `gridWin` (below), a layer window of its own,
+            // so a compositor rule can hide it from screen capture while the rest of the overview stays.
+            // This card is its plate; the window puts the grid exactly over it (`gridRect`).
 
-            WorkspaceGrid {
-                id: grid
-                anchors.centerIn: parent
-                ctrlOn: root.ctrlOn
-                monitor: root.hyprMonitor
-                active:  root.revealed
-                pickedAddress: Switcher.selectedAddress
-                pickedWorkspace: Switcher.picked?.workspaceId ?? -1
-                matching: {
-                    if (Switcher.query.trim() === "") return null
-                    const m = {}
-                    for (const w of Switcher.list) m[w.address] = true
-                    return m
-                }
-                maxWidth:  Math.max(0, middle.roomW)
-                // Folded (no side faces), the cells still clear the watermark / Shift-Ctrl row on top.
-                maxHeight: Math.max(0, middle.roomH - (Config.overviewMore ? 0 : grid.sideTop))
-                anchors.verticalCenterOffset: Config.overviewMore ? 0 : grid.sideTop / 2
-                // The watermark (top left) and Shift/Ctrl (top right) share the top row; the faces
-                // start under it and run to the bottom.
-                sideTop: Math.max(watermark.height, mods.height) + Tokens.spacingMd
-                sideBottom: 0
-            }
-
-            // ── Shift and Ctrl, top right (OverviewModifiers) ──────────────────
-            OverviewModifiers {
-                id: mods
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.margins: middle.pad
-                shiftOn: grid.showAll || root.shiftDown
-                ctrlOn: root.ctrlOn || root.ctrlDown
-                onShiftClicked: grid.showAll = !grid.showAll
-                onCtrlClicked: root.ctrlOn = !root.ctrlOn
-            }
-
-            // ── Watermark: the middle card's top left, beside workspace 1 ─────
-            // Inside the card, not the window's corner: it arrives, scales and fades with
-            // the card, and sits in the room the grid leaves on the left (the user's
-            // placement, from a screenshot). Built only while the overview is up. Always
-            // on — there is no switch for it.
-            Loader {
-                id: watermark
+            // ── The footer: Shift / Ctrl and "?" on the left, the keys that act now on the right ──
+            // Gone while a workspace's peek card hangs over it.
+            Item {
+                id: footer
+                z: 2
                 anchors.left: parent.left
-                anchors.top:  parent.top
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
                 anchors.margins: middle.pad
-                active: root.visible
-                sourceComponent: Watermark { active: root.shown }
+                height: mods.implicitHeight
+                opacity: grid.peeking ? 0 : 1
+                Behavior on opacity { NumberAnimation { duration: Motion.fast } }
+
+                OverviewModifiers {
+                    id: mods
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    shiftOn: grid.showAll || root.shiftDown
+                    ctrlOn: root.ctrlOn || root.ctrlDown
+                    onShiftClicked: grid.showAll = !grid.showAll
+                    onCtrlClicked: root.ctrlOn = !root.ctrlOn
+                }
+                OverviewHints {
+                    anchors.left: mods.right
+                    anchors.leftMargin: Tokens.spacingLg
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    mode: Switcher.active ? "switch"
+                        : Switcher.marked.length > 0 ? "marks"
+                        : topRow.searching ? "search"
+                        : Switcher.picked ? "pick" : "idle"
+                }
             }
         }
 
-
-        // ── The HUD below: Performance and Input, either side of the island ─────────
-        // Rise with the island. Their width gives way to the island's as it springs.
-        Loader {
-            id: perfCard
-            anchors.left: cardSlot.left
-            anchors.top: cardSlot.bottom
-            anchors.topMargin: stage.gap
-            width: stage.flankW
-            active: root.visible && Config.overviewMore
-            // Built across frames (incubated), not all on the overview's first one.
-            asynchronous: true
-            opacity: 1 - stage.arriveLow
-            transform: Translate { x: -stage.arriveLow * stage.fly; y: stage.arriveLow * stage.fly * 0.6 }
-            sourceComponent: HudPerfCard { index: 2; running: root.revealed }
+        // ── The drawer (More): Ask, News, What's new, notifications ───────────
+        // Its own card beside the workspaces, built only while More is on (and for its fade).
+        Item {
+            id: drawer
+            x: stage.midW + stage.gap
+            y: stage.midTop
+            width: stage.drawerW
+            height: stage.midH
+            opacity: Math.min(1, stage.more) * (1 - stage.arrive)
+            visible: drawer.opacity > 0.01
+            GroundCard {
+                id: drawerCard
+                anchors.fill: parent
+                fillAlpha: Math.min(1, Tokens.surfaceOpacity * 1.08)
+                radius: Tokens.radiusXl + Tokens.spacingXs
+                Loader {
+                    id: drawerFeed
+                    anchors.fill: parent
+                    anchors.margins: middle.pad
+                    active: root.visible && (Config.overviewMore || drawer.visible)
+                    sourceComponent: OverviewFeed { shown: root.revealed && Config.overviewMore }
+                }
+            }
         }
-        Loader {
-            id: inputCard
-            anchors.right: cardSlot.right
-            anchors.top: cardSlot.bottom
-            anchors.topMargin: stage.gap
-            width: stage.flankW
-            active: root.visible && Config.overviewMore
-            // Built across frames (incubated), not all on the overview's first one.
-            asynchronous: true
-            opacity: 1 - stage.arriveLow
-            transform: Translate { x: stage.arriveLow * stage.fly; y: stage.arriveLow * stage.fly * 0.6 }
-            sourceComponent: HudInputCard { index: 3; running: root.revealed }
+
+        // ── The HUD row (More): the two cards, under the workspaces ───────────
+        // Built while More is on; both are one height (HudCard.bodyHeight) and half the stage.
+        Row {
+            id: hudRow
+            x: 0
+            y: stage.midTop + stage.midH + stage.gap
+            width: stage.width
+            spacing: stage.gap
+            opacity: Math.min(1, stage.more) * (1 - stage.arriveLow)
+            visible: hudRow.opacity > 0.01
+            transform: Translate { y: stage.arriveLow * stage.gap }
+            readonly property real cardW: Math.floor((stage.width - stage.gap) / 2)
+
+            // Not asynchronous, unlike the other: its height is the row's (`hudFull`), and a card
+            // arriving a few frames late would move the whole stage when it did.
+            Loader {
+                id: clipsCard
+                width: hudRow.cardW
+                active: root.visible && Config.overviewMore
+                asynchronous: false
+                sourceComponent: HudClipsCard { index: 0; running: root.revealed }
+            }
+            Loader {
+                width: hudRow.cardW
+                active: root.visible && Config.overviewMore
+                asynchronous: true
+                sourceComponent: HudInputCard { index: 1; running: root.revealed }
+            }
         }
 
         // ── The island — bottom centre: controls, or the picked window ────────
         Item {
             id: bottomRow
-            anchors.horizontalCenter: cardSlot.horizontalCenter
-            anchors.top: cardSlot.bottom
-            anchors.topMargin: stage.gap
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: stage.islandTop
             width: island.implicitWidth
             height: island.implicitHeight
             opacity: 1 - stage.arriveLow
@@ -996,8 +931,6 @@ PanelWindow {
                 screenH: root.height
                 screenName: root.hyprMonitor?.name ?? ""
                 firstWorkspace: grid.firstWorkspace
-                // As tall as the corner cards beside it, so the three share one bottom edge.
-                minH: perfCard.item ? perfCard.item.implicitHeight : 0
                 onMoved: ws => grid.land(ws)
             }
         }
@@ -1078,21 +1011,6 @@ PanelWindow {
         }
     }
 
-    // ── The zoom in and out of a workspace (OverviewZoom) ─────────────────────
-    OverviewZoom {
-        id: zoom
-        anchors.fill: parent
-        grid: grid
-        onReady: root.revealed = root.shown
-        onFinished: function (mode) {
-            if (mode === "out") {
-                root.landed = true
-                UiState.overviewLeaveTo = -1
-                UiState.overviewOpen = false
-            }
-        }
-    }
-
     // ── Arranging the HUD on the real screen (modules/hud/HudArrange) ─────────
     // Full-screen, so its coordinates are the screen's — what a widget's place is a fraction
     // of. Built only while arranging; the keyboard goes back to the search when it's done.
@@ -1118,5 +1036,98 @@ PanelWindow {
         host: root.contentItem
         screen: root.screen
         hostVisible: root.visible
+    }
+
+    // ── The workspaces, in a layer window of their own ────────────────────────
+    // Why a second window: screen capture. Hyprland can hide a whole surface from capture
+    // (hypr/rules.lua, `quickshell-overview-grid`, switched on by StreamMode) and nothing smaller,
+    // so the live window previews live on a surface of their own and the rest of the overview —
+    // the search, the island, the cards — stays visible to viewers. You see no difference.
+    //
+    // It covers the screen exactly like this window, so scene coordinates are the same in both
+    // (the zoom's rectangles rely on it), and takes input only over the grid (`mask`), so
+    // everything else still reaches this window beneath. No keyboard of its own: keys go to
+    // this window, which holds Exclusive focus. The zoom's flying windows live here too: they
+    // have to be over the grid they fly out of.
+    //
+    // Mapped a beat AFTER this window (`gridUp`): within one layer the later surface is on top,
+    // and the grid has to be over the plate and the dim it sits on.
+    property bool gridUp: false
+    onVisibleChanged: {
+        if (root.visible) gridLate.restart()
+        else { gridLate.stop(); root.gridUp = false }
+    }
+    Timer { id: gridLate; interval: 30; onTriggered: root.gridUp = root.visible }
+
+    // Where gridCard really is on the screen (the stage and the card both scale as they arrive),
+    // read through the transforms they animate so the grid follows frame by frame.
+    readonly property rect gridRect: {
+        stage.scale; stage.x; stage.y; stage.width; stage.height
+        gridCard.scale; gridCard.x; gridCard.y; gridCard.width; gridCard.height
+        return gridCard.mapToItem(root.contentItem, 0, 0, gridCard.width, gridCard.height)
+    }
+
+    PanelWindow {
+        id: gridWin
+        screen: root.screen
+        WlrLayershell.layer:         WlrLayer.Overlay
+        WlrLayershell.namespace:     "quickshell-overview-grid"
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+        WlrLayershell.exclusiveZone: -1
+        anchors.top: true
+        anchors.bottom: true
+        anchors.left: true
+        anchors.right: true
+        color: "transparent"
+        visible: root.visible && root.gridUp
+        // Input over the grid only; none while a clip is being lent (it must land beneath).
+        mask: root.lending ? gridNoMask : gridMask
+        Region { id: gridMask; item: gridHost }
+        Region { id: gridNoMask }
+
+        Item {
+            id: gridHost
+            x: root.gridRect.x
+            y: root.gridRect.y
+            width: gridCard.width
+            height: gridCard.height
+            transformOrigin: Item.TopLeft
+            scale: gridCard.width > 0 ? root.gridRect.width / gridCard.width : 1
+            opacity: stage.opacity
+
+            WorkspaceGrid {
+                id: grid
+                anchors.centerIn: parent
+                anchors.verticalCenterOffset: -middle.footerBand / 2
+                ctrlOn: root.ctrlOn
+                monitor: root.hyprMonitor
+                active:  root.revealed
+                pickedAddress: Switcher.selectedAddress
+                pickedWorkspace: Switcher.picked?.workspaceId ?? -1
+                matching: {
+                    if (Switcher.query.trim() === "") return null
+                    const m = {}
+                    for (const w of Switcher.list) m[w.address] = true
+                    return m
+                }
+                maxWidth:  Math.max(0, middle.roomW)
+                maxHeight: Math.max(0, middle.roomH)
+            }
+        }
+
+        // ── The zoom in and out of a workspace (OverviewZoom) ─────────────────
+        OverviewZoom {
+            id: zoom
+            anchors.fill: parent
+            grid: grid
+            onReady: root.revealed = root.shown
+            onFinished: function (mode) {
+                if (mode === "out") {
+                    root.landed = true
+                    UiState.overviewLeaveTo = -1
+                    UiState.overviewOpen = false
+                }
+            }
+        }
     }
 }

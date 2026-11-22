@@ -5,6 +5,7 @@ import Quickshell.Services.UPower
 import QtQuick
 import "../config"
 import "sysstats.js" as Stats
+import "procs.js" as Procs
 
 // ── SysStats ──────────────────────────────────────────────────────────────────
 // What the system stats button and its panel (modules/bar/SideStats,
@@ -274,12 +275,31 @@ Singleton {
     // What is using the machine, grouped by name (scripts/top-procs.py: two /proc reads half a second
     // apart; `python3 scripts/test-top-procs.py`). Sampled every few seconds only while something holds
     // it: the stats panel, while it is open.
-    readonly property var topCpu: root._top.cpu ?? []     // [{ name, cpu (% of one core), mb, procs }]
+    readonly property var topCpu: root._top.cpu ?? []     // [{ name, cpu (% of one core), mb, procs, pids }], busiest first
+    // The Tasks tab asks for the whole list (60 rows); the stats panel shows its first five.
     readonly property var topMem: root._top.mem ?? []
     property var _top: ({})
     property int _topRefs: 0
     function acquireTop() { root._topRefs++ }
     function releaseTop() { root._topRefs = Math.max(0, root._topRefs - 1) }
+
+    // Ends a row's processes (SIGTERM, or SIGKILL when forced) and reads the list again. Refused rows and
+    // empty pid lists send nothing (services/tasks.js). `endError` names a failed end until the next one.
+    property string endError: ""
+    function endTask(row, force) {
+        const argv = Procs.killArgv(row, force)
+        if (argv.length === 0 || endProc.running) return
+        root.endError = ""
+        endProc.command = argv
+        endProc.running = true
+    }
+    Process {
+        id: endProc
+        onExited: (code) => {
+            if (code !== 0) root.endError = Translation.tr("Couldn't end that: it is not yours to end, or it already quit")
+            if (!topProc.running) topProc.running = true
+        }
+    }
 
     Timer {
         running: root._topRefs > 0
@@ -291,7 +311,7 @@ Singleton {
 
     Process {
         id: topProc
-        command: ["python3", Quickshell.shellPath("scripts/top-procs.py"), "5"]
+        command: ["python3", Quickshell.shellPath("scripts/top-procs.py"), "60"]
         stdout: StdioCollector {
             onStreamFinished: {
                 try {

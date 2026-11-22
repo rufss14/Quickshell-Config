@@ -130,6 +130,37 @@ Stage 1 changed the shared pieces, so every page inherits it:
   palette is monochrome — so the tonal container reads as grey there; the real wallpaper palette is the actual test, and
   so are the springs and the press feel.
 
+### 1.6 Grouped rows (2026-11-21, the overhaul's look)
+
+The user picked an M3E grouped list for settings pages (Android 16 style), after the island-dialect redesign of
+2026-11-15 was reverted (its hero + OptionCard plates and its icon rail with a loud-card column were both wrong). It
+REVERSES §3b/§6a's "a boolean is a tile, never a row with a switch": on a grouped page a boolean is a row you tap
+anywhere, with an M3 `Toggle` at its end. Pages move to it one by one; the switches are opt-in until every page is done.
+
+- `SettingsPage { grouped: true }` lays its groups out to USE THE WIDTH (the user, 2026-11-21: "most pages don't use
+  the full horizontal space… minimise scrolling", with the island dashboard as the reference: a dense bento of plates of
+  different sizes). `groupLayout: "columns"` (default): groups flow, in source order, into the shortest of N columns
+  (`components/masonry.js`, `bun scripts/test-masonry.js`): 2 at the 885 px page area of the 1200×740 window, 3 when
+  wide, 1 below ~684 px (then capped at `groupedWidth`). `Section { fullRow: true }` (and a hero) takes the whole row.
+  `groupLayout: "split"`: `hero` and `side: true` Sections sit in a pinned left column (38%, 300 to 440 px) that stays in
+  view while the right side scrolls; use it only when a live preview must stay visible beside long controls. No layout is
+  forced: each page is laid out on its own merits ("I just want a neat layout on each"), ordered so neighbouring columns
+  end at similar heights. Not bento: bento stretches a short card to its row's height, which draws empty segments.
+- `SettingRow { stack: "auto" }`: in a narrow column the control drops under the label and fills the row.
+- `Section { grouped: true }`: no card. The title row stands on the ground (a small `MorphShape` badge on
+  `primaryContainer`, the title, `subtitle` as a state note at the right, `actions` for a master switch). Each visible
+  body child sits on its own `section`-tone segment, `spacingXs` apart, outer corners `radiusXl`, inner `radiusXs`; a
+  pressed row's inner corners round up and the segment dips to 0.98 on `springSpatialFast`.
+- `Section { hero: true }`: the page's one loud card (`primaryContainer`, `radiusXl`). It shows the live thing and holds the
+  master switch; children bind `ink` / `inkDim` (`SliderRow.ink` takes it).
+- `SettingRow { rowTap: true }`: the whole row emits `tapped()` (the page writes the setting). Its hit area sits UNDER the
+  row's control, so a press on the `Toggle` is the Toggle's alone. Tab-focusable, Space/Enter taps.
+- `TabStrip { connected: true }`: the M3E connected button group (separate segments, round ends, the chosen one a filled
+  pill that widens while its neighbours squeeze). `connected: false` is still `SegmentSwitch`.
+- Worked sample: `NightLightPage.qml` (columns, hero full row, two groups side by side, fits 885×650 unscrolled).
+  Colours (`AppearancePage.qml`) is the exception the user chose to keep: the earlier bento of tiles, with the scheme
+  cards under it.
+
 ### 1.1 The corner language — cards soft, controls capsules
 
 | Level | Radius | Examples |
@@ -293,53 +324,37 @@ the top of every page matches.
 
 ## 4. The rail, pages and views
 
-`services/SettingsIndex.qml` is the catalogue: seven rail PAGES, each with one or
-more VIEWS. A view is one file in `pages/`.
+**The rail is an accordion (2026-11-21).** Seven sections: Look & feel, Wallpaper, Bar & islands, Desktop, Devices,
+Apps, System (`services/SettingsIndex.qml` `_catalogue`). The current section unfolds in place to list its pages as
+indented rows; the others stay folded. **There are no view tabs anywhere** (the user dropped them, superseding the
+2026-10-07 "every page keeps its tab strip"). One `primaryContainer` pill marks the current page on two springs that
+follow the rows' live positions; the open section's badge blooms into its `MorphShape`; section height runs on a
+critically damped spring. Folded (76 px), the rail shows section badges only, names in the card's `TipBubble`.
 
-    Appearance      Theme · Type & shape · Night light · Cursor · Sound effects
-    Wallpaper       (one view, with its own Gallery | Appearance | Engine strip — drawn in the
-                    same place as every other page's strip)
-    Bar & sidebar   Modules · Style · Behaviour · Panels   (2026-11-08: one page for both
-                    surfaces; Dock and Stats are modules, their settings in the inspector)
-    Desktop         Widgets (Desktop · Style · Content modes, a header switch) · Lock screen · Keybinds · Tuning
-    Devices         Sound · Network · Bluetooth · Keyboard · Battery
-    Apps & tools    Launcher · Clips · Screen time · Lyrics · Discord · Presence
-    System          Updates · Setup (with the shell presets) · Storage · Language · About
+    Look & feel     Colours · Type, shape & motion · Night light · Cursor · Sound effects
+    Wallpaper       Gallery · Placement & motion · Scenes · Music on the desktop   (four anchors of WallpaperPage.qml)
+    Bar & islands   Modules · Style · Sidebar · Islands · Hot corner
+    Desktop         Widgets · Desktop menu · Lock screen · Keybinds · Windows
+    Devices         Sound · Network · Bluetooth · Displays · Keyboard & mouse · Battery & power
+    Apps            Launcher · Clips · Screen time · Lyrics · Discord
+    System          Updates · Setup & presets · Storage · Packages · Language & region · About   (Packages = StoragePage.qml#packages)
 
-Regrouped 2026-10-26: no page has more than six views (Devices had eight), and each view sits
-under the page that describes it — Sound effects is how the shell FEELS (Appearance), Launcher,
-Clips and Screen time are things it DOES (Apps & tools), Language is the machine's (System).
-Shell presets stopped being a page of their own and are Setup's last card ("set up this
-machine" and "set up the next one" are one trip); `ShellPresetPage.qml` resolves to Setup
-through `SettingsIndex.aliases`, so a saved preset naming it still lands.
+Merged files resolve through `aliases` and land on their card through `aliasPlate`: ColorSchemesPage → Colours ›
+Classics, BarPanelsPage → Islands › Panels, DiscordPresencePage → Discord › Claude Code. The settings window mode lives in
+Islands › Settings window; weather location in Language & region (Widgets keeps a link row); the desktop visualiser in
+Wallpaper › Music on the desktop.
 
-Network replaced Wi-Fi + Traffic: the card at the top is the CONNECTION whichever medium
-carries it, and the Wi-Fi card exists only where there is a radio. `NetworkTrafficPage.qml` and
-`WidgetStylePage.qml` resolve through `SettingsIndex.aliases` (to Network and Widgets).
-
-**Every page keeps its tab strip** (the user's call, 2026-10-07). Sidebar & dock was a
-composed scroll of groups for a while (`SidebarDockPage`, `SettingsGroup`, `GroupFold`);
-it was the one page that scrolled where the rest tabbed, and is five views again. A
-remembered `SidebarDockPage.qml` resolves through `SettingsIndex.aliases`. The `members`
-mechanism (`hostOf`, `UiState.settingsGroup`, `SettingsPage.scrollToItem`) is still there
-for a view that holds another's rows; nothing uses it today.
-
-- `SettingsCard` draws the rail, and a `TabStrip` above the page when a page has
-  more than one view. **A page with rail views never draws its own strip** — two
-  strips stacked reads as tabs inside tabs. A single-view page may own one: Wallpaper
-  (Gallery | Appearance | Engine) does. (Its Gallery is the original 3×3 pager: a
-  redesign was tried and declined, 2026-10-07.)
-- **A sub-mode of one view is a header control**, not a strip: Storage's
-  Disks | Packages is a `ChipTray` of two `ChipButton`s in the page header; Widgets' gallery
-  is a header chip that takes over the body.
-- File names are unique across the catalogue, so `Config.settingsPage` and
-  `UiState.openSettingsTo(file)` still name a file and the page is derived.
-- A view gated on hardware sets `available: false`; a page whose views are all
-  hidden disappears from the rail.
-- Search lives in the rail and covers every row on every page — rebuild the index
-  after adding or renaming anything: `python3 scripts/build-settings-index.py`. It
-  reads literal `title`/`subtitle`/`label`/`detail`/`help` strings, ONE property per
-  line (`symbol: "x"; label: "y"` on one line drops the label).
+- **A page is a file plus an optional anchor.** Its key (`file` or `file#anchor`) is what `Config.settingsPage`, pins and
+  `UiState.openSettingsTo()` hold. A bare file means its first page; an unknown anchor lands on the file's first page;
+  anchors of one file share one loaded page, which reads `UiState.settingsAnchor`.
+- File names stay unique across the catalogue. A file that goes away gets an `aliases` entry, because users' saved
+  `settingsPage` / `settingsPinned` name files. `scripts/check-settings-links.py` (in `check-all.sh`) fails on any link
+  to a page that is neither in the catalogue nor an alias.
+- A page gated on hardware sets `available: false`; a section whose pages are all hidden disappears.
+- Search lives in the rail and covers every row on every page. Rebuild the index after adding or renaming anything:
+  `python3 scripts/build-settings-index.py` (`--check` says whether it is current). It reads literal
+  `title`/`subtitle`/`label`/`detail`/`help` strings, ONE property per line, records the part file each row came from
+  (`part`), and attaches ChipRow / TabStrip / SegmentSwitch choice labels to their row as `values`.
 
 ## 5. Selection semantics
 
@@ -423,9 +438,19 @@ it alone and stretched — prefer `span: 1` pairs.
 These live in `SettingsCard`, not in pages — a page that re-implements one has
 already drifted:
 
-- **Keyboard:** `Ctrl+F` focuses search (unfolding the rail if needed); `↑↓` walk
-  results while searching and the rail otherwise; `←→` walk the current page's views;
-  `Enter` opens the selection; `Esc` clears the search, then closes.
+- **Keyboard:** `Ctrl+F` focuses search (unfolding the rail if needed). While searching: `↑↓` walk results, `Enter`
+  opens one, `Esc` clears. Otherwise: `↑↓` go to the previous or next page across sections, `←→` to the previous or
+  next section (its last-visited page), `Esc` closes. Arrows are ignored while focus is inside the page, because a
+  single-line field does not consume Up/Down.
+- **Search lands on the row.** A result carries its page key (a page claims a row by `parts`, the source file stem,
+  or `sections`, the card title, in the catalogue) and its card/row title. `SettingsCard.goTo(key, target)` sets
+  `UiState.settingsTarget`; `SettingsPage.reveal()` waits for a rendered frame, scrolls the row a little below the top
+  and flashes its segment once (`primary` at `Tokens.stateFocus`). A deep link lands without the cascade. Pages that are
+  not a `SettingsPage` land on the page.
+- **Outside settings.** `SettingsIndex.elsewhere` (hand-written, pinned by `scripts/test-settingssearch.js`) lists the
+  settings that live only in panels and islands (game mode, lyrics romanize and karaoke, mixer boost, album scope,
+  material wallpaper, world clocks…). They show as an "Outside settings" group, and picking one opens that island page
+  or panel (`UiState.openElsewhere`) beside the settings window. The launcher and the assistant search without them.
 - **Pinned views** (`Config.settingsPinned`) sit above the rail's page list. Pins are
   FILES, so they survive the catalogue renumbering when hardware appears.
 - **Undo, not confirm**, for anything reversible: capture what you need to restore

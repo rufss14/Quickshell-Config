@@ -35,7 +35,7 @@ Item {
     readonly property var glance: SysStats.metrics.slice(0, 3)
     readonly property bool ownsPanel: UiState.sidePanelScreen
         ? UiState.sidePanelScreen === root.screen : root.screen === Quickshell.screens[0]
-    readonly property bool open: UiState.sidePanel === "stats" && root.ownsPanel
+    readonly property bool open: UiState.sideShows("stats", root.screen)
     readonly property bool hovered: mouse.containsMouse
     readonly property color tint: root.hovered || root.open ? Config.moduleAccent("stats", Colors.of(QsWindow.window).primary) : Colors.of(QsWindow.window).stateIdleFg
 

@@ -64,15 +64,24 @@ QtObject {
             root.value = root.target
             return
         }
-        if (!Spring.settled({ x: root.value, v: root.velocity }, root.target, root.epsilon))
+        if (!Spring.settled({ x: root.value, v: root.velocity }, root.target, root.epsilon)) {
+            if (!root._tick.running) root._warm = 2
             root._tick.start()
+        }
     }
+
+    // A move from rest usually starts on the frame something heavy was built (a card opening loads its
+    // page). That frame is long, and counted in full the spring's first step was a jump of up to 0.1 s of
+    // travel: an opening that began half open. Its first two frames count as ordinary ones instead, so it
+    // starts late but from rest. (Two: the tick that starts it may run before the long frame or after.)
+    property int _warm: 0
 
     property FrameAnimation _tick: FrameAnimation {
         onTriggered: {
             // Capped, so a stall (a hidden window, a suspend) resumes mid-move rather than
             // finishing it unseen in one frame.
-            const dt = Math.min(0.1, Math.max(0, root._tick.frameTime))
+            const dt = Math.min(root._warm > 0 ? 0.02 : 0.1, Math.max(0, root._tick.frameTime))
+            if (root._warm > 0) root._warm--
             const s = Spring.step({ x: root.value, v: root.velocity }, root.target,
                                   Spring.scaled(root.spec, Motion.springTime), dt)
             if (Motion.springTime <= 0 || Spring.settled(s, root.target, root.epsilon)) {

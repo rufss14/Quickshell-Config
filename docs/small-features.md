@@ -78,6 +78,194 @@ validated, never a title), `screenTimeKeepDays` of them, written once a minute.
 - Icons are existing names only (`hourglass_*`, `bedtime`, `today`, `calendar_month`, `apps`, `pause_circle`, `play_arrow`,
   `arrow_upward/downward`, `remove`, `chevron_*`): no `--emit` needed. New files in `screentime/` need ALT+Q, not a hot reload.
 
+## Island
+
+`modules/island/IslandDock` lives in the BAR's window so the blob can fuse it (`BlobBarLayer` lobe `island*`): a handle on the bar's
+lower edge (`Config.island`, off by default; `islandAlign` left|centre|right, `islandDelay`, `islandLinger`, `islandTab`;
+`qs ipc call island toggle|open|close|show <page>`) opens an `IslandCard` melted out of the bar's underside. There are no "moments" (a pill for a
+workspace change, the charger, a recording): a bottom-right pill was built and removed at the user's request ("annoying").
+
+- **Round 7 (2026-11-12, the user picked "live handle + nav rail")**:
+  - **Live handle** (`Config.islandLive`, on): at rest the handle is a line unless `Rules.subject` says something is going on —
+    a recording (always; a click stops it), a running timer (`Timers.timerRunning`, the pomodoro's phase), a song playing
+    (`MusicPulse.playing`). Then the lobe hangs out of the bar as `IslandPill` (cover, title, four bars on MusicPulse's
+    bass/mid/high/level, acquired only while shown) and the card grows out of THAT lobe and shrinks back into it. Opened from a song
+    the card lands on Media (`islandFollow`; the transient `UiState.islandPage`, cleared on close or a pick). Untested: the pill
+    hangs ~32 px into the area under the bar, over the top of tiled windows.
+  - **Nav rail** (`IslandRail`) replaces the top SegmentSwitch: one filled `MorphShape` indicator on two springs (fast lead, slower
+    trail) that stretches between pages and morphs into the page's `shape` (`Rules.TABS`). No tooltips on it (the user's call); pages
+    cross vertically. A wheel over the card steps pages (`Rules.stepTab`) where nothing under the pointer takes the wheel.
+  - **Settings**: pages pick + order (`islandPages`, never empty: `Rules.pagesOf`), Dashboard switches (`islandSwitches`, ≤ 6,
+    toggles.js ids), open on hover|click (`islandOpenBy`), size (`islandScale` 0.8–1.25, `Rules.scaleOf`; the card is built at its
+    size and scaled from its top edge), effects (`islandEffects`: weather FX, turning/breathing shapes).
+  - **Fixes**: the hero clock read "23:06 PM" (Qt's `h` is 24-hour unless the same format has `AP`: `Rules.clockText`); the GPU/CPU
+    names go through `sysstats.js` `gpuName` / `cleanCpuName`; the network chart draws the last 60 samples (15 s), not NetStats'
+    whole 240, so it fills while you look; `IslandWeatherFx` runs on ONE phase clock (a drop per animation started as a row of
+    streaks along the top edge).
+  - Width (user, same day): 780 body so the name isn't cut; lyrics column 288, Media 320 tall.
+- **Round 8 (Dashboard; user: "the media section has styling problems, buttons clipping", the switches "way too simple" and
+  "don't even share the same icons", the stats "quite simple", "animation could be smoother", "more interactions")**:
+  - Layout: both side columns `sideW` (228), their lower cards `lowH` (128) so the three columns share one bottom row; Dashboard 384 tall.
+  - `IslandNow`: the cover box is capped and the ring of bars stays inside it; the Media page's wavy `MediaSeek` (draggable; the page's
+    MediaPosition takes `scrubbing` from it); `MediaTransport` scaled to the width (it clipped at 0.95 in 192 px).
+  - `IslandSwitches`: M3E toggle buttons (round off, corners sprung in toward a square on; press squash, hover swell), a line under
+    them naming the hovered switch and its state (Wi-Fi's network, Bluetooth's device, a blocker's reason) or what is on; right-click
+    opens its settings page (`Rules.switchPage`) and closes the island. **toggles.js icons now match the bar/sidebar** (night light
+    bedtime/brightness_4, stay awake coffee/no_drinks, game mode videogame_asset_off): the desktop toggles tile, hot corner and
+    desktop menu change with it. The bar's do-not-disturb still draws `bedtime` (the notification centre and toggles.js say
+    notifications_off): left alone, flagged.
+  - `IslandRings`: CPU / GPU (where read) / memory / disk, `glide`, warning/danger tone by `Rules.loadTone`, the pointer swells a ring
+    and the line under says more (°C, GB, free); at rest "All calm" or what is busy; the CPU's last minute as a faint gliding Sparkline.
+  - Same day, user: no graph behind the stats, no caption under the switches; the switches card hugs its rows and the player
+    takes the room, with the PLAYER's own volume (`Audio.playerLevel` / `setPlayerLevel`, as MediaPanel: Spotify's own slider, the
+    stream for a player without one), capped at 100% (boost stays the panel's), speaker mutes/restores, wheel steps 5%.
+  - The wheel over the month pages months (its WheelHandler is meant to take the event before the card's page-flip one: untested).
+
+`services/island.js` holds the rules (`bun scripts/test-island.js`): tabs and per-tab sizes, the timer, where the handle sits clear
+of a sidebar, the month grid, the agenda, the 12-hour test, forecast labels, weather kinds and their shapes. Settings › Desktop › Island (`IslandPage`).
+Look: **Caelestia's dashboard** (the user: "heavily copy the look and structure") — design only, no code from it (GPL-3 vs this
+repo's MIT); ShadowShell's Dynamic island for the pill-that-grows idea.
+
+- **The dialect** (user, round 5: "I still don't like its style of surfaces and animations, look at the clock panel … not expressive enough, don't
+  tint the media panel with Spotify's colours"): the card wears the panels' recipe, not a dashboard's. The page switch is `SegmentSwitch` (a filled
+  accent pill that stretches across on a spring, the symbol filling in); every card is an `IslandPlate` — FLAT tonal (`section`, no outline, no gradient),
+  or `hero` on `primaryContainer` for the page's one loud card (its `ink` / `inkDim` are the text on it); shapes are `IslandBadge` (a `MorphShape` holding a
+  symbol or a number, `filled` on the accent); entrances are the shell's `PopIn` (`IslandPlate.order` / `IslandPiece.order`: rise from 90%, overshoot, a beat
+  after the card before it; `arrive` 0..1 for a ring that sweeps in); rings are the wavy `RadialGauge`. The media pages use the visualiser's accent
+  (`Config.moduleAccent("visualizer", primary)`), never `AlbumArt.brandOf`. Earlier tries — an underline tab strip, gradient plates with a hairline and a
+  pointer glow, `IslandEnter` — were dropped as the wrong dialect.
+- **Width**: 860 was too big, 640 too narrow; 740, then 780 beside the rail (`Rules.BODY`: heights 352 / 320 / 332 / 412, `Rules.bodyFor(shown, wanted)`). The lobe springs to the LARGER
+  of the old and new page at once and settles to the new one only after the old has left.
+- **Page hand-over** (`IslandCard.swap`): the old page fades and leaves on the side you came from (a `SpringValue`, `Motion.exit`), the new one fades in from
+  the other side, which it crosses on `Motion.springSpatial`. The month slides the same way.
+- **Looking at it**: `bash scripts/smoke-headless.sh --run 'bash <script>'` with a script that seeds `config.json` (`island`, `islandTab`, a weather
+  place), copies a palette into the sandbox (the user's `~/.cache/wal/colors.json` follows their wallpaper and the music; a saved blue and warm one make a
+  fairer judge), starts a fake MPRIS player (python-dbus), runs `qs ipc call island open` and `grim`s. No Hyprland there, so no workspace data. The card
+  closes ~3 s after an IPC open (no pointer), so shoot within 2 s. It finds what the static checkers cannot: a file missing `import "../../components"`
+  passed every checker and failed the render; a layout whose sibling columns all `fillWidth` collapsed the middle one.
+- **Round 6** ("looks way better, still can look better"): cards that lead somewhere are `clickable` plates (a state layer under the pointer, `clicked()`): the
+  hero opens Weather, the rings Performance, the player Media. The user row gained a notifications pill (a bell, crossed under do-not-disturb, with `Notifications.count`)
+  beside the uptime pill; the switches and the cookie transport grew. Media got the system volume under the transport (a speaker badge that mutes, `ValueSlider`).
+  The CPU card draws its cores as a row of narrow bars (`IslandPerfHero.cores`), the network rows wear the chart's colours, and each forecast day has a range bar along the
+  week's own span (`Rules.rangeBar`). Caught in a render: bars sized from a Row's free height came out as dots over the text — fixed-height row, fixed-width bars.
+- **Dashboard** = `IslandToday`, three columns: the loud card `IslandHeroNow` (weekday, the time very large, the date, a wavy day-progress line, and a
+  badge whose SHAPE is the sky — `Rules.weatherShape(weatherKind)`: sunburst clear, cookie cloud, clover rain, burst storm; it morphs when the weather
+  changes — with the temperature, words, low and high; a big shape turning behind; `IslandWeatherFx` drifting across) over `IslandRings` (CPU, memory,
+  disk as wavy rings with their percentage); `IslandUser` (picture from `Lock.facePath` else the initial, the distribution's mark from `SysInfo.spec.LOGO` on a
+  hexagon, a greeting for the hour, an uptime pill from `Session.uptimeText`) over `IslandMonth` (six fixed weeks, `Rules.monthCells`; today on a cookie,
+  weekends in the second hue, a dot under a day with an event, one "next" line from `Rules.agenda`); `IslandNow` (the cover in `CookieCover` with the
+  player's own cava ring, title, artist, a hairline with the times, the cookie transport, the edge lit by the music) over `IslandSwitches` (five `ToggleOrb`s on
+  `ShellActions`: do not disturb, night light, stay awake, mute, lock).
+- **Media** = `IslandMedia`: `CookieCover`, the title (two lines), the artist, the album as an accent-container pill, `MediaSeek`, `MediaTransport`, and a flat
+  lyrics card (`PanelLyrics`, asked for with `Lyrics.loadFor` per track; hidden for a source whose lyrics are not trusted) with the source as a pill, over four slowly
+  turning faint shapes that breathe with `MusicPulse` (held only while it shows). Empty: a cookie badge and "Nothing playing".
+- **Performance** = `IslandSystem`: `IslandPerfHero` for the CPU (on the accent container) and the GPU (a wavy ring round the symbol, the model from
+  `SysInfo.spec`, the temperature and its bar, "Usage" over a big filled shape); Storage (a wavy ring, used / size, a pill that steps through the filesystems),
+  Network (both directions' traces, `Rules.scaled`; a constant-model Repeater on purpose) and Memory (a wavy ring). `SysInfo`, `Storage`, `NetStats` held only while it shows.
+- **Weather** = `IslandWeather`: the place, the date, sunrise and sunset as two pills (`Rules.isoTime`); a hero on the accent container with the sky badge, the
+  temperature very large, the next twelve hours as a curve (`Rules.spanOf`) and the weather drifting behind; humidity / feels like / wind as three pills (the arrow
+  turns to the wind); seven day cards, today's on the accent container (`Rules.forecastDay`).
+- **`IslandWeatherFx`**: rain streaks, snow, drifting cloud and fog, a slow sunburst, a storm's flash (`Rules.weatherKind`), clipped by `ClippingRectangle`, moving
+  only on `Motion.ambientOn`. The island is in Bar.qml's `_panelRects` (`IslandDock.lit`), so the cookie field runs in its material between the cards.
+- Colours: the accent is `primary`; Caelestia's tertiary is `ramp4` (a second hue from the scheme, or near the text colour on a near-monochrome one). No icon
+  names outside the bundled font (`water_drop`, `air`, `storage`, `more_vert` are not in it: humidity is `humidity_percentage`, wind a turning `navigation`).
+- The card is NOT a free window: a floating bar or no plugin gives an ordinary card a hair under the bar, as the other docks do.
+- Untested: all of it visually; the corner lobe against a real sidebar on the right or the bottom (`rail.band` is assumed to be the
+  distance from the edge, as `panelFace` is); that the bar's mask reaches the corner.
+
+## Hot corner
+
+`modules/panels/HotCorner` (a `Scope` per screen: a trigger window + the panel window) →
+`HotCornerPanel` (content, behind a Loader so a closed one costs nothing) + `HotCornerSlider`;
+Settings › Desktop › Hot corner (`HotCornerPage`: a small stage where you press the corner, section
+chips, the switch list). Inspired by ShadowShell's hot corner (design only, no code taken).
+Off by default (`Config.hotCorner`); `hotCornerEdge` (topLeft…bottomRight), `hotCornerParts`
+(sliders, toggles, media, apps, capture), `hotCornerToggles` (ids of `desktop/widgets/toggles.js`, ≤ 8).
+
+- Trigger: a `Tokens.spacingSm` square in the corner, Overlay layer, mapped only while the corner is on.
+  140 ms of hover opens it; nothing opens while `Fullscreen.activeOn(screen)`. State is `UiState.hotCornerOpen`
+  / `hotCornerScreen` (the screen whose corner was touched; "" = the focused one via `ScreenOwner`) /
+  `hotCornerByKey`.
+- Closing: the pointer leaves the panel's window (it includes the shadow gap, so crossing the gap doesn't close it)
+  for 450 ms. Opened by key (`qs ipc call hotcorner toggle|open|close`) there is no pointer yet, so it waits until the
+  pointer has been in once or 3 s. Closed by an action (an app launched) with the pointer still in the corner, the corner
+  doesn't reopen until the pointer has left (`held`).
+- A capture (Region / Copy) closes the panel first and starts after `Motion.exit + respond`, so the panel isn't in the picture.
+- Switches are `ShellActions.switchOn/switchFlip/blockerOf`, the same answer the desktop toggles tile gives
+  (`TogglesWidget` calls them too); a missing backend disables the tile with its reason.
+- Customisation: `hotCornerDelay` (open dwell, ms), `hotCornerLinger` (close delay, ms), `hotCornerScale` (the whole
+  panel, built at its size and scaled from the card's corner), the sections and their ORDER (`hotCornerParts` is the ones shown,
+  in order; `PickOrderList` edits it), the switches and their order (`hotCornerToggles`, ≤ 8, incl. next wallpaper / lock).
+  The header pins it open (`UiState.hotCornerPinned`: the leave timer stops until it is unpinned or closed).
+- Arrival: `HotCornerPanel.reveal` is the window's animation number; each part starts one after another and settles down into
+  place. The card does not clip (a clip would cut its shadow off).
+- Icons: only names already in `services/icons.js` (no `--emit` for this).
+- Top corners sit under the bar (`margins.top: Config.barExtent`); bottom corners don't know about the dock.
+
+## Desktop menu
+
+Right-click the empty desktop: `modules/desktop/DeskMenuCatcher` (a Bottom-layer window per screen) →
+`UiState.openDeskMenu(screen, x, y)` → `DeskMenu` (the window: full-screen so a click anywhere closes it, Exclusive keyboard
+only while open for Esc, Loader-gated body) → `DeskMenuBody`. Settings › Desktop › Desktop menu (`DeskMenuPage`).
+Inspired by ShadowShell's desktop menu (design only). On by default (`Config.deskMenu`); `qs ipc call deskmenu toggle|open|close`
+opens it in the middle of the focused screen.
+
+- The body is a Windows-style list, 240 wide, in `DeskMenuBody`: a row of icon buttons (`Config.deskMenuTools`, ≤ 6, `deskmenu.js`
+  TOOLS: region, copy, colour, text, record, clip), then lines that unfold INLINE where Windows opens a sub-menu (`DeskMenuRow`:
+  a chevron, a spring-driven drawer on a `section` plate, one open at a time; a switch for a view option, a live second line, and an optional round button for a row's second job): **View**
+  (widgets: switch, count, edit button; status bar: switch, `UiState.setBarHidden`; sidebar: switch, where it sits, auto-hide button; screen frame; overview), **Personalize** (`Config.deskMenuWallpapers` pictures, the one on the desktop ringed in
+  the accent, then wallpapers, next wallpaper, back to the last one, colours, light or dark, bar & sidebar), **Quick settings**
+  (volume and brightness sliders, then round `ToggleOrb`s, `Config.deskMenuSwitches`, ≤ 6, icon only). While a player runs, a
+  now-playing line (cover, song, play, next) sits above View, **New** (task, timer), Display settings, Open in Terminal, and **Show more
+  options** (`Config.deskMenuPlaces`, `deskmenu.js` PLACES: search, clipboard, notifications, keybinds, settings, power…). A
+  toggle, the widgets tick and a recording leave the menu open; a one-off (next wallpaper, lock, a capture) and every place close
+  it. Anything that takes the focus (terminal, search, power, a capture) waits for the menu to be gone first (`closeThen`). A
+  missing tool dims its line with the reason (`toolWhy`, `blockerOf`).
+- **Look and opening** (`DeskMenu`): the card is the bar's and the frame's own material (`Colors.frameFill`, `frameLine`,
+  `Tokens.borderChrome`), not `Surface`'s popup fill. It opens as a small round blob at the pointer and swells to the card on two
+  critically damped springs in a chain (the island's S curve, 800 / 1800 stiffness in, 1300 / 2800 out, about 0.3 s), width leading height, no wobble. Contents come in once the box is a
+  third open (`fade`, the lines cascade by `lead(i)`), and leave first on close. Not fused into the bar's blob: that lives in the
+  bar's window (`BlobBarLayer`), and this is a window of its own, so it matches the colour and the motion, not the metaball join.
+- The window is on the Overlay layer (above windows; the user asked for it). A right-click on the dimmed backdrop moves the menu to the pointer; any other click closes it.
+- **Placement** is `deskmenu.js place()`: corner at the pointer, flipped to the other side where it would run off, clamped
+  `margin` inside; the blob grows from that corner. `bun scripts/test-deskmenu.js` covers it and the list edits.
+- **The catcher must be mapped before `WidgetLayer`.** Both are on the Bottom layer, which stacks by map order, and the
+  widgets must sit above it to take their own clicks. So it is declared first in `shell.qml` and NEVER unmapped:
+  `Config.deskMenu` off empties its input mask instead (an unmap-and-remap would bury every widget).
+- Shared pieces made for it (and the hot corner): `components/ToggleOrb` (the desktop toggles tile uses it too),
+  `components/PickOrderList` (pick + order, in Settings), `ShellActions.switchOn/switchFlip`.
+- Untested: right-click reaching the catcher while a Wallpaper Engine scene runs.
+
+## Calm spot (desktop widgets)
+
+While arranging widgets, each tile has a **Calm** chip: it moves the tile to the part of the wallpaper with the least detail, clear
+of the other tiles. `components/WallEnergy` reads the screen's picture (`Wallpaper.pictureFor(ws)`, cropped to the screen's shape
+like the wallpaper is drawn) into a 32×18 grid of edge energy — only while arranging, as a Loader's content so it is freed after;
+`services/calmspot.js` (`energy`, `best`, `cellsFor`, `blockOf`; `bun scripts/test-calmspot.js`) scores every block the tile's size
+covers by its mean energy, ties to the middle; `WidgetLayer.moveToCalm` hands the answer to `DesktopWidgets.move`, which still
+resolves collisions. A scene or a video has no still to read, so the chip isn't offered. `best()` also takes `"busy"` (nothing
+uses it yet). Inspired by ShadowShell's least-busy clock (design only).
+
+## Gauge widget
+
+`modules/desktop/widgets/GaugeWidget` (+ `GaugeFace`): one reading — CPU, memory, GPU, CPU temperature (scaled to 100 °C for the
+glass, a display scale), battery — as a **glass in your shape** (`MorphShape` pentagon by default) filling with water, or the
+wavy `RadialGauge` ring round a shape. The water is two tiled sine strips slid sideways by a plain animation (a transform, nothing
+recomputed per frame), clipped to the glass by a `MultiEffect` mask, the level on a `SpringValue`. Options `metric`, `style`
+(water | ring), `shape`; Settings › Widgets. Tap walks to the next metric this machine can read; a metric with no reading says so
+(blocker contract). `SysInfo` is acquired only while the tile is active. Inspired by ShadowShell's Gauge widget (design only).
+
+## Motion stage (Settings › Window manager › Tuning)
+
+`modules/settings/MotionStage` sits at the top of the Animations section and plays the animation you point at (or whose slider you
+hold — the draft speed, live) as it is configured: a mock window grows in/out (`windows*`), dissolves (`fade*`, `layers*`), slides
+(`workspaces*`, `windowsMove`) or lights its outline (`border*`), over the real duration and curve, with the curve drawn beside it.
+`services/hyprcurves.js` (`bun scripts/test-hyprcurves.js`): `speed` is deciseconds (6 = 600 ms), disabled = instant, `Out` leaves play
+backwards, kinds by leaf name. **Curves:** `wind` is the shell's own `Motion.emphasizedDecel` (blend.lua shares the points); `winIn`,
+`winOut` and `liner` are the shipped `hypr/animation.lua` values, copied into `KNOWN`; a curve added by hand is drawn as `wind` (the
+parser gives names only, not points) — extend `KNOWN` or the parser if that matters. Nothing loops while the page is idle.
+Inspired by ShadowShell's motion page (design only).
+
 ## Snap zones
 
 `services/Snap` (+ `snap.js`, `bun scripts/test-snap.js`) → `modules/desktop/SnapOverlay`
@@ -230,10 +418,18 @@ saves on assignment); `normalise()` rebuilds the state from the file on load. Id
 
 ## Reload card
 
-`services/ReloadWatch` + `modules/panels/ReloadPopup`, `Config.reloadPopup` ("failures" default,
+`services/ReloadWatch` + `components/ReloadCard` (the card and its state) + two hosts, `Config.reloadPopup` ("failures" default,
 "all", "off"; Settings › Setup). A failed hot reload leaves the OLD config running and used to
 say so only in the log. `Quickshell.onReloadFailed` goes to the generation still running,
 `onReloadCompleted` to the new one — a singleton created by shell.qml's `Connections` hears both.
+**Two hosts, one live at a time** (2026-11-16): `modules/bar/BarReloadHost`, inside Bar's window, where the blob
+draws the card (it comes out from under the bar and goes back into it: the host clips to the bar's underside,
+`BarReloadHost.rects` is the part outside it, concatenated first into `BlobBarLayer.toastRects`), and
+`modules/panels/ReloadPopup`, its own Overlay window, for a FULLSCREEN monitor or a missing plugin (the
+inverse condition, as BarToastHost / NotificationOverlay). The card is a flat chain well one tone up (no
+outline), the chain's files in bold with their line in the verdict tint, a badge that blooms disc → shape, a
+Copy chip that says "Copied", and a capsule countdown. `qs ipc call reloadcard fail | ok` shows it.
+Never loaded: the welded lobe's grow/retract and the click-through mask need a look.
 The card holds its own copy of the text, pauses its countdown while hovered, has a Copy button,
 and uses `Verdict.tint()` for pass/fail. (Writing it, `property real left` on it was caught by
 `check-qml-final.py` — the FINAL-property trap in CLAUDE.md, once more.)
@@ -753,6 +949,22 @@ on firing. The user didn't like it ("try something different"; picked "calm and 
   the column, glides between buttons on the highlight's lead edge, and swaps its words through `SwapFade` (taken at
   once while hidden, so it never shows empty).
 
+### The power menu, M3E (2026-11-14)
+
+User: "the current looks boring, give it some life", Material 3 Expressive, taking from the islands. This
+supersedes the calm pass above on the look and the motion; the structure, keys, arming and the caption stay.
+- The four actions stand in a flat `section` pill (IslandRail's idiom), each a `surfaceHigh` disc badge.
+- ONE `primaryContainer` capsule travels between them on two springs (`springSpatialFast` leading,
+  `springSpatial` trailing), so it stretches and settles. It only springs while showing. The pointed-at badge
+  blooms from a disc into the action's own shape in `primary` (`shape` in `powermenu.js`: squircle, clover,
+  sunny, cookie9; calm ones, no `burst`).
+- Entrance: `PopIn` cascade (cap 4) after the box is a third open; exit: contents gone in the first tenth.
+  Hover leans a badge to 1.06 and a press dips it to 0.93 (`springSpatialFast`).
+- Arming: the countdown is still a level, now in a disc (the highlight's size) behind the badge; the badge goes
+  the warning colour with a check. The caption is a flat `surfaceHigh` plate with a shadow, no outline, and
+  takes a wash of the warning tone while it asks.
+- Never loaded: shapes, colours (`danger` on `fgOnPrimary`) and the cascade are unjudged on screen.
+
 ### The strip between a panel and the sidebar, and the master switch (2026-10-11, round 6)
 
 - **The cut at the sidebar's face.** A welded panel is held a fillet radius (`mergeGap`, 10px) off the bar, the frame and
@@ -1173,6 +1385,17 @@ edge for the other styles).
   `sourceShapedMirrored`, shaped once in the service like the shared ones. A player PipeWire names no
   stream for falls back to the shared output while it plays; nothing playing shows nothing. Off: the
   shared output, as before.
+- **Match the gradient** (`Config.cavaBgGradient`, 2026-11-22): the fill is the shell's gradient
+  (`Config.barGradient`: the bar's and the islands' colours, at their angle) laid across the visualiser's own
+  box through the same stencil, instead of the blend; the glow takes its middle colour. The stops come WHOLE
+  (`gradient.js vivid`): `strength` is how far the bar's fill moves toward them and the visualiser has no fill.
+  Only while the gradient is on (`viz.matchGrad`), so turning it off never edits the choice; the row is disabled
+  with the reason then, and the colour picks hide while matching. Unverified on screen.
+- **"Music only" pins by serial** (2026-11-22): the per-player stream targets the node's `object.serial`
+  (`Cava.sourceSerial`), runs only while a node resolves, and restarts when the serial changes. By NAME it was
+  linked to the microphone after the player's stream was recreated (Zen's was, between runs): see
+  `docs/gotchas-system.md`. The bar pill, the side visualiser and the cookie cover share the stream, so it holds
+  for them too.
 - **Peak caps** (`Config.cavaBgPeaks`, bars and ring): `components/PeakCap.qml` — up with the bar at once,
   a hold (`Motion.emphasized`), a fall of `Motion.slow × 2` from the full height (less from lower).
 - **Glow** (`Config.cavaBgGlow`): a MultiEffect shadow (blur 1.0, no offset) on the masked fill, in its
@@ -1294,29 +1517,40 @@ a real Proton registration; `hl.config` off/back on this Hyprland (the same call
 these keys); the crash-recovery path; the Clips hold starting and stopping the buffer. New persisted
 properties: `gamemodeSteam`, `gamemodeClips`, `gamemodeCompositor`; the header is a module setting (`gamemode.panelHeader`).
 
-## Audio Mixer (panel redone 2026-11-07, fourth attempt)
+## Audio Mixer (rebuilt 2026-11-14 on the island recipe; earlier: four attempts in 2026-11-07)
 
-`modules/panels/EqualizerPanel.qml` (the bar's volume pill and the sidebar's volume cell open it). Four attempts, in
-order: a hero + app cards (the user: "don't like the style and layout" — the screenshot also showed the list clipped and
-dimmed mid-animation); flat vertical channel strips ("don't like what you did"); the original tabs restyled ("still not
-satisfied"); and finally the user named the **Game Mode panel** as the look to copy. Presets (Quiet / Gaming / Call) were
-built and removed on request. This is that look, with the two real faults fixed:
+`modules/panels/EqualizerPanel.qml` (the bar's volume pill and the sidebar's volume cell open it; it is the Equalizer
+page of the left island) + `modules/panels/mixer/`. One size, 780 x 436, on the island and in the bar's plain dock
+(`body` in `config/islands.js`), laid out like the wallpaper and colour scheme pages (`docs/island-style.md`): a loud
+card and a `SourceRail` on the left, the page on show on the right. `qs ipc call island part equalizer <apps|devices|mic|options>`
+opens on a page (`input` still means `mic`).
 
-- **Pages** (SegmentSwitch on a spring, as Game Mode): **Mixer** — a neutral hero for the output (an M3E shape that is a
-  disc muted, a cookie at rest, a sunburst while sound comes out, swelling with the peak; tap = mute; device name, codec /
-  limit badges, rolling level, thick fader, one-tap output chips), then a `ChannelCard` per playing app (orb = meter + mute,
-  fader, route pill, pin). **Devices** — `DeviceCard`s for outputs (Options: volume limit, balance) and inputs, Remembered
-  apps (Forget), and `ShapeTile`s for Boost and per-output volume memory plus Restart audio (two taps). **Input** — the mic
-  card, "Hear yourself", who is recording. A dot on Input says an app is recording.
-- **Room.** `SidePanelDock` cuts a panel to the room it has and sets `maxHeight`; a list taller than that was simply cut
-  (only the first app showed). The pages now sit in a `Flickable` no taller than `maxHeight` minus the title row and switch,
-  with a `Scrollbar`.
-- **Sound effects.** Each cue is a `pw-play` process, i.e. a short-lived playback stream on every hover and keystroke.
-  Bound to `Audio.streams`, the app list was rebuilt and every row's entrance replayed with each one ("glitching with the
-  sound effects"). `pw-play` is left out of the list and it is a `ScriptModel` keyed by node id, so one app starting or
-  stopping adds or removes only its row (which fades in; nothing else moves).
-- The title row is `volume.panelHeader` (Settings › Bar › click the Volume module › Panel header), default on. Boost and
-  Restart used to be header buttons; they live on Devices so they survive it being off.
+- **`MixerHero`**: the OUTPUT as the loud card (primary container). A shape that is a disc muted, a cookie at rest and a
+  sunburst while sound comes out, swelling with the peak (tap = mute); device name and what is playing; one disc per output
+  (drawn as a headset, monitor or speaker; the one in use lit; one tap switches); the level as a numeral (amber past 100%,
+  red for a beat on a clip); an expressive fader with the unity or limit tick; two tools, mute and boost.
+- **Apps** (`MixerApps`, `MixerChannel`): a card per app that is making sound. Its picture is its meter and its mute button.
+  Under the pointer a capsule opens at the corner: keep it as it is (the pin), play it through another output, mute. "Another
+  output" unfolds INLINE under the fader as a row of the outputs (no popup, no ContextMenu). Then a foldable **Remembered**
+  plate with every pinned app and a Forget button (it used to live on the Devices page).
+- **Devices** (`MixerDevices`, `MixerDevice`): Output and Input plates. The one in use is first and loud (a primary container, a
+  full pill, the badge a cookie); a tap on another makes it the default. An output offers "play every app here" and a tune tool
+  that unfolds its limit (option pills: no limit, 40, 60, 80) and balance inline.
+- **Microphone** (`MixerMic`): the mic on the same `MixerChannel`; Hear yourself (loud while it runs, with its own cava on the
+  input device and a howl warning); Recording, one row per APP with a meter. A dot and a count on the rail say apps are recording.
+- **Options** (`MixerOptions`): boost and per-output volume memory as `OptionCard`s; Restart audio behind a Cancel / Restart
+  layer (replaces the old arm-and-press-again), called off when the pointer leaves.
+- **Gone with the rebuild**: the title row and its setting (`volume.panelHeader`), the SegmentSwitch pages, `ChannelCard`,
+  `DeviceCard`, the route ContextMenu, `ShapeTile`s for the options. `SchemeTool` / `SchemeGroupHeader` moved to
+  `components/LitTool` / `GroupHeader` so both pages share them.
+- **Recording list fix** (`Audio._capturesSink`): the shell's own per-player visualiser (`cava`, `pw-record --target spotify`)
+  is a `media.role: Music` capture and was listed as an app that could hear you.
+- **Sound effects.** Each cue is a `pw-play` process, i.e. a short-lived playback stream on every hover and keystroke. Bound to
+  `Audio.streams`, the app list was rebuilt and every card's entrance replayed with each one. `pw-play` is left out
+  (`EqualizerPanel.apps`) and the list is a `ScriptModel` keyed by node id, so one app starting or stopping adds or removes
+  only its card.
+- **Meters cost.** A `PwNodePeakMonitor` keeps PipeWire streaming peaks, so a card meters only while its page shows, and the
+  dock's Loader tears the panel down on close.
 
 **Pins (per-app memory).** `services/MixerMemory.qml` + `mixermemory.js` (tested: `bun scripts/test-mixermemory.js`, 12).
 The pin on an app card saves its level, mute and output under the app's lower-cased id (`Audio.appIdFor`) in
@@ -1325,10 +1559,9 @@ stream, 700 ms after it shows (`settle` timer), so a player that rewrites its ow
 change) is not fought; a change the user then makes on the card becomes the new record (`MixerMemory.note`). Apps that
 were not pinned are never touched. Routing goes through `Audio.moveStream`.
 
-**New files:** `components/ChannelCard.qml`, `components/DeviceCard.qml` (in `components/qmldir`), `services/MixerMemory.qml` (singleton, in `services/qmldir`), `services/mixermemory.js`.
+**Files:** `services/MixerMemory.qml` (singleton, in `services/qmldir`), `services/mixermemory.js`.
 
-**Unverified — only a reload (ALT+Q, new files) shows it:** the whole panel; the
-pin restoring a stream that starts later; `pactl move-sink-input` from a restore; the pages scrolling with 5+ apps playing and a small `maxHeight`; the sound effects no longer disturbing the list.
+**Seen on screen (at rest, 2026-11-14):** all four pages, the hero with output discs, the loud in-use device card. **Not seen** (the pointer cannot be driven): hover capsules and tips, the inline output row, the device options, the restart layer, a press or drag on any fader, folding Remembered, mute and clip states, Hear yourself running, the pin restoring a stream that starts later.
 
 ## Displays (2026-11-08)
 
@@ -1412,3 +1645,51 @@ the 25 most recent). Reads only.
   `Clipboard.copyText`; the chip reads Collecting… / Copied / Couldn't collect for four seconds.
 - From a terminal: `bash scripts/doctor.sh`, which also works with the shell not running (the log section
   then says so).
+
+## Colour schemes page (Settings › Appearance › Colour schemes, 2026-11-13)
+
+(2026-11-21: merged into Settings › Look & feel › Colours, `AppearancePage.qml`; `ColorSchemesPage.qml` is gone and
+resolves there through `SettingsIndex.aliases`. The groups below are now grouped-row sections of Colours.)
+
+`ColorSchemesPage.qml`: what the shell wears, in three groups kept apart. A bento page, so it takes the width the window has:
+the header's subtitle says what is worn and its switch is Light/Dark; `WallpaperSchemeHero` spanning the grid is **From your wallpaper**
+(pywal, the default), built like the Wallpaper panel's hero: the picture on a blurred backdrop, its name and kind, a pill saying
+where the colours come from ("Colours from this wallpaper", the album cover, or "Held by Nord" with a lock while a scheme is
+pinned), the shell's colours as overlapping dots (always what is worn, so a held scheme's, never the wallpaper's by mistake) and
+a "Use wallpaper colours" chip when it is not in use; then **Classics** (one column) and **Yours** (two) share a row. Classics are
+`services/schemes.js` — Catppuccin, Gruvbox, Dracula, Nord, Tokyo Night, Rosé Pine, Solarized; code, not files, so nothing to
+delete or save over. Yours is `ColorScheme.presets`, the saved `colorschemes/*.json`; the editor stays the bar's Colours panel.
+Each scheme is a `SchemeCard`: a pill in its own ground, its name over a ribbon of its fifteen colours, light/dark icons lit
+for the versions it has. A click wears it. Each group's cards are shared out row by row (`cardWidth`), so the last row is
+stretched to the edge instead of leaving empty cells. `ColorScheme.held` / `.onWallpaper` are the shared "where do the colours
+come from" reads (the panel's Presets tab uses them too). The Theme page is the rules, this is the choice.
+
+- **Rejected, at the user's call (2026-11-13):** a stage with a miniature shell (too big), previewing by repainting the
+  real shell on hover (`ColorScheme.peek`; don't like it), and shapes-and-petals "flowers" (too much). Keep it plain.
+- **A classic is authored as nine colours** (`bg fg muted a b green yellow magenta cyan`) and built into the sixteen
+  slots. `a` goes in color1 and `b` in color4, NOT the terminal's red/blue: `PaletteRoles` reads color1 as `primary`
+  AND `danger` and color4 as `focus`, so a terminal port would paint the shell red. The cost is the terminal's own red
+  while one is worn (it is the accent), as under any wallpaper. The bright half (9-14) is the colour lifted 18%
+  toward the text, not each scheme's own bright ANSI colours. Colours are the official ones (checked 2026-11-13 against
+  the alacritty-theme ports, folke's tokyonight, the Dracula spec) except Solarized Dark's text, which is base1
+  (#93a1a1, the palette's emphasis colour) instead of base0 (#839496, 4.1:1). `bun scripts/test-schemes.js`.
+- **The Colours panel's Presets tab has the same three groups**, each under a `GroupHeader` (symbol, name, count,
+  hairline): **Generated** (a wallpaper row: tonal while in use with the live ribbon, a click takes the wallpaper's colours
+  back), **Yours** (saved, sorted as before) and **Classics** (`auto_awesome` mark, no rename/delete). A star floats a scheme
+  up within its group; search and the star filter apply to all (the wallpaper row answers "wallpaper", "pywal" and
+  "generated", and hides under the star filter); a group with no matches loses its header. A classic loads into the editor like
+  any scheme and can be given workspaces (`ColorScheme._preset(name)` finds a saved scheme, else a classic, by name). The cards
+  are one `Component` (`schemeCard`) shared by both Repeaters.
+- **Wearing = pinning (= the lock).** `ColorScheme.wear(preset, mode)` replaces the overrides file with exactly the scheme's 18
+  slots (`background`, `foreground`, `color0-15`: `stage-palette.py`'s `NEED`, so `fully_held` is true and a wallpaper change
+  only swaps the picture) and reloads; `locked` is derived from that file, so the panel's lock button lights and "Release all"
+  hands the colours back. The reload runs from the writer's `onExited` (`_pinThenReload`), not beside the write: they are two
+  processes, and `reload-theme.sh` could read the file before it landed (the locked `applyPalette` path had the same race and
+  uses it too). `useWallpaper()` releases every pin and regenerates from the wallpaper (and turns `wallTheming` on).
+  `applyPalette()` alone, unlocked, is the temporary look the next wallpaper replaces.
+- **Nothing is stored.** `ColorScheme.worn` is the scheme whose palette the live `colors.json` matches
+  (`palette.js findScheme`, within 3/255). Edit a colour in the panel and the ring goes.
+- A scheme without a version for the shell's mode is dimmed, as in the panel library; wearing it puts the shell in the
+  mode it has.
+- Not exercised on a running shell: the pin → `reload-theme.sh` order (the same one the panel's pin path uses), the
+  page at other window widths, the panel's mixed list.

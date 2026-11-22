@@ -13,6 +13,10 @@ import "../../services"
 ChipTray {
     id: root
 
+    // A flat plate, no hairline.
+    border.width: 0
+    color: Colors.of(QsWindow.window).surfaceHigh
+
     // A chip asks the overview to switch its operator (a chip inside the search field, or the word typed by hand).
     signal toggled(string flag)
 

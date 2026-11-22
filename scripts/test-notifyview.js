@@ -18,7 +18,7 @@ const src = readFileSync(join(here, "..", "services", "notifyview.js"), "utf8")
     .replace(/^\s*\.pragma\s+library\s*$/m, "");
 const V = new Function(src + `
     return { appKey, matches, filter, byApp, dayLabel, byDay, appCounts, nextMorning,
-             untilLabel, splitSnoozed, toggleIn, toneIndex };`)();
+             untilLabel, splitSnoozed, toggleIn, toneIndex, glanceBody };`)();
 
 let pass = 0;
 const failures = [];
@@ -123,6 +123,14 @@ check("toggle: removes", V.toggleIn(["a", "b"], "a"), ["b"]);
 const orig = ["a"];
 V.toggleIn(orig, "b");
 check("toggle: never mutates its input", orig, ["a"]);
+
+// ── The pill's line under a title ────────────────────────────────────────────
+check("glance: plain body", V.glanceBody("See you at 5", 40), "See you at 5");
+check("glance: markup and breaks flattened", V.glanceBody("<b>Ana</b>:\n  on my way &amp; late", 40), "Ana: on my way & late");
+check("glance: an escaped tag stays text", V.glanceBody("use &lt;b&gt; here", 40), "use <b> here");
+check("glance: too long is left out", V.glanceBody("x".repeat(41), 40), "");
+check("glance: exactly the limit stays", V.glanceBody("x".repeat(40), 40), "x".repeat(40));
+check("glance: empty and missing", [V.glanceBody("", 40), V.glanceBody(undefined, 40), V.glanceBody("  <i></i> ", 40)], ["", "", ""]);
 
 if (failures.length) {
     console.log(`FAILED ${failures.length} of ${pass + failures.length}`);

@@ -6,11 +6,13 @@ import QtQuick.Layouts
 import "../../../config"
 import "../../../components"
 import "../../../services"
+import "../../../state"
+import ".."
 
-// ── AppearancePage — Appearance › Theme ───────────────────────────────────────
-// Where the shell's colours come from: the wallpaper, the album cover, the accent.
-// The file keeps its old name so a remembered page and the default landing resolve;
-// the rail calls it Theme.
+// ── AppearancePage — Look & feel › Colours ────────────────────────────────────
+// Where the shell's colours come from (the wallpaper, the album cover) and which scheme
+// it wears (the wallpaper's own, a classic, one you saved). The file keeps its old name
+// so a remembered page and the default landing resolve; the rail calls it Colours.
 //
 // ── A bento, not two columns of rows ──────────────────────────────────────────
 // This page is eight booleans, one picker and a palette. As stacked cards that was a
@@ -32,19 +34,38 @@ Item {
     // Which swatch the pointer is on, or -1 — the hero's caption reads it.
     property int hoverSwatch: -1
 
+    // The colour schemes (wallpaper, classics, yours) live on this page too.
+    readonly property string worn: ColorScheme.worn
+    readonly property bool held: ColorScheme.held
+    readonly property bool wearingWallpaper: ColorScheme.wearingWallpaper
+    readonly property bool busy: ColorScheme.busy || Wallpaper.applying
+
+    // A card has a width it looks right at, not a count per row; each row is then shared out whole, so the last
+    // one is stretched to the edge instead of leaving empty cells.
+    readonly property int cardMin: 220
+    readonly property int cardGap: Tokens.spacingSm
+    function columnsFor(w) { return Math.max(1, Math.floor((w + root.cardGap) / (root.cardMin + root.cardGap))) }
+    function cardWidth(i, n, w) {
+        const cols = root.columnsFor(w)
+        const k = Math.min(cols, n - Math.floor(i / cols) * cols)
+        return Math.max(0, (w - (k - 1) * root.cardGap) / k)
+    }
+
+    function isCurrent(name) { return root.held && root.worn === name }
+
     SettingsPage {
         anchors.fill: parent
 
         bento:     true
         glyph:     "󰸌"
-        title:     Translation.tr("Colour")
-        titleTail: "theme"
+        title:     Translation.tr("Colours")
+        titleTail: ""
         accent:    Colors.of(QsWindow.window).primary
         subtitle: AlbumScheme.active || AlbumScheme.reason === "held"
             ? AlbumScheme.reasonText
             : Config.wallTheming
-            ? "The palette follows the wallpaper"
-            : "The palette is frozen — a new wallpaper won't recolour the shell"
+            ? Translation.tr("The palette follows the wallpaper")
+            : Translation.tr("The palette is frozen: a new wallpaper won't recolour the shell")
 
         // ══ The palette itself ════════════════════════════════════════════════
         // Full width, first: the page is about colour, so it opens with the colour.
@@ -56,14 +77,14 @@ Item {
             subtitle: root.hoverSwatch >= 0
                 ? "color" + root.hoverSwatch + "   " + String(Colors.of(QsWindow.window).ansi(root.hoverSwatch)).toUpperCase()
                 : Config.wallTheming ? "From the current wallpaper" : "Frozen"
-            help:     Translation.tr("Sixteen slots. Everything in the shell is drawn from these — point at one to read its value.")
+            help:     Translation.tr("Sixteen slots. Everything in the shell is drawn from these. Point at one to read its value.")
 
             // Light/Dark rides in the heading: it is the one control that changes
             // every swatch under it.
             actions: TabStrip {
                 implicitWidth: 168
                 accent: Colors.of(QsWindow.window).primary
-                enabled: Config.wallTheming && !Wallpaper.applying
+                enabled: Config.wallTheming && !root.busy
                 model: [
                     { value: "light", label: "Light", icon: "light_mode" },
                     { value: "dark",  label: "Dark",  icon: "dark_mode" }
@@ -152,7 +173,7 @@ Item {
                 visible: Config.wallTheming && ColorScheme.overrideCount > 0
                 text: ColorScheme.overrideCount
                     + (ColorScheme.overrideCount === 1 ? " colour is" : " colours are")
-                    + " held by a saved scheme — release them from the bar's Colours panel."
+                    + " held by a saved scheme: release them from the bar's Colours panel."
                 variant: "caption"
                 color: Colors.of(QsWindow.window).warning
                 wrapMode: Text.WordWrap
@@ -196,7 +217,7 @@ Item {
             available: Config.albumScheme
             subLabel: Config.albumSchemeSystem
                 ? "Terminal, GTK/Qt apps and Discord repaint each track"
-                : "Bar, panels and overview only — held in memory"
+                : "Bar, panels and overview only, held in memory"
             onToggled: Config.albumSchemeSystem = !Config.albumSchemeSystem
         }
 
@@ -236,68 +257,6 @@ Item {
                 ? "Tray and lyrics-badge icons wear the accent"
                 : "Each icon keeps its own colours"
             onToggled: Config.colorizeIcons = !Config.colorizeIcons
-        }
-
-        // ══ Accent ════════════════════════════════════════════════════════════
-        Section {
-            span:     2
-            glyph:    "󰌁"
-            title:    Translation.tr("Accent")
-            subtitle: (Config.accentRoles.find(function (r) { return r.id === Config.accentRole }) || { label: Translation.tr("Default") }).label || "Default"
-            help:     Translation.tr("The fallback colour, for widgets that ask for one. Picked by role, so it follows the next wallpaper.")
-            accent:   Colors.of(QsWindow.window).info
-
-            // Palette ROLES, never hex — so the choice survives the next wallpaper.
-            Flow {
-                Layout.fillWidth: true
-                spacing: Tokens.spacingSm
-
-                Repeater {
-                    model: Config.accentRoles
-
-                    Rectangle {
-                        id: role
-                        required property var modelData
-                        readonly property bool isCurrent: Config.accentRole === role.modelData.id
-                        readonly property bool isDefault: role.modelData.id === ""
-
-                        implicitWidth:  role.isDefault ? defaultLabel.implicitWidth + Tokens.spacingMd * 2
-                                                       : 34
-                        implicitHeight: 34
-                        radius: Tokens.radiusSm
-
-                        color: role.isDefault ? "transparent"
-                                              : Colors.of(QsWindow.window).role(role.modelData.id, Colors.of(QsWindow.window).primary)
-                        border.width: role.isCurrent ? 2 : Tokens.borderWidth
-                        border.color: role.isCurrent   ? Colors.of(QsWindow.window).fg
-                                    : roleHover.hovered ? Colors.of(QsWindow.window).outlineFocus
-                                                        : Colors.of(QsWindow.window).outline
-
-                        // Picking one pops it, the same acknowledgement a chip makes.
-                        scale: roleHover.hovered && !role.isCurrent ? 1.08 : 1.0
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: Motion.respond
-                                easing.type: Easing.BezierSpline
-                                easing.bezierCurve: Motion.spring
-                            }
-                        }
-                        Behavior on border.color { ColorAnimation { duration: Motion.respond } }
-
-                        StyledText {
-                            id: defaultLabel
-                            anchors.centerIn: parent
-                            visible: role.isDefault
-                            text:    Translation.tr("Default")
-                            variant: "caption"
-                            emphasis: role.isCurrent ? "normal" : "dim"
-                        }
-
-                        HoverHandler { id: roleHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler   { onTapped: Config.accentRole = role.modelData.id }
-                    }
-                }
-            }
         }
 
         // ══ Looks ═════════════════════════════════════════════════════════════
@@ -404,6 +363,97 @@ Item {
                         onActivated: Look.discard()
                     }
                 }
+            }
+        }
+
+        // ══ Generated: the wallpaper's own colours ════════════════════════════
+        // The wallpaper panel's hero: the picture the colours are made from, where the shell's colours are
+        // coming from now, and the colours. It is the one source with no card of its own below.
+        WallpaperSchemeHero { span: 3 }
+
+        // ══ Classics: shipped with the shell ══════════════════════════════════
+        Section {
+            span:     1
+            symbol:   "auto_awesome"
+            title:    Translation.tr("Classics")
+            subtitle: Translation.tr("%1 ready-made schemes").arg(ColorScheme.classics.length)
+            help:     Translation.tr("Well-known schemes set up for the shell, each with the light and dark version its makers drew where there is one. Choosing one holds it through wallpaper changes; the wallpaper's own colours let go of it.")
+            accent:   Colors.of(QsWindow.window).primary
+
+            Flow {
+                id: classicFlow
+                Layout.fillWidth: true
+                Layout.preferredWidth: 0
+                spacing: root.cardGap
+
+                Repeater {
+                    model: ColorScheme.classics
+
+                    SchemeCard {
+                        required property var modelData
+                        required property int index
+                        width:    root.cardWidth(index, ColorScheme.classics.length, classicFlow.width)
+                        name:     modelData.name
+                        variants: modelData.variants
+                        current:  root.isCurrent(modelData.name)
+                        enabled:  !root.busy
+                        onPicked: ColorScheme.wear(modelData)
+                    }
+                }
+            }
+        }
+
+        // ══ Yours: saved from the Colours panel ═══════════════════════════════
+        Section {
+            span:     2
+            symbol:   "bookmark"
+            title:    Translation.tr("Yours")
+            subtitle: ColorScheme.presets.length > 0
+                ? Translation.tr("%1 saved").arg(ColorScheme.presets.length)
+                : Translation.tr("Nothing saved yet")
+            help:     Translation.tr("Schemes you saved from the Colours panel, which is also where you make one: pick the sixteen colours, then save.")
+            accent:   Colors.of(QsWindow.window).primary
+
+            actions: ChipTray {
+                ChipButton {
+                    symbol: "edit"
+                    label:  Translation.tr("Edit colours")
+                    tint:   Colors.of(QsWindow.window).primary
+                    onActivated: UiState.openPanel("colorScheme")
+                }
+            }
+
+            Flow {
+                id: mineFlow
+                Layout.fillWidth: true
+                Layout.preferredWidth: 0
+                visible: ColorScheme.presets.length > 0
+                spacing: root.cardGap
+
+                Repeater {
+                    model: ColorScheme.presets
+
+                    SchemeCard {
+                        required property var modelData
+                        required property int index
+                        width:    root.cardWidth(index, ColorScheme.presets.length, mineFlow.width)
+                        name:     modelData.name
+                        variants: modelData.variants
+                        current:  root.isCurrent(modelData.name)
+                        enabled:  !root.busy
+                        onPicked: ColorScheme.wear(modelData)
+                    }
+                }
+            }
+
+            StyledText {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 0
+                visible: ColorScheme.presets.length === 0
+                text: Translation.tr("Open the Colours panel, set the colours you want and save them. They will be here.")
+                variant: "caption"
+                emphasis: "dim"
+                wrapMode: Text.WordWrap
             }
         }
     }

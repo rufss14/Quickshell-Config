@@ -7,7 +7,7 @@ import "../../components"
 // A tray of stops (icon, and the name on the one you're on) with a lit pill that slides between
 // them. `position` is a REAL, so a caller mid-swipe (OverviewFeed's rail, `at`) has the pill — and
 // the name's reveal — follow the pointer between two stops; a caller with a plain index gets the
-// slide from `Behavior` here (`animate`). Used by the left face's rail and the News topics.
+// slide from `Behavior` here (`animate`). Used by the drawer's rail and the News topics.
 // ─────────────────────────────────────────────────────────────────────────────
 Rectangle {
     id: root
@@ -36,9 +36,7 @@ Rectangle {
     implicitWidth: stops.width + root.pad * 2
     implicitHeight: Tokens.iconXl + root.pad * 2
     radius: height / 2
-    color: Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceContainer, 0.9)
-    border.width: Tokens.borderWidth
-    border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)
+    color: Colors.of(QsWindow.window).surfaceHigh
 
     Rectangle {
         id: lit

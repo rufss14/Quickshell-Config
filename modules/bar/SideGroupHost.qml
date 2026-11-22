@@ -159,6 +159,10 @@ Item {
                             if (m.screen !== undefined)  m.screen  = Qt.binding(() => host.screen)
                             if (m.monitor !== undefined) m.monitor = Qt.binding(() => host.monitor)
                             if (m.contextMenu !== undefined) m.contextMenu = Qt.binding(() => host.contextMenu)
+                            // Its length along the edge as the rail has it, for a module whose length is
+                            // a setting (the spacer), less its own margin.
+                            if (m.length !== undefined)
+                                m.length = Qt.binding(() => Math.max(0, (host.rail.allLengths[slot.modelData] ?? 0) - host.rail.pad * 2))
                             if (m.shown !== undefined)
                                 m.shown = Qt.binding(() => host.rail.barShown && !host.collapsed)
                         }

@@ -62,34 +62,46 @@ Item {
 
         // Centres the current line on its OWN height. Using lineHeight here would
         // hang a wrapped line half a row too high.
+        // `scrollTarget`, not `current`: the slide leads the line by Config.lyricsScrollAhead.
         readonly property real centred:
-            viewport.height / 2 - lyrics.rowHeight(lyrics.current) / 2
-            - lyrics.rowTop(lyrics.current)
+            viewport.height / 2 - lyrics.rowHeight(lyrics.scrollTarget) / 2
+            - lyrics.rowTop(lyrics.scrollTarget)
         readonly property real minY:
             Math.min(0, viewport.height - strip.height)
 
         // Clamped at both ends, so it can't drift past the first or last lyric and
         // leave the card blank.
-        y: viewport.browsing
+        readonly property real wantY: viewport.browsing
             ? viewport.browseY
-            : lyrics.current < 0
+            : lyrics.scrollTarget < 0
                 ? 0
                 : Math.max(strip.minY, Math.min(0, strip.centred))
 
         // ── The scroll between lines ──────────────────────────────
-        // Slower than the shell's usual spatial move, and deliberately so. This is
-        // the one transition the eye is already tracking — it follows the words —
-        // so a brisk snap reads as a jolt where every other surface in the shell
-        // reads as brisk. Rows are also no longer a uniform height, so the distance
-        // travelled varies line to line; a longer, softly-decelerating curve keeps
-        // a short hop and a tall wrapped line feeling like the same gesture.
-        Behavior on y {
-            NumberAnimation {
-                duration: Motion.spatialSlow
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: Motion.emphasizedDecel
+        // The one transition the eye is already tracking, so it must never jolt. It was a 500 ms NumberAnimation on
+        // `emphasizedDecel`, which covers half the distance in its first 35 ms (Motion.qml says as much: "reads as a
+        // snap when the whole screen is what is moving") and which RESTARTED from a standstill on every line, so two
+        // lines close together were two snaps. Now a critically damped spring (Motion.springScroll): it leaves rest
+        // gently, keeps its speed when the next line arrives, and glides in without overshoot. The wheel and Resync
+        // go through the same spring. Rows are not a uniform height, so the distance varies line to line; a spring
+        // makes a short hop and a tall wrapped line the same gesture without a second tuning.
+        SpringValue {
+            id: slide
+            target: strip.wantY
+            spec: Motion.springScroll
+            epsilon: 0.05
+        }
+        y: slide.value
+
+        // A jump too far to be worth watching (a seek across the song, a new song, the first layout) lands in a short fade
+        // rather than gliding past every line on the way.
+        onWantYChanged: {
+            if (Math.abs(strip.wantY - slide.value) > viewport.height * 1.2) {
+                slide.jump(strip.wantY)
+                landing.restart()
             }
         }
+        NumberAnimation { id: landing; target: strip; property: "opacity"; from: 0; to: 1; duration: Motion.standard }
 
         Repeater {
             model: lyrics.visibleRows
@@ -117,6 +129,59 @@ Item {
 
                 readonly property bool isLive:
                     lyrics.clock >= row.line.t && lyrics.clock < row.endsAt
+
+                // ── The ripple (Config.lyricsStagger) ──
+                // While the card slides, the lines on the side it is moving TOWARD (the ones about to be sung, going
+                // forward) trail the strip by a share of what is left of the slide, more the further they are from the
+                // sung line. So the sung line leads and the rest follow a beat later. The gap between neighbours only
+                // ever WIDENS (never overlaps), the trail is zero at rest, and it is off while the wheel drives.
+                readonly property real lagY: {
+                    if (!Config.lyricsStagger || viewport.browsing || !Motion.ambientOn) return 0
+                    const left = strip.wantY - slide.value
+                    const side = row.index - lyrics.scrollTarget
+                    if (side === 0 || side * left >= 0) return 0
+                    return -Math.min(0.6, 0.1 * Math.abs(side)) * left
+                }
+                transform: Translate { y: row.lagY }
+
+                // ── Soft focus (Config.lyricsSoftFocus) ──
+                // Two or more lines from the sung one, a little blur, more the further out. A cached layer per line: these
+                // lines do not animate, so the blur is a texture that is only moved. Never on a line being sung (a duet's
+                // second voice can be far from `current`), and eased in and out so a line stepping out of focus does not pop.
+                readonly property real softWant: (Config.lyricsSoftFocus && !viewport.browsing && !row.isLive && !row.isRest
+                                                  && Motion.ambientOn)
+                    ? Math.min(1, Math.max(0, (row.distance - 1) * 0.3)) : 0
+                property real soft: row.softWant
+                Behavior on soft { NumberAnimation { duration: Motion.standard } }
+                layer.enabled: row.soft > 0.01
+                layer.smooth: true
+                layer.effect: MultiEffect {
+                    blurEnabled: true
+                    blur: row.soft
+                    blurMax: 14
+                }
+
+                // ── A tap on the line ──
+                // The seek takes a moment to come back round through the player, so the line answers at once: a short wash
+                // of the accent, flat, that fades.
+                property real tapFlash: 0
+                NumberAnimation {
+                    id: tapAnim
+                    target: row
+                    property: "tapFlash"
+                    from: 1
+                    to: 0
+                    duration: Motion.slow
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: Motion.effects
+                }
+                Rectangle {
+                    z: -1
+                    anchors.fill: parent
+                    visible: row.tapFlash > 0.01
+                    radius: Tokens.radiusSm
+                    color: Colors.of(QsWindow.window).alpha(lyrics.tintAccent, 0.16 * row.tapFlash)
+                }
 
                 // During an interlude nothing is live, so the last sung line drops
                 // to `past` on its own and the dots become the only focused thing
@@ -236,9 +301,8 @@ Item {
                 }
 
                 // ── The line ──────────────────────────────────────────
-                // Scaled to fit: a long lyric is wider than the card, and the mask
-                // would simply cut the end off it. Scaling keeps every word on
-                // screen; a long line just renders a little smaller.
+                // A long lyric WRAPS (the layout pass measures the wrap and gives the row
+                // its height), so every word stays on screen at the same size.
                 Item {
                     id: leadBlock
 
@@ -558,8 +622,10 @@ Item {
                     // `position` is writable — the same seek the media card uses.
                     // Subtract the offset so we seek the AUDIO to where this lyric
                     // really is, rather than to our corrected view of it.
-                    onClicked: if (lyrics.player)
+                    onClicked: if (lyrics.player) {
+                        tapAnim.restart()
                         lyrics.player.position = Math.max(0, row.line.t - Lyrics.offset)
+                    }
                 }
             }
         }

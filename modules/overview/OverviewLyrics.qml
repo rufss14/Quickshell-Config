@@ -139,9 +139,17 @@ Surface {
     // absorbs the slack no amount of matching can remove — player latency, the audio path,
     // and the fact that a lyric provider's timings are keyed to their master rather than
     // the one you happen to be streaming.
+    // The timing pill (LyricsTiming) is drawn here only when the overview is the host. A card that holds this renderer
+    // (PanelLyrics) draws its own, so the card never shows two.
+    property bool timing: true
+
     readonly property real clock: root.position + Lyrics.offset
 
     readonly property int current: Lyrics.hasSynced ? Lyrics.lineAt(root.clock) : -1
+    // The line the card SLIDES to: `current`, looked up `Config.lyricsScrollAhead` seconds early, so the slide has
+    // begun (and its gentle start is over) when the line's first word lights. Only the slide uses it; what is lit,
+    // what is dim and what the dots do stay on `current`.
+    readonly property int scrollTarget: Lyrics.hasSynced ? Lyrics.lineAt(root.clock + Config.lyricsScrollAhead) : -1
 
     // Only line starts are real — no word or syllable timings. The glyphs light each
     // line whole rather than sweeping interpolated words (LyricGlyphs.wholeLine).
@@ -483,15 +491,17 @@ Surface {
     // (relayoutInterludes — arithmetic over the row tops only, no text is measured).
     readonly property int interludeHeight: Tokens.spacingXl * 2
     property int  dotsRow:  -1          // which interlude row is the one open (or closing)
-    property real dotsOpen: 0
-    property var  interludeIdx: []      // every interlude row's index, filled by rebuildLayout()
-    Behavior on dotsOpen {
-        NumberAnimation {
-            duration: Motion.emphasized
-            easing.type: Easing.BezierSpline
-            easing.bezierCurve: Motion.emphasizedDecel
-        }
+    // On a spring, like the slide (a duration and a curve restarted from a standstill whenever the dots changed
+    // their mind, and left rest at full speed); `_dotsWant` is where it is heading, 0 or 1.
+    property real _dotsWant: 0
+    readonly property real dotsOpen: dotsSpring.value
+    SpringValue {
+        id: dotsSpring
+        target: root._dotsWant
+        spec: Motion.springScroll
+        epsilon: 0.002
     }
+    property var  interludeIdx: []      // every interlude row's index, filled by rebuildLayout()
     onDotsOpenChanged: root.relayoutInterludes()
 
     function interludeHeightFor(i) {
@@ -501,8 +511,8 @@ Surface {
     // The dots open when the row being sung is an interlude, and close when it is not.
     function syncDots() {
         const l = Lyrics.lines[root.current]
-        if (l && l.interlude) { root.dotsRow = root.current; root.dotsOpen = 1 }
-        else                    root.dotsOpen = 0
+        if (l && l.interlude) { root.dotsRow = root.current; root._dotsWant = 1 }
+        else                    root._dotsWant = 0
     }
     onCurrentChanged: root.syncDots()
 
@@ -1153,78 +1163,21 @@ Surface {
 
     HoverHandler { id: cardHover }
 
-    // ── Sync nudge ────────────────────────────────────────────────────────────
-    // Shifts the lyrics against the audio, in 0.1s steps, and remembers it.
-    //
-    // No amount of matching removes the last of the drift: the player reports position
-    // with latency, the audio path adds its own, and the provider's timings belong to
-    // their master, not the stream you're hearing. So the last word goes to you.
-    //
-    // Hidden until you hover the card — it's a fix-it, not furniture.
-    Row {
+    // ── Timing and resync ─────────────────────────────────────────────────────
+    // One control (components/LyricsTiming): the timing, 0.1 s a step, and Resync when the wheel has taken the card off
+    // the sung line. The timing is for drift the matching cannot remove (the player's latency, the audio path), so
+    // the last word goes to you. Hidden until you hover the card: a fix-it, not furniture.
+    LyricsTiming {
+        visible: root.timing
         anchors.bottom: parent.bottom
-        anchors.right:  parent.right
-        anchors.margins: Tokens.spacingSm
-        spacing: Tokens.spacingXs
-        z: 20
-
-        visible: opacity > 0.01
-        opacity: (cardHover.hovered && Lyrics.hasSynced) ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Motion.respond } }
-
-        PanelButton {
-            variant: "ghost"
-            implicitWidth:  20
-            implicitHeight: 20
-            glyph: "󰍴"
-            glyphTint: root.tintFgMuted
-            accent: root.tintAccent
-            onActivated: Lyrics.nudge(-0.1)
-        }
-
-        StyledText {
-            anchors.verticalCenter: parent.verticalCenter
-            width: 42
-            horizontalAlignment: Text.AlignHCenter
-            text: (Lyrics.offset > 0 ? "+" : "") + Lyrics.offset.toFixed(1) + "s"
-            variant: "caption"
-            font.family: Tokens.fontMono
-            color: Lyrics.offset === 0 ? root.tintFgDim : root.tintAccent
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: Lyrics.resetOffset()      // click the readout to zero it
-            }
-        }
-
-        PanelButton {
-            variant: "ghost"
-            implicitWidth:  20
-            implicitHeight: 20
-            glyph: "󰐕"
-            glyphTint: root.tintFgMuted
-            accent: root.tintAccent
-            onActivated: Lyrics.nudge(0.1)
-        }
-    }
-
-    // ── Resync ────────────────────────────────────────────────────────────────
-    // Appears once the wheel has taken the lyrics off the playing line.
-    PanelButton {
-        anchors.bottom: parent.bottom
-        anchors.left:   parent.left
+        anchors.right: parent.right
         anchors.margins: Tokens.spacingSm
         z: 20
-        symbol: "my_location"
-        label: Translation.tr("Resync")
-        variant: "ghost"
-        glyphTint: root.tintFgMuted
+        shown: cardHover.hovered
         accent: root.tintAccent
-        visible: opacity > 0.01
-        opacity: (viewport.browsing && Lyrics.hasSynced) ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Motion.respond } }
-        onActivated: viewport.browsing = false
+        ink: root.tintFgMuted
+        canResync: viewport.browsing
+        onResync: viewport.browsing = false
     }
 
     // The mask's shape. Never drawn — it exists only to be sampled.

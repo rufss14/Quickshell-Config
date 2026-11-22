@@ -34,7 +34,10 @@ def call(path, iface, method):
     """One busctl call on the session bus; its decoded `data`, or None."""
     try:
         out = subprocess.run(
-            ["busctl", "--user", "--json=short", "call", "org.razer", path, iface, method],
+            # --auto-start=no: only ask a daemon that's already running. Without
+            # it this call D-Bus-activates openrazer-daemon, whose own queries
+            # can wedge a Razer mouse's firmware.
+            ["busctl", "--user", "--auto-start=no", "--json=short", "call", "org.razer", path, iface, method],
             capture_output=True, text=True, timeout=TIMEOUT)
     except (OSError, subprocess.TimeoutExpired):
         return None

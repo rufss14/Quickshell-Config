@@ -201,6 +201,7 @@ Item {
         // Card.qml, which those all go through, is flatly Colors.surface; Card
         // itself resolves the same way via the default branch below).
         elevation: Tokens.elevationCard
+        gradient: !root._weld
         // No stroke of its own while welded — the blob's outline is the border.
         // No cast shadow either: a lobe of the bar casts no shadow onto the bar
         // it's made of, same as BarDock's `elevated: !dock.blobWeld`.

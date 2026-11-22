@@ -68,7 +68,20 @@ StyledText {
     // A name the bundled font doesn't carry draws `help` — a visible "no such icon"
     // rather than a blank. scripts/test-icons.js is what keeps that from happening:
     // every name the tree spells must be in the map. A glyph with no name is itself.
-    text: root._symbol ? (IconMap.symbol(root._name) || IconMap.symbol("help"))
+    // One icon is drawn, not set in the font (components/Dumbbell says why): `name: "dumbbell"`.
+    readonly property bool _drawn: root.name === "dumbbell"
+    Binding on width  { when: root._drawn; value: root.font.pixelSize }
+    Binding on height { when: root._drawn; value: root.font.pixelSize }
+    Dumbbell {
+        visible: root._drawn
+        anchors.centerIn: parent
+        size: root.font.pixelSize
+        color: root.color
+        fill: root.fill
+    }
+
+    text: root._drawn ? ""
+        : root._symbol ? (IconMap.symbol(root._name) || IconMap.symbol("help"))
         :                root.glyph
 
     font.family: root._symbol ? Tokens.fontSymbols : Tokens.glyphFamily(root.glyph)

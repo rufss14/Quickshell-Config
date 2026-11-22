@@ -34,7 +34,7 @@ bool BlobMaterialShader::updateUniformData(RenderState& state, QSGMaterial* newM
     Q_UNUSED(oldMaterial);
     auto* mat = static_cast<BlobMaterial*>(newMaterial);
     QByteArray* buf = state.uniformData();
-    Q_ASSERT(buf->size() >= 2336);
+    Q_ASSERT(buf->size() >= 2416);
 
     if (state.isMatrixDirty()) {
         const QMatrix4x4 m = state.combinedMatrix();
@@ -126,6 +126,13 @@ bool BlobMaterialShader::updateUniformData(RenderState& state, QSGMaterial* newM
     // 2304 vec4 rimSweep (x, y, radius, width) · 2320 vec4 rimColor (r, g, b, strength)
     memcpy(buf->data() + 2304, mat->m_rimSweep, 16);
     memcpy(buf->data() + 2320, mat->m_rimColor, 16);
+
+    // ── The gradient (Quicktest addition), after rimColor (2320 + 16 = 2336) ──
+    // 2336 vec4 gradAxis · 2352 vec4 gradParams (mid, 0, 0, 0) · 2368 vec4 gradColors[3]
+    memcpy(buf->data() + 2336, mat->m_gradAxis, 16);
+    const float gradParams[4] = { mat->m_gradMid, 0.0f, 0.0f, 0.0f };
+    memcpy(buf->data() + 2352, gradParams, 16);
+    memcpy(buf->data() + 2368, mat->m_gradColors, 48);
 
     return true;
 }

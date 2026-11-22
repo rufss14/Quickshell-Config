@@ -8,6 +8,7 @@ import Quickshell.Widgets
 import "../../config"
 import "../../components"
 import "../../services"
+import "../../state"
 import "../../services/wallpaperentry.js" as WEntry
 import "wallpaper"
 import "../../services/wallpaperlib.js" as Lib
@@ -69,6 +70,14 @@ Item {
     // wallpaperPanelHeight) regardless of what this file asks for — it is a
     // thumbnail grid and self-sizing to content made it worse. Declared to
     // match, rather than asking for a size that will be ignored.
+    // ── As an island page ─────────────────────────────────────────────────────
+    // The same panel, laid out for the island's width (IslandCard): no title row, no outer padding
+    // (the rail names it, the card has its gutter). A column on the LEFT (`sideCol`) holds what is
+    // on screen at 16:9 (WallpaperNow), the three sources as cards (WallpaperSources, in place of
+    // the tab strip) and the library's tools; the search and the gallery take the full height on
+    // the right. The bar panel's own header, tab strip and hero strip are not shown.
+    property bool island: false
+    readonly property int sideW: Math.round(root.width * 0.4)
     implicitWidth:  620
     implicitHeight: 394
 
@@ -125,6 +134,15 @@ Item {
     readonly property bool isMaterial: root.view === "material"
     // The tab the switch shows, and what the body slides on.
     readonly property string tab: root.isMaterial ? "material" : root.source
+    // The one way to change tab: "images" | "engine" | "material". While a scene is being assigned
+    // to a monitor only Scenes can be shown.
+    function pickSource(v) {
+        if (root.pickingActive && v !== "engine") return
+        if (v === "material") { root.view = "material"; return }
+        if (v !== "images" && v !== "engine") return
+        root.view = "gallery"
+        root.source = v
+    }
 
     // One scene being customised — set by a tile's "Tune" hover action.
     property string propertiesForId: ""
@@ -143,7 +161,11 @@ Item {
     // (`active: activeKey !== ""`), so onCompleted/onDestruction is the whole
     // lifetime. Held on both tabs, not just the engine one: the images tab needs
     // `running` to know that no image is currently on screen.
-    Component.onCompleted:   WallpaperEngine.acquire()
+    Component.onCompleted: {
+        WallpaperEngine.acquire()
+        // Opened on a part of the page (`qs ipc … call island part wallpaper engine`).
+        if (root.island && UiState.islandPartFor("wallpaper") !== "") root.pickSource(UiState.islandPartFor("wallpaper"))
+    }
     Component.onDestruction: {
         WallpaperEngine.release()
         if (Wallpaper.pending !== "") Wallpaper.cancelPick()     // closed mid-choice: nothing chosen
@@ -166,9 +188,14 @@ Item {
     readonly property bool gameRestoring: Gamemode.wallpaperRestoring
 
 
-    // Which popover is open under the header: "" | "parallax" | "library" (one at a time; a click
-    // elsewhere, Escape, or leaving the gallery closes it).
+    // Whether the library drawer is open under the search ("" | "library"; the options chip, Escape, or leaving
+    // the gallery closes it).
     property string popover: ""
+    // The part of the Material picture its Shapes plate is choosing a form for, while the pointer is on that plate
+    // ("" = none): the preview dims the rest. WallpaperMaterial sets it; WallpaperNow and the bar panel's preview read it.
+    property string materialSlot: ""
+    // Something is moving the wallpaper: parallax on a picture or a scene, or the music.
+    readonly property bool motionOn: Config.wallParallax || Config.wpeParallax || Config.wallFx
 
     // ── Rescan: spin the button, bust the thumbnail cache ────────────────────
     // A rescan for images is a fast `find`, so the button is latched spinning for
@@ -282,8 +309,10 @@ Item {
     readonly property var filterOpts: ({
         images: root.isImages, search: searchInput.text, kind: root.kindFilter, favOnly: root.favOnly,
         favs: root.isImages ? Config.wallFavorites : Config.wpeFavorites,
-        sort: Config.wallSort, mtimes: Wallpaper.mtimes
+        sort: Config.wallSort, mtimes: Wallpaper.mtimes, colors: WallColors.map
     })
+    // The colour reading (WallColors) while this panel is open: the sort and the swatches want it.
+    Binding { target: WallColors; property: "wanted"; value: true }
     readonly property int activeFilters: Lib.activeFilters(root.filterOpts)
     readonly property var filtered:
         Lib.filterSort(root.isImages ? Wallpaper.wallpapers : WallpaperEngine.items, root.filterOpts)
@@ -316,7 +345,11 @@ Item {
     // a WallpaperEntry like any tile's, so Enter does exactly what a click does.
     property int  kbIndex: 0
     property bool kbOn: false
-    readonly property int kbCols: root.listView ? 1 : 3
+    // Tiles across: the bar's panel three, an island page two (WallpaperPanelBody's grid).
+    readonly property int gridCols: root.island ? 2 : 3
+    // The canvas round a picture on an island's card (WallpaperCard), which the grid's cell height allows for.
+    readonly property real cardMat: Tokens.spacingSm + Tokens.spacingXs
+    readonly property int kbCols: root.listView ? 1 : root.gridCols
     WallpaperEntry { id: kbEntry; panel: root; entry: root.galleryModel[root.kbIndex] }
     HoverHandler { onPointChanged: root.kbOn = false }
     onGalleryModelChanged: {
@@ -348,6 +381,11 @@ function kbMove(to) {
         root.kbMove(root.kbIndex + delta)
     }
     function handleKey(e) {
+        // Ctrl+V adds what the clipboard holds to the library, on every tab and view (the drop's twin).
+        if (e.key === Qt.Key_V && (e.modifiers & Qt.ControlModifier) && !(e.modifiers & (Qt.AltModifier | Qt.MetaModifier))) {
+            Wallpaper.pasteFromClipboard(false)
+            return true
+        }
         if (e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) return false
         // The sub-views, the progress pane and the workspace picker keep their own keys.
         if (root.view !== "gallery" || root.showProgress || root.choosing) return false
@@ -529,6 +567,7 @@ function kbMove(to) {
     // This chain is why the panel has no status strip under the gallery any more —
     // see the Stop button in the header.
     readonly property string headerNote: {
+        if (Wallpaper.pasteNote !== "") return Wallpaper.pasteNote
         if (root.pickingActive)
             return root.pickingScreens.length > 0
                 ? "Choose a scene to span " + root.pickingScreens.join(" + ")
@@ -536,12 +575,12 @@ function kbMove(to) {
         if (root.applyingQuiet)       return root.progressTitle
         if (root.view === "browse")     return "Pick pictures to copy in"
         if (root.view === "settings")   return "How the renderer runs"
-        if (root.view === "effects")    return Config.wallFx ? "Moving with the music" : "Music effects are off"
+        if (root.view === "effects")    return Config.wallFx ? "Moving with the music" : root.motionOn ? "Parallax is on" : "Nothing moves it"
         if (root.view === "properties") return "Customising " + WallpaperEngine.titleFor(root.propertiesForId)
         if (root.isMaterial)
             return Config.wallMaterial ? "On your desktop now"
                  : Wallpaper.materialBlocker() !== "" ? Wallpaper.materialBlocker()
-                 : "Not applied — applying it replaces the picture or scene"
+                 : "Not applied. Applying it replaces the picture or scene"
         if (root.blocked !== "")      return root.blocked
         if (root.gamePaused) {
             // A pick made while paused doesn't apply now — Gamemode queues it
@@ -549,24 +588,24 @@ function kbMove(to) {
             // the takeover card — so say so, or a click here would read as
             // having done nothing at all.
             if (Gamemode.queuedWallpaperName !== "")
-                return "Queued — " + Gamemode.queuedWallpaperName + " applies when Game Mode ends"
+                return "Queued: " + Gamemode.queuedWallpaperName + " applies when Game Mode ends"
             const sceneTitle = root.heroSceneId !== "" ? WallpaperEngine.titleFor(root.heroSceneId) : ""
             if (root.gameRestoring)
-                return sceneTitle !== "" ? "Resuming — " + sceneTitle + " is coming back"
+                return sceneTitle !== "" ? "Resuming: " + sceneTitle + " is coming back"
                                           : "Resuming your wallpaper…"
-            return sceneTitle !== "" ? "Paused for Game Mode — " + sceneTitle + " will resume"
+            return sceneTitle !== "" ? "Paused for Game Mode. " + sceneTitle + " will resume"
                                       : "Paused for Game Mode"
         }
         if (Wallpaper.needsRestart && !root.applyBusy)
             return (Wallpaper.restartApps.length === 1
                 ? Wallpaper.restartApps[0].label + " needs a restart"
-                : Wallpaper.restartApps.length + " apps need a restart") + " — press the amber button"
+                : Wallpaper.restartApps.length + " apps need a restart") + ". Press the amber button"
         if (root.sceneOnScreen)
             return root.isImages
-                ? "A scene is covering these — applying one stops it"
+                ? "A scene is covering these. Applying one stops it"
                 : "Playing " + WallpaperEngine.titleFor(WallpaperEngine.current)
         if (Config.wallMaterial)
-            return "Material is on your desktop — applying " + (root.isImages ? "a picture" : "a scene") + " replaces it"
+            return "Material is on your desktop. Applying " + (root.isImages ? "a picture" : "a scene") + " replaces it"
         if (root.scanning) return "Scanning…"
         return root.filtered.length === root.libraryCount
             ? root.libraryCount + (root.isImages ? " wallpapers" : " scenes")
@@ -592,119 +631,6 @@ function kbMove(to) {
         onPressed: function(mouse) {
             if (searchInput.activeFocus) searchInput.focus = false
             mouse.accepted = false
-        }
-    }
-
-    // ── Popovers ──────────────────────────────────────────────────────────────
-    // A click anywhere else closes the open one. Both are WallpaperPopover cards on springs.
-    MouseArea {
-        anchors.fill: parent
-        z: 19
-        visible: root.popover !== ""
-        onClicked: root.popover = ""
-    }
-
-    // Parallax: two separate switches (a picture drifts with the workspace and pointer; a scene
-    // follows the mouse in its own renderer), behind the header's one button. Scenes relaunch by
-    // themselves, through the fade.
-    WallpaperPopover {
-        open: root.popover === "parallax"
-        offsetY: Tokens.spacingLg + head.height + Tokens.spacingXs
-
-        SettingRow {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            label: Translation.tr("Pictures")
-            detail: Translation.tr("Drift with workspace + pointer")
-            Toggle {
-                checked: Config.wallParallax
-                onToggled: Config.wallParallax = !Config.wallParallax
-            }
-        }
-        SettingRow {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            label: Translation.tr("Scenes")
-            detail: Translation.tr("Drift with pointer")
-            enabled: WallpaperEngine.blocker() === ""
-            Toggle {
-                checked: Config.wpeParallax
-                onToggled: Config.wpeParallax = !Config.wpeParallax
-            }
-        }
-    }
-
-    // Library: how the gallery is ordered and narrowed, and the shuffle. Under the search row's button.
-    WallpaperPopover {
-        open: root.popover === "library"
-        popWidth: 288
-        offsetY: Tokens.spacingLg + head.height + Tokens.spacingMd + searchRow.height + Tokens.spacingXs
-
-        StyledText { text: "Sort"; variant: "micro"; emphasis: "dim" }
-        SegmentSwitch {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            accent: root.accent
-            model: [
-                { value: "name", label: "Name",   icon: "abc" },
-                { value: "new",  label: "Newest", icon: "schedule" }
-            ]
-            current: Config.wallSort
-            onPicked: function (v) { Config.wallSort = v }
-        }
-
-        StyledText { text: "Show"; variant: "micro"; emphasis: "dim" }
-        ChipRow {
-            Layout.fillHeight: false
-            accent: root.accent
-            model: Lib.kinds(root.isImages)
-            current: root.kindFilter
-            onPicked: function (v) { root.kindFilter = v }
-        }
-        SettingRow {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            label: Translation.tr("Favourites only")
-            Toggle { checked: root.favOnly; onToggled: root.favOnly = !root.favOnly }
-        }
-
-        Divider {}
-
-        StyledText { text: "Shuffle"; variant: "micro"; emphasis: "dim" }
-        SettingRow {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            label: Translation.tr("Change on a timer")
-            detail: Config.wallShuffle ? "A new picture every " + Config.wallShuffleMins + " min" : "Off"
-            Toggle { checked: Config.wallShuffle; onToggled: Config.wallShuffle = !Config.wallShuffle }
-        }
-        ChipRow {
-            Layout.fillHeight: false
-            enabled: Config.wallShuffle
-            accent: root.accent
-            model: [
-                { value: 15,  label: "15 min" }, { value: 30,  label: "30 min" },
-                { value: 60,  label: "1 hour" }, { value: 120, label: "2 hours" }
-            ]
-            current: Config.wallShuffleMins
-            onPicked: function (v) { Config.wallShuffleMins = v }
-        }
-        SettingRow {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            label: Translation.tr("Starred only")
-            detail: Translation.tr("Draw from the favourites, when there are any")
-            Toggle { checked: Config.wallShuffleFavs; onToggled: Config.wallShuffleFavs = !Config.wallShuffleFavs }
-        }
-
-        Divider {}
-
-        SettingRow {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            label: Translation.tr("Apply log")
-            detail: Translation.tr("Show each step while a picture applies")
-            Toggle { checked: Config.wallApplyDebug; onToggled: Config.wallApplyDebug = !Config.wallApplyDebug }
         }
     }
 
@@ -753,7 +679,7 @@ function kbMove(to) {
                 }
                 StyledText {
                     Layout.alignment: Qt.AlignHCenter
-                    text: "JPG, PNG or GIF — copied into " + Wallpaper.wallpaperDir.split("/").pop()
+                    text: "JPG, PNG or GIF, copied into " + Wallpaper.wallpaperDir.split("/").pop()
                     variant: "caption"
                     color: Colors.of(QsWindow.window).fgOnPrimaryContainer
                 }
@@ -762,8 +688,127 @@ function kbMove(to) {
     }
 
     ColumnLayout {
+        id: sideCol
+        visible: root.island
+        width: root.sideW
+        height: parent.height
+        spacing: Tokens.spacingMd
+
+        // What is on screen, at the screen's own shape.
+        WallpaperNow {
+            panel: root
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            // The screen's own 16:9, held: the column squeezes everything that can give, never this
+            // (a preferred height alone is shrunk with the rest when the column runs short).
+            Layout.preferredHeight: Math.round(root.sideW * 9 / 16)
+            Layout.minimumHeight: Math.round(root.sideW * 9 / 16)
+            Layout.maximumHeight: Math.round(root.sideW * 9 / 16)
+            opacity: root.choosing ? 0.4 : 1
+            Behavior on opacity { NumberAnimation { duration: Motion.fast } }
+        }
+        // Where the gallery draws from: three cards, in place of the bar panel's tab strip.
+        WallpaperSources {
+            panel: root
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: Tokens.iconXl * 3
+            onPicked: function (v) { root.pickSource(v) }
+        }
+        // The library's tools.
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            implicitHeight: toolsCol.implicitHeight + Tokens.spacingMd * 2
+            radius: Tokens.radiusCard
+            color: Colors.of(QsWindow.window).section
+
+            ColumnLayout {
+                id: toolsCol
+                anchors.fill: parent
+                anchors.margins: Tokens.spacingMd
+                spacing: Tokens.spacingSm
+
+                // The header's own line, which the island does not draw a header for.
+                StyledText {
+                    Layout.fillWidth: true
+                    text: root.swapped ? Translation.tr("Which workspaces get it? The others keep theirs.") : root.headerNote
+                    visible: text !== ""
+                    variant: "caption"
+                    emphasis: "dim"
+                    elide: Text.ElideRight
+                }
+                // The header tray's chips land here (the tray sends them over, in order), each a
+                // pill of its own as the Dashboard's switches are.
+                // The same tools the bar panel's header carries, each a pill of its own as the
+                // Dashboard's switches are. Declared here, not moved over from the header: a chip that
+                // is hidden when it is reparented and shown later is laid out but never painted
+                // (measured on Qt 6.12: the renderer-options chip left a blank slot on Scenes).
+                RowLayout {
+                    id: toolsRow
+                    Layout.fillWidth: true
+                    Layout.fillHeight: false
+                    spacing: Tokens.spacingSm
+
+                    ChipButton {
+                        Layout.fillWidth: true
+                        tonal: true
+                        visible: !root.isMaterial
+                        symbol: "refresh"
+                        tint: root.accent
+                        enabled: !root.scanning
+                        iconAngle: root._rescanSpinning ? root._rescanPhase : 0
+                        onActivated: root.doRescan()
+                        HoverTip { text: Translation.tr("Rescan the library") }
+                    }
+                    ChipButton {
+                        Layout.fillWidth: true
+                        tonal: true
+                        visible: root.view === "gallery" || root.isMaterial
+                        symbol: "animation"
+                        on: root.motionOn
+                        tint: root.accent
+                        onActivated: root.view = "effects"
+                        HoverTip { text: Translation.tr("Parallax and music effects") }
+                    }
+                    ChipButton {
+                        Layout.fillWidth: true
+                        tonal: true
+                        visible: !root.isImages && !root.isMaterial
+                        symbol: "settings"
+                        tint: root.accent
+                        onActivated: root.view = "settings"
+                        HoverTip { text: Translation.tr("Renderer options") }
+                    }
+                    ChipButton {
+                        Layout.fillWidth: true
+                        tonal: true
+                        visible: root.view === "gallery" && !root.galleryEmpty
+                        symbol: "checklist"
+                        on: root.selecting
+                        tint: root.accent
+                        onActivated: root.selecting ? root.endSelect() : root.selecting = true
+                        HoverTip { text: root.selecting ? Translation.tr("Done selecting") : Translation.tr("Select several (S)") }
+                    }
+                    ChipButton {
+                        Layout.fillWidth: true
+                        tonal: true
+                        visible: root.view === "gallery"
+                        symbol: root.listView ? "view_quilt" : "format_list_bulleted"
+                        tint: root.accent
+                        onActivated: root.listView = !root.listView
+                        HoverTip { text: root.listView ? Translation.tr("Show a grid (L)") : Translation.tr("Show a list (L)") }
+                    }
+                }
+            }
+        }
+    }
+
+    ColumnLayout {
+        id: mainCol
         anchors.fill: parent
-        anchors.margins: Tokens.spacingLg
+        anchors.margins: root.island ? 0 : Tokens.spacingLg
+        anchors.leftMargin: root.island ? root.sideW + Tokens.spacingMd : Tokens.spacingLg
         spacing: Tokens.spacingMd
 
         // ── Header ────────────────────────────────────────────────────────────
@@ -773,6 +818,9 @@ function kbMove(to) {
         // for a machine without the app.
         PanelHeader {
             id: head
+            // The bar panel's. An island page has no header: the rail names it, and its tools stand
+            // in the side column (`toolsRow`).
+            visible: !root.island
             icon:      (root.isImages || root.isMaterial) ? Icons.asset("wallpaper")
                                      : ("file://" + WallpaperEngine.logoFile)
             glyph:     "󰕧"
@@ -793,11 +841,11 @@ function kbMove(to) {
             }
 
             // ── ONE tray: the LIBRARY and how you see it ───────────────────────
-            // Rescan, parallax, music effects, the renderer's options (scenes), select, and the layout.
+            // Rescan, motion (parallax and music), the renderer's options (scenes), select, and the layout.
             // What you do to the WALLPAPER (shuffle, stop, undo, restart, cancel) lives on
             // the hero strip below, next to the picture it acts on. A lit chip IS the on state; the
             // layout chip shows the layout it switches TO. (The apply log's switch lives in the library
-            // popover: it is a setting, not an action.)
+            // drawer: it is a setting, not an action.)
             ChipTray {
                 groupShown: root.view === "gallery" || root.isMaterial
 
@@ -810,24 +858,16 @@ function kbMove(to) {
                     onActivated: root.doRescan()
                     HoverTip { below: true; text: Translation.tr("Rescan the library") }
                 }
-                // Parallax — ONE button; the two switches (picture / scene, separate settings)
-                // live in the popover below. Lit when either is on.
+                // What moves the wallpaper: parallax (picture and scene) and the music, in one view
+                // (Settings has the music controls too). Lit while any of them is on. On the Material tab too:
+                // parallax pans it as it pans a picture.
                 ChipButton {
-                    symbol:  "deployed_code"
-                    on:      Config.wallParallax || Config.wpeParallax
-                    tint:    root.accent
-                    onActivated: root.popover = root.popover === "parallax" ? "" : "parallax"
-                    HoverTip { below: true; text: Translation.tr("Parallax") }
-                }
-                // The wallpaper moved by the music: its own view (Settings has the same controls). Lit
-                // while the effects are on. Not on the Material tab, which they never draw over.
-                ChipButton {
-                    visible: root.view === "gallery"
-                    symbol:  "music_note"
-                    on:      Config.wallFx
+                    visible: root.view === "gallery" || root.isMaterial
+                    symbol:  "animation"
+                    on:      root.motionOn
                     tint:    root.accent
                     onActivated: root.view = "effects"
-                    HoverTip { below: true; text: Translation.tr("Music effects") }
+                    HoverTip { below: true; text: Translation.tr("Parallax and music effects") }
                 }
                 ChipButton {
                     visible: !root.isImages && !root.isMaterial
@@ -858,6 +898,8 @@ function kbMove(to) {
         RowLayout {
             id: searchRow
             Layout.fillWidth: true
+            // Above what is under it: the options chip's tip hangs over the drawer and the gallery.
+            z: 50
             visible: (root.view === "gallery" || root.isMaterial) && !root.showProgress && !root.swapped
             opacity: root.choosing ? 0 : 1
             Behavior on opacity { NumberAnimation { duration: Motion.fast } }
@@ -867,6 +909,8 @@ function kbMove(to) {
             // segment with its icon and count. Wide enough that every tab keeps its name (below 104px a
             // segment it drops to the chosen one's, and 306px truncated that to "Images…").
             SegmentSwitch {
+                // The island page has cards for this (WallpaperSources, in the side column).
+                visible: !root.island
                 Layout.preferredWidth: 336
                 Layout.fillHeight: false
                 accent: root.accent
@@ -877,34 +921,44 @@ function kbMove(to) {
                     { value: "material", label: "Material", icon: "category", lit: Config.wallMaterial }
                 ]
                 current: root.tab
-                onPicked: function (v) {
-                    // Only scenes can be assigned to a monitor.
-                    if (root.pickingActive && v !== "engine") return
-                    if (v === "material") { root.view = "material"; return }
-                    root.view = "gallery"
-                    root.source = v
-                }
+                onPicked: function (v) { root.pickSource(v) }
             }
 
             // Nothing to search in the Material tab.
             Item { Layout.fillWidth: true; visible: root.isMaterial }
 
-            Surface {
+            // The search: a tonal pill on the section tone, ringed in the accent while it has the keys.
+            // Its height is the chips' (ChipButton), so the field and the options button are one row.
+            //   empty and idle   the field types its own hints (TypedPlaceholder, the launcher's and the
+            //                    settings search's): what else it understands, a colour's name included
+            //   empty and typing the eight hues as swatches: a press searches that colour
+            //   with text        how many it found, out of how many; the glass bumps with every key
+            Rectangle {
+                id: searchPill
                 visible: !root.isMaterial
                 Layout.fillWidth: true
-                elevation: Tokens.elevationNested
-                focused: searchInput.activeFocus
-                // The library switch's height and its full-pill corner, so the two read as one row.
-                implicitHeight: Tokens.iconXl + Tokens.spacingMd
-                cornerRadius: implicitHeight / 2
+                implicitHeight: Tokens.iconXl + Tokens.spacingXs
+                radius: height / 2
+                color: Colors.of(QsWindow.window).section
+                border.width: searchInput.activeFocus ? 2 : 0
+                border.color: root.accent
+                Behavior on border.width { NumberAnimation { duration: Motion.respond } }
 
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin:  Tokens.spacingMd
-                    anchors.rightMargin: Tokens.spacingMd
-                    spacing: Tokens.spacingMd
+                    anchors.rightMargin: Tokens.spacingSm
+                    spacing: Tokens.spacingSm
 
-                    MaterialIcon { name: "search"; variant: "body"; emphasis: "dim" }
+                    MaterialIcon {
+                        id: glass
+                        name: "search"
+                        variant: "body"
+                        color: searchInput.activeFocus ? root.accent : Colors.of(QsWindow.window).fgDim
+                        scale: glassBump.value
+                        Behavior on color { ColorAnimation { duration: Motion.respond } }
+                        SpringValue { id: glassBump; target: 1; spec: Motion.springSpatialFast; epsilon: 0.002 }
+                    }
 
                     TextInput {
                         id: searchInput
@@ -916,50 +970,278 @@ function kbMove(to) {
                         font.pixelSize: Tokens.fontLabel
                         verticalAlignment: TextInput.AlignVCenter
                         cursorVisible: activeFocus
+                        onTextChanged: if (Config.motionEnabled) { glassBump.jump(1.28); glassBump.target = 1 }
 
                         Keys.onEscapePressed: {
                             searchInput.text = ""
                             searchInput.focus = false
                         }
+                        // A picture on the clipboard is added to the library; plain text pastes into the field as ever
+                        // (not accepted here, so the field still gets the key).
+                        Keys.onPressed: function (e) {
+                            if (e.key === Qt.Key_V && (e.modifiers & Qt.ControlModifier)) Wallpaper.pasteFromClipboard(true)
+                        }
                         Keys.onReturnPressed: {
                             if (root.filtered.length === 1) root.applyEntry(root.filtered[0])
                         }
 
-                        StyledText {
+                        TypedPlaceholder {
                             anchors.fill: parent
-                            verticalAlignment: Text.AlignVCenter
-                            text: root.isImages ? "Search wallpapers…" : "Search scenes…"
-                            variant: "label"
-                            emphasis: "dim"
                             visible: searchInput.text.length === 0
+                            variant: "label"
+                            lead: root.isImages ? Translation.tr("Search wallpapers") : Translation.tr("Search scenes")
+                            placeholder: lead
+                            // Idle only: while it has the keys the swatches stand where the hints would run.
+                            hints: searchInput.activeFocus ? [] : (root.isImages
+                                ? [{ key: "blue", text: Translation.tr("by colour") },
+                                   { key: "gif",  text: Translation.tr("the animated ones") },
+                                   { key: "/",    text: Translation.tr("to jump here") }]
+                                : [{ key: "blue",  text: Translation.tr("by colour") },
+                                   { key: "video", text: Translation.tr("only the videos") },
+                                   { key: "/",     text: Translation.tr("to jump here") }])
                         }
                     }
 
+                    // The hues.
+                    Row {
+                        spacing: Tokens.spacingXs
+                        visible: opacity > 0.01
+                        opacity: searchInput.activeFocus && searchInput.text.length === 0 ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: Motion.respond } }
+                        Repeater {
+                            model: Lib.colorList()
+                            delegate: Rectangle {
+                                id: swatch
+                                required property var modelData
+                                required property int index
+                                width: Tokens.iconSm
+                                height: width
+                                radius: width / 2
+                                // The gamut a colour search is picked FROM, not themed chrome (docs/standards.md).
+                                color: Qt.hsla(swatch.modelData.hue / 360, 0.72, 0.55, 1)
+                                border.width: Tokens.borderWidth
+                                border.color: Colors.of(QsWindow.window).outline
+                                scale: swatchMouse.containsMouse ? 1.3 : 1
+                                Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.overshoot } }
+                                MouseArea {
+                                    id: swatchMouse
+                                    anchors.fill: parent
+                                    anchors.margins: -Tokens.spacingXs
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: searchInput.text = swatch.modelData.id
+                                    Accessible.role: Accessible.Button
+                                    Accessible.name: swatch.modelData.id
+                                    Accessible.onPressAction: searchInput.text = swatch.modelData.id
+                                }
+                            }
+                        }
+                    }
+
+                    // How many it found, out of how many.
+                    Rectangle {
+                        visible: searchInput.text.length > 0
+                        implicitWidth: found.implicitWidth + Tokens.spacingMd * 2
+                        implicitHeight: found.implicitHeight + Tokens.spacingXs
+                        radius: height / 2
+                        color: root.filtered.length === 0 ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).danger, 0.2)
+                                                          : Colors.of(QsWindow.window).primaryContainer
+                        Behavior on color { ColorAnimation { duration: Motion.respond } }
+                        StyledText {
+                            id: found
+                            anchors.centerIn: parent
+                            text: root.filtered.length === 0 ? Translation.tr("None")
+                                : Translation.tr("%1 of %2").arg(root.filtered.length).arg(root.libraryCount)
+                            variant: "micro"
+                            font.weight: Font.DemiBold
+                            font.features: ({ tnum: 1 })
+                            color: Colors.of(QsWindow.window).fgOnPrimaryContainer
+                        }
+                    }
                     IconButton {
                         symbol: "close"
                         visible: searchInput.text.length > 0
                         onClicked: searchInput.text = ""
                     }
 
-                    // Sort, filter and shuffle (the library popover). A dot says one of the filters or the order
-                    // is changing what you see.
-                    IconButton {
-                        id: tuneButton
-                        symbol: "tune"
-                        onClicked: root.popover = root.popover === "library" ? "" : "library"
-                        HoverTip { text: Translation.tr("Sort, filter and shuffle"); below: true }
-
-                        Rectangle {
-                            width: Tokens.spacingSm
-                            height: width
-                            radius: width / 2
-                            anchors.top: parent.top
-                            anchors.right: parent.right
-                            color: root.accent
-                            scale: (root.activeFilters > 0 || Config.wallSort !== "name") ? 1 : 0
-                            visible: scale > 0.01
-                            Behavior on scale { NumberAnimation { duration: Motion.fast; easing.type: Motion.overshoot } }
+                    // The key that gets here from the page, said on the field while it is empty and idle.
+                    Rectangle {
+                        visible: searchInput.text.length === 0 && !searchInput.activeFocus
+                        implicitWidth: slash.implicitWidth + Tokens.spacingSm * 2
+                        implicitHeight: slash.implicitHeight + Tokens.spacingXs
+                        radius: Tokens.spacingXs + 2
+                        color: "transparent"
+                        border.width: Tokens.borderWidth
+                        border.color: Colors.of(QsWindow.window).outline
+                        StyledText {
+                            id: slash
+                            anchors.centerIn: parent
+                            text: "/"
+                            variant: "micro"
+                            emphasis: "dim"
                         }
+                    }
+                }
+            }
+
+            // Sort, filter and shuffle (the library drawer): a round chip of its own, lit while the
+            // drawer is open, and a pill with the number of things changing what you see (filters,
+            // and the order when it is not the default).
+            ChipButton {
+                id: tuneButton
+                visible: !root.isMaterial
+                tonal: true
+                symbol: "tune"
+                readonly property int changes: root.activeFilters + (Config.wallSort !== "name" ? 1 : 0)
+                label: tuneButton.changes > 0 ? String(tuneButton.changes) : ""
+                on: root.popover === "library" || tuneButton.changes > 0
+                tint: root.accent
+                onActivated: root.popover = root.popover === "library" ? "" : "library"
+                HoverTip { text: Translation.tr("Sort, filter and shuffle"); below: true; alignEnd: true }
+            }
+        }
+
+        // ── The library's options: a drawer under the search ─────────────────
+        // How the gallery is ordered and narrowed, and the shuffle. It opens in the column (the gallery
+        // gives way and takes the room back on close) rather than floating over it, so a filter is seen
+        // doing its work. A critically damped spring: a bounce would shake the grid under it.
+        // `popover` is "library" while it is open (the options chip, Escape).
+        SpringValue {
+            id: drawerK
+            target: root.popover === "library" && root.view === "gallery" ? 1 : 0
+            spec: ({ stiffness: Motion.springSpatial.stiffness, damping: 1.0 })
+            epsilon: 0.002
+        }
+        Item {
+            id: drawer
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            Layout.preferredHeight: Math.round(Math.max(0, drawerK.value) * drawerPlate.implicitHeight)
+            visible: Layout.preferredHeight > 0
+            clip: true
+            opacity: Math.min(1, Math.max(0, drawerK.value))
+
+            Rectangle {
+                id: drawerPlate
+                width: parent.width
+                implicitHeight: drawerGrid.implicitHeight + Tokens.spacingMd * 2
+                height: implicitHeight
+                radius: Tokens.radiusCard
+                color: Colors.of(QsWindow.window).section
+
+                ColumnLayout {
+                    id: drawerGrid
+                    anchors.fill: parent
+                    anchors.margins: Tokens.spacingMd
+                    spacing: Tokens.spacingSm
+
+                    // How it is ordered.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: false
+                        spacing: Tokens.spacingSm
+                        Repeater {
+                            model: [
+                                { value: "name",  label: Translation.tr("Name"),   icon: "abc",      shape: "cookie9" },
+                                { value: "new",   label: Translation.tr("Newest"), icon: "schedule", shape: "clover" },
+                                { value: "color", label: Translation.tr("Colour"), icon: "palette",  shape: "sunny" }
+                            ]
+                            delegate: OptionCard {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                Layout.fillHeight: false
+                                symbol: modelData.icon
+                                label: modelData.label
+                                shape: modelData.shape
+                                on: Config.wallSort === modelData.value
+                                onActivated: Config.wallSort = modelData.value
+                            }
+                        }
+                    }
+
+                    // What is shown.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: false
+                        spacing: Tokens.spacingSm
+                        Repeater {
+                            model: Lib.kinds(root.isImages)
+                            delegate: OptionCard {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                Layout.fillHeight: false
+                                symbol: modelData.value === "gif" ? "play_arrow" : modelData.value === "scene" ? "movie"
+                                      : modelData.value === "video" ? "video_library" : "select_all"
+                                label: modelData.label
+                                shape: "squircle"
+                                on: root.kindFilter === modelData.value
+                                onActivated: root.kindFilter = modelData.value
+                            }
+                        }
+                        OptionCard {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
+                            Layout.fillHeight: false
+                            symbol: "bookmark"
+                            label: Translation.tr("Favourites")
+                            shape: "cookie9"
+                            on: root.favOnly
+                            onActivated: root.favOnly = !root.favOnly
+                        }
+                    }
+
+                    // The shuffle, and the two switches that are about applying.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: false
+                        spacing: Tokens.spacingSm
+                        OptionCard {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
+                            Layout.fillHeight: false
+                            symbol: "shuffle"
+                            label: Translation.tr("Shuffle")
+                            detail: Config.wallShuffle ? Translation.tr("Every %1 min").arg(Config.wallShuffleMins) : Translation.tr("Off")
+                            shape: "clover"
+                            on: Config.wallShuffle
+                            onActivated: Config.wallShuffle = !Config.wallShuffle
+                        }
+                        OptionCard {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
+                            Layout.fillHeight: false
+                            symbol: "bookmark"
+                            label: Translation.tr("Starred only")
+                            detail: Translation.tr("Shuffle from favourites")
+                            shape: "cookie9"
+                            on: Config.wallShuffleFavs
+                            onActivated: Config.wallShuffleFavs = !Config.wallShuffleFavs
+                        }
+                        OptionCard {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
+                            Layout.fillHeight: false
+                            symbol: "checklist"
+                            label: Translation.tr("Apply log")
+                            detail: Translation.tr("Show each step")
+                            shape: "squircle"
+                            on: Config.wallApplyDebug
+                            onActivated: Config.wallApplyDebug = !Config.wallApplyDebug
+                        }
+                    }
+                    // How often, while it shuffles.
+                    ChipRow {
+                        Layout.fillHeight: false
+                        visible: Config.wallShuffle
+                        accent: root.accent
+                        model: [
+                            { value: 15,  label: "15 min" }, { value: 30,  label: "30 min" },
+                            { value: 60,  label: "1 hour" }, { value: 120, label: "2 hours" }
+                        ]
+                        current: Config.wallShuffleMins
+                        onPicked: function (v) { Config.wallShuffleMins = v }
                     }
                 }
             }
@@ -974,13 +1256,14 @@ function kbMove(to) {
             id: hero
             Layout.fillWidth: true
             Layout.preferredHeight: 74
-            visible: root.view === "gallery" && !root.showProgress && root.heroName !== "" && !root.swapped
+            // The island page has its own (WallpaperNow, in the side column).
+            visible: root.view === "gallery" && !root.showProgress && root.heroName !== "" && !root.swapped && !root.island
             opacity: root.choosing ? 0 : 1
             Behavior on opacity { NumberAnimation { duration: Motion.fast } }
             // Flat and rounder, like every box in the redesigned panels: one solid container fill,
             // no outline, no gradient (the blurred copy of the picture behind is the colour).
             radius: Tokens.radiusCard
-            color: Colors.of(QsWindow.window).surfaceContainer
+            color: Colors.of(QsWindow.window).plateLow
 
             // The current wallpaper's aspect, from the loaded thumbnail (sourceSize
             // preserves the ratio even though it scales the pixels). More use than
@@ -1356,7 +1639,8 @@ function kbMove(to) {
         // stacking under it — at 340px a second toolbar row costs a rank of
         // thumbnails. The gallery's own controls live in `galleryHeader`.
 
-        // ── Browser: where you are, and what you've ticked ────────────────────
+        // ── Browser: back out ─────────────────────────────────────────────────
+        // The browser draws its own places, path and Add capsule (WallpaperBrowse); this is only the way back.
         WallpaperSubBar {
             visible: root.view === "browse"
 
@@ -1367,45 +1651,13 @@ function kbMove(to) {
                     tint: root.accent
                     onActivated: root.view = "gallery"
                 }
-                // Reads the folder model through the Loader's item, never directly:
-                // the model is created with the browser and does not exist while this
-                // toolbar is merely invisible.
-                ChipButton {
-                    symbol: "arrow_upward"
-                    tint: root.accent
-                    enabled: body.browseLoader.item?.canGoUp ?? false
-                    onActivated: root.browseFolder = body.browseLoader.item.upFolder
-                }
-                ChipButton {
-                    symbol: "home"
-                    tint: root.accent
-                    onActivated: root.browseFolder = "file://" + Quickshell.env("HOME")
-                }
             }
-
             StyledText {
                 Layout.fillWidth: true
-                text: String(root.browseFolder)
-                    .replace("file://", "")
-                    .replace(Quickshell.env("HOME"), "~")
+                text: Translation.tr("Add pictures to the library")
                 variant: "caption"
                 emphasis: "dim"
-                elide: Text.ElideMiddle
-            }
-
-            // Copies the ticked files in, then clears the selection but stays open —
-            // the gallery rescans underneath, and you may well want more from the
-            // same folder.
-            ChipTray {
-                visible: root.picked.length > 0
-                ChipButton {
-                    symbol: "add"
-                    label: "Add " + root.picked.length
-                    on: true
-                    tint: root.accent
-                    enabled: !Wallpaper.importing
-                    onActivated: { Wallpaper.addPaths(root.picked); root.picked = [] }
-                }
+                elide: Text.ElideRight
             }
         }
 

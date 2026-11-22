@@ -30,7 +30,7 @@ ColumnLayout {
         MorphShape {
             anchors.fill: parent
             shape: root.shape
-            fillColor: root.quiet ? Colors.of(QsWindow.window).surfaceHigh : Colors.of(QsWindow.window).primaryContainer
+            fillColor: root.quiet ? Colors.of(QsWindow.window).plate : Colors.of(QsWindow.window).primaryContainer
         }
         MaterialIcon {
             anchors.centerIn: parent

@@ -338,7 +338,7 @@ Item {
                     opacity: panel.query !== "" ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: Motion.respond } }
                     color: clearSearchMouse.containsMouse ? Colors.of(QsWindow.window).primary
-                                                          : Colors.of(QsWindow.window).surfaceContainer
+                                                          : Colors.of(QsWindow.window).plateLow
                     Behavior on color { ColorAnimation { duration: Motion.respond } }
                     MaterialIcon {
                         anchors.centerIn: parent

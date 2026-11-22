@@ -1096,16 +1096,16 @@ class Analyzer:
         self.rms_hist.append(rms)
         d_kick, d_snare, d_hat = (max(0.0, rms[i] - self.rms_hist[0][i]) for i in range(3))
         onset = onset and d_kick >= KICK_OVER_SNARE * d_snare
-        # Only a kick that is CALLED starts the refractory (2026-10-31, `self.since` in `kicked`
-        # below). It used to start on any flux onset, before the test above and before the
-        # gate: on funk, a clap landing with the kick rises a hop early and fails the test, or
+        # Only a kick that is CALLED starts the refractory (`self.since` in `kicked` below).
+        # Starting it on any flux onset, before the test above and before the gate, loses
+        # kicks: on funk, a clap landing with the kick rises a hop early and fails the test, or
         # (unlocked) the first rising hop is an onset but not a clear one — and the kick's own
-        # peak a hop or two later fell in the refractory. Measured on a 128 BPM funk track: 15
+        # peak a hop or two later falls in the refractory. Measured on a 128 BPM funk track: 15
         # of ~64 kicks lost in 30 s, strong ones (z 5–6.6), on the grid. EXCEPT while unlocked:
         # there the gate can't tell an 808 from a kick, and an 808's slow rise is an onset a hop
-        # or two before it is a clear one — the old refractory is what kept those out (the
-        # synthetic kit's off-beat 808s came back as beats without it). The price: a few kicks
-        # in the seconds before the clock locks.
+        # or two before it is a clear one — a refractory on every onset is what keeps those out
+        # (the synthetic kit's off-beat 808s come back as beats without it). The price: a few
+        # kicks in the seconds before the clock locks.
         if onset:
             self.tracker.onset(self.t)
             if not self.tracker.locked:
@@ -1293,9 +1293,27 @@ def fmt(s):
     return "%.3f %.3f %.3f %.3f %.3f %d %.3f %.1f %d %.3f %d %.3f %.3f %d %.3f %d %.3f %.3f %.3f %d" % s
 
 
+def record_command(exe, target):
+    """The pw-record command line. It must never be able to hear the microphone.
+
+    pw-record with no target records the default INPUT, and a target it cannot find (the app closed
+    its stream and opened another) is linked to the default input too. So a named target says
+    `node.dont-fallback`: gone means pw-record exits and the caller restarts it on the new node. No target
+    means what the default output plays, which `stream.capture.sink` asks for.
+    """
+    cmd = [exe, "--raw", "--rate", str(RATE), "--channels", "1", "--format", "f32", "--latency", str(HOP)]
+    if target:
+        cmd += ["--target", target, "-P", "{ node.dont-fallback=true }"]
+    else:
+        cmd += ["-P", "{ stream.capture.sink=true }"]
+    cmd.append("-")
+    return cmd
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--target", default="", help="PipeWire node to listen to (default: the default output)")
+    ap.add_argument("--target", default="",
+                    help="PipeWire node (name or object.serial) to listen to (default: what the default output plays)")
     ap.add_argument("--offset-ms", type=int, default=0,
                     help="hold every line back this long, for speakers slower than the screen")
     ap.add_argument("--every", type=int, default=2, help="print one line per this many hops")
@@ -1307,10 +1325,7 @@ def main(argv=None):
         return 2
 
     die_with_parent()
-    cmd = [exe, "--raw", "--rate", str(RATE), "--channels", "1", "--format", "f32", "--latency", str(HOP)]
-    if a.target:
-        cmd += ["--target", a.target]
-    cmd.append("-")
+    cmd = record_command(exe, a.target)
     try:
         proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                 preexec_fn=die_with_parent)

@@ -201,7 +201,9 @@ Item {
     // A tooltip worked out when the pointer arrives (HelpTip.provide): a function returning the words,
     // or null for none. The caller owns the wording; this file stays free of services.
     property var tipProvider: null
-    HelpTip { provide: root.tipProvider; pill: true }
+    // The module id a quick-action card hangs under this pill for (PillTip); "" for words only.
+    property string quickId: ""
+    HelpTip { provide: root.tipProvider; pill: true; quick: root.quickId }
 
     signal clicked()
     signal rightClicked()
@@ -262,7 +264,8 @@ Item {
         anchors.fill: parent
         radius:  root.cornerRadius
         visible: root.container
-        color:        Colors.of(QsWindow.window).surfaceFor(Tokens.elevationNested)
+        color:        Colors.of(QsWindow.window).veiled ? Colors.of(QsWindow.window).wash
+                    : Colors.of(QsWindow.window).surfaceFor(Tokens.elevationNested)
         // Config.barBorderWidth, not Tokens.borderWidth — the same "Pill border"
         // slider that already governs the group pill outside this one, so a
         // single knob (down to 0) flattens both at once. Was a fixed hairline;

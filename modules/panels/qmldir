@@ -63,3 +63,6 @@ KaraokeResults 1.0 KaraokeResults.qml
 KaraokeHud 1.0 KaraokeHud.qml
 KaraokeScoresView 1.0 KaraokeScoresView.qml
 KaraokeJoin 1.0 KaraokeJoin.qml
+HotCorner         1.0 HotCorner.qml
+HotCornerPanel    1.0 HotCornerPanel.qml
+HotCornerSlider   1.0 HotCornerSlider.qml

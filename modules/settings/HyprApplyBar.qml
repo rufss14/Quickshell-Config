@@ -7,7 +7,7 @@ import "../../services"
 
 // ── HyprApplyBar ──────────────────────────────────────────────────────────────
 // The "saved to disk — reload to apply" strip and the "edit rejected" strip, shared by
-// both Window manager views (Keybinds, Tuning). One copy, because the two views write
+// both Window manager views (Keybinds, Windows). One copy, because the two views write
 // through the same HyprConfig queue and must describe its state identically.
 //
 // Edits are written to disk immediately — each backed up and syntax-checked by the
@@ -24,13 +24,13 @@ ColumnLayout {
     Layout.fillHeight: false
     spacing: Tokens.spacingSm
 
-    Surface {
+    // Flat plates, no outline: a strip of state on the ground (the tone ladder).
+    Rectangle {
         Layout.fillWidth: true
         visible: HyprConfig.pendingApply || HyprConfig.canUndo
         implicitHeight: applyRow.implicitHeight + Tokens.spacingSm * 2
-        elevation:    Tokens.elevationNested
-        cornerRadius: Tokens.radiusSm
-        castsShadow:  false
+        radius: Tokens.radiusCard
+        color: Colors.of(QsWindow.window).section
 
         RowLayout {
             id: applyRow
@@ -46,9 +46,9 @@ ColumnLayout {
                 variant: "label"
                 emphasis: "muted"
                 elide: Text.ElideRight
-                text: HyprConfig.applying     ? "Reloading Hyprland…"
-                    : HyprConfig.pendingApply ? "Saved to disk (backed up). Reload to apply to this session."
-                    : "Nothing to apply."
+                text: HyprConfig.applying     ? Translation.tr("Reloading Hyprland…")
+                    : HyprConfig.pendingApply ? Translation.tr("Saved to disk (backed up). Reload to apply to this session.")
+                    : Translation.tr("Nothing to apply.")
             }
             PanelButton {
                 capsule: true
@@ -70,15 +70,12 @@ ColumnLayout {
         }
     }
 
-    Surface {
+    Rectangle {
         Layout.fillWidth: true
         visible: HyprConfig.lastError !== ""
         implicitHeight: errRow.implicitHeight + Tokens.spacingSm * 2
-        elevation:    Tokens.elevationNested
-        cornerRadius: Tokens.radiusSm
-        castsShadow:  false
+        radius: Tokens.radiusCard
         color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).danger, 0.14)
-        border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).danger, 0.4)
 
         RowLayout {
             id: errRow
@@ -94,7 +91,7 @@ ColumnLayout {
                 variant: "label"
                 color: Colors.of(QsWindow.window).danger
                 elide: Text.ElideRight
-                text: "Edit rejected — your config was left untouched: " + HyprConfig.lastError
+                text: Translation.tr("Edit rejected, your config was left untouched: %1").arg(HyprConfig.lastError)
             }
             PanelButton {
                 capsule: true

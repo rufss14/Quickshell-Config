@@ -76,9 +76,7 @@ Item {
             radius: bubble.r
             topLeftRadius: root.mine ? bubble.r : 5
             bottomRightRadius: root.mine ? 5 : bubble.r
-            color: root.mine ? root.accent : Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceContainer, 0.94)
-            border.width: root.mine ? 0 : Tokens.borderWidth
-            border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.07)
+            color: root.mine ? root.accent : Colors.of(QsWindow.window).surfaceHigh
 
             StyledText {
                 id: said

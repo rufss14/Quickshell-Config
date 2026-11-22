@@ -8,6 +8,7 @@ import "../../components"
 import "../../services"
 import "../../state"
 import "../../services/claudeusage.js" as Usage
+import "claude"
 
 // ── ClaudePanel ───────────────────────────────────────────────────────────────
 // Claude Code on this machine (services/ClaudeSessions), beside the sidebar's Claude
@@ -52,6 +53,11 @@ Item {
     id: root
 
     property real maxHeight: Infinity
+    // ── As an island page (IslandCard; 2026-11-15) ────────────────────────────
+    // No header (the rail names it; the user asked for it to go): ClaudeIslandHero stands upright on the left
+    // with what the sessions are doing, the usage limits and New, and the sessions fill a plate beside it.
+    property bool island: false
+    readonly property int sideW: Tokens.spacingXl * 14 + Tokens.spacingSm
 
     readonly property int pad: Tokens.spacingXl
     readonly property color accent: Colors.of(QsWindow.window).primary
@@ -174,8 +180,31 @@ Item {
         }
     }
 
+    // ══ On an island: the loud card on the left, the sessions on a plate beside it ══
+    RowLayout {
+        anchors.fill: parent
+        visible: root.island
+        spacing: Tokens.spacingMd
+        Loader {
+            Layout.fillWidth: false
+            Layout.preferredWidth: root.sideW
+            Layout.minimumWidth: root.sideW
+            Layout.fillHeight: true
+            active: root.island
+            sourceComponent: ClaudeIslandHero { panel: root }
+        }
+        Rectangle {
+            id: listPlate
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            radius: Tokens.radiusXl
+            color: Colors.of(QsWindow.window).section
+        }
+    }
+
     ColumnLayout {
         id: col
+        visible: !root.island
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -318,6 +347,8 @@ Item {
 
         // ── Nothing at all ────────────────────────────────────────────────────
         PanelEmpty {
+            parent: root.island ? listPlate : col
+            anchors.centerIn: root.island ? parent : undefined
             visible: root.rows.length === 0 && ClaudeSessions.ready
             quiet: true
             symbol: "terminal"
@@ -329,6 +360,10 @@ Item {
         // ── Running, then recent ──────────────────────────────────────────────
         ListView {
             id: list
+            // On an island it fills the plate on the right.
+            parent: root.island ? listPlate : col
+            anchors.fill: root.island ? parent : undefined
+            anchors.margins: root.island ? Tokens.spacingMd : 0
             Layout.fillWidth: true
             Layout.preferredHeight: Math.min(contentHeight, root.listRoom)
             visible: root.rows.length > 0
@@ -406,8 +441,9 @@ Item {
                     anchors.fill: parent
                     anchors.topMargin: row.headH
                     radius: Tokens.radiusCard
-                    color: row.permission ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).section, Colors.of(QsWindow.window).warning, 0.22)
-                                          : Colors.of(QsWindow.window).section
+                    // On the island's plate a row is a card lifted one tone (the tone ladder).
+                    readonly property color base: root.island ? Colors.of(QsWindow.window).surfaceHigh : Colors.of(QsWindow.window).section
+                    color: row.permission ? Colors.of(QsWindow.window).mix(base, Colors.of(QsWindow.window).warning, 0.22) : base
                     Behavior on color { ColorAnimation { duration: Motion.standard } }
                     Rectangle {
                         anchors.fill: parent
@@ -430,11 +466,15 @@ Item {
                         Layout.alignment: Qt.AlignTop
                         implicitWidth: Tokens.iconXl
                         implicitHeight: Tokens.iconXl
-                        Rectangle {
+                        // A shape per state (M3E): a disc at rest, a cookie while it works, a clover while it
+                        // asks, a burst while it wants permission.
+                        MorphShape {
                             anchors.fill: parent
-                            radius: width / 2
-                            color: Colors.of(QsWindow.window).alpha(row.tone, 0.14)
-                            Behavior on color { ColorAnimation { duration: Motion.standard } }
+                            shape: row.permission ? "burst" : row.asking ? "clover" : row.working ? "cookie9" : "circle"
+                            spec: Motion.springSpatialFast
+                            turns: false
+                            fillColor: Colors.of(QsWindow.window).alpha(row.tone, row.live ? 0.2 : 0.12)
+                            Behavior on fillColor { ColorAnimation { duration: Motion.standard } }
                             SequentialAnimation on opacity {
                                 running: row.permission && Motion.slow > 0
                                 loops: Animation.Infinite

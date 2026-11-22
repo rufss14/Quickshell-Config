@@ -63,7 +63,21 @@ INDEXED = {
     # sidebar's modules, the stats readings) carry computed labels and are skipped here
     # by design; their names ride in the view's `keywords` in SettingsIndex instead.
     "ToggleChip":      ("label", "hint",     "row"),
+    # Cards, panel rows and bare switches: the island-style pages spell most controls
+    # this way instead of SettingRow. A bare Toggle has only its accessibleName.
+    "OptionCard":      ("label", "detail",   "row"),
+    "PanelRow":        ("title", "subtitle", "row"),
+    "Toggle":          ("accessibleName", None, "row"),
+    # Only the placeholder of an otherwise unlabelled field; see keep_input().
+    "InputField":      ("placeholder", None, "row"),
 }
+
+# Choice controls. Never entries themselves: their literal labels ride on the
+# nearest enclosing indexed entry as `values`, so "celsius" or "auto" finds the row.
+VALUE_KINDS = ("ChipRow", "TabStrip", "SegmentSwitch")
+_PROPS = ("title", "subtitle", "label", "detail", "help", "subLabel", "hint",
+          "accessibleName", "placeholder")
+_LABEL = re.compile(r'\blabel\s*:\s*(Translation\.tr\(\s*"(?:[^"\\]|\\.)*"\s*\)|"(?:[^"\\]|\\.)*")')
 
 # A row's owning card.
 OWNERS = ("Section",)
@@ -133,39 +147,67 @@ def literal_value(text):
 
 
 def expand(path, seen=()):
-    """The page's lines, with each part from a subfolder it imports (WallpaperPage →
+    """(line, source stem) pairs: the page's lines, with each part from a subfolder it imports (WallpaperPage →
     `import "wallpaper"`) spliced in where the page instantiates it — so its rows land
     in the page's own order and under the Section that holds them, as before the split."""
     text = path.read_text(encoding="utf-8")
     parts = {}
-    for sub in re.findall(r'^import "(\w+)"\s*$', text, re.M):
-        d = path.parent / sub
-        if d.is_dir():
-            parts.update({f.stem: f for f in d.glob("*.qml")})
-    # And the settings components a page uses (`import ".."`), and theirs in turn — a
-    # component's siblings need no import. Bar › Modules' rows live in ModuleInspector,
-    # which holds DockOptions and StatsOptions (the dock's and the stats' settings since
-    # their tabs went, 2026-11-08); left out, every one of them silently stopped being
-    # searchable — the drop QuickToggleTile's note below warns about.
+    # Any folder of the settings app the file imports: a page's own subfolder
+    # (`import "wallpaper"`), the settings components (`import ".."` from a page,
+    # `import "../.."` from a page's part), and theirs in turn. Bar › Modules' rows live
+    # in ModuleInspector, which holds DockOptions and StatsOptions; Wallpaper's Per
+    # workspace card is WallpaperWorkspaces, used by a part. Left out, every one of
+    # them silently stops being searchable, the drop QuickToggleTile's note below
+    # warns about. Folders outside the settings app (components, config) are not parts.
     settings = PAGES.parent
-    if path.parent == PAGES and re.search(r'^import "\.\."\s*$', text, re.M):
-        parts.update({f.stem: f for f in settings.glob("*.qml")})
-    elif path.parent == settings:
-        parts.update({f.stem: f for f in settings.glob("*.qml") if f != path})
+    for sub in re.findall(r'^import "([^"]+)"\s*$', text, re.M):
+        d = (path.parent / sub).resolve()
+        if d.is_dir() and (d == settings or settings in d.parents):
+            parts.update({f.stem: f for f in d.glob("*.qml") if f != path})
+    # A component's siblings need no import: the settings components, and a page's
+    # parts in its subfolder. Pages themselves (PAGES) are never each other's parts.
+    if path.parent != PAGES and (path.parent == settings or PAGES in path.parent.parents):
+        parts.update({f.stem: f for f in path.parent.glob("*.qml") if f != path})
     out = []
     for raw in text.splitlines():
         m = re.match(r"\s*(?:delegate:\s*)?(\w+)\s*\{", strip_noise(raw))
         if m and m.group(1) in parts and parts[m.group(1)] not in seen:
             out.extend(expand(parts[m.group(1)], seen + (path,)))
             continue
-        out.append(raw)
+        out.append((raw, path.stem))
     return out
+
+
+def keep_input(props, open_blocks):
+    """An InputField is indexed only as the main control of an unlabelled row: not a
+    search/filter box, not a computed or example-looking placeholder, and not inside
+    a row that already carries a label."""
+    ph = props.get("placeholder", "")
+    if not ph or re.match(r"(?i)(search|filter)", ph):
+        return False
+    # Examples ("~/Videos", "20:00", "ctrl+shift+s", ids), bare one-word hints, and
+    # try-it boxes ("Type here to hear it") are not settings: a real label starts
+    # with a capital and is at least five characters.
+    if len(ph) < 5 or not ph[0].isupper() or "%s" in ph or "•" in ph or " here " in ph:
+        return False
+    for b in open_blocks:
+        if b[1] in INDEXED and b[1] not in ("Section", "InputField") \
+                and b[2].get(INDEXED[b[1]][0]):
+            return False
+    return True
+
+
+def string_values(text):
+    """Every string literal in `text`, Translation.tr unwrapped."""
+    text = _TR_CALL.sub(r"\1", text)
+    return [v.strip() for v in _STRING.findall(text) if v.strip()]
 
 
 def scan(path):
     """Yield index entries for one page file, tracking which Section owns each row."""
     entries = []
-    # Stack of [brace_depth_at_open, type_name, collected_props]. A row's owning
+    # Stack of [brace_depth_at_open, type_name, collected_props, part, values,
+    # in_string_model]. A row's owning
     # Section is found by looking DOWN this stack while the row closes — the Section
     # is still open at that moment, and its `title:` has already been read because
     # these files declare it before the rows. Recording sections as they CLOSE
@@ -174,23 +216,33 @@ def scan(path):
     open_blocks = []
     depth = 0
 
-    lines = expand(path)
-    for raw in lines:
+    for raw, stem in expand(path):
         line = strip_noise(raw)
 
         # A property assignment belonging to the innermost open block.
         if open_blocks:
             m = re.match(r"\s*(\w+)\s*:\s*(.+?)\s*$", line)
-            if m and m.group(1) in ("title", "subtitle", "label", "detail", "help"):
+            if m and m.group(1) in _PROPS:
                 val = literal_value(m.group(2))
                 if val:
                     open_blocks[-1][2].setdefault(m.group(1), val)
 
-        # Opening one of the types we index. `\b` so `SettingRow` does not also
-        # match a hypothetical `MySettingRow`.
-        m = re.search(r"\b(" + "|".join(INDEXED) + r")\s*\{", line)
+        # Opening one of the types we index, or a choice control. `\b` so
+        # `SettingRow` does not also match a hypothetical `MySettingRow`.
+        m = re.search(r"\b(" + "|".join(list(INDEXED) + list(VALUE_KINDS)) + r")\s*\{", line)
         if m:
-            open_blocks.append([depth, m.group(1), {}])
+            open_blocks.append([depth, m.group(1), {}, stem, [], False])
+
+        # Labels of a choice control's model go to its innermost choice block.
+        vb = next((b for b in reversed(open_blocks) if b[1] in VALUE_KINDS), None)
+        if vb is not None:
+            vb[4].extend(string_values(" ".join(_LABEL.findall(line))))
+            if vb[5] or re.match(r"\s*model\s*:\s*\[", line):
+                # A plain string model (`model: ["Auto", "On"]`), possibly over lines.
+                # Object models are covered by their `label:` above.
+                if "{" not in line and "label" not in line:
+                    vb[4].extend(string_values(line.split(":", 1)[1] if not vb[5] else line))
+                vb[5] = "]" not in line
 
         for c in line:
             if c == "{":
@@ -199,32 +251,49 @@ def scan(path):
                 depth -= 1
                 # Close any block whose opening depth we have come back to.
                 while open_blocks and open_blocks[-1][0] >= depth:
-                    _, kind, props = open_blocks.pop()
-                    title_key, detail_key, tag = INDEXED[kind]
-                    title = props.get(title_key)
-                    if title:
-                        entry = {
-                            "file": path.name,
-                            "kind": tag,
-                            "title": title,
-                        }
-                        # The explanation moved out of the layout into `help` (a tip on
-                        # the control, components/HelpTip) — it is still the best text
-                        # to match a search against when the state line is computed.
-                        detail = props.get(detail_key) or props.get("help")
-                        if detail:
-                            entry["detail"] = detail
-                        if tag == "row":
-                            # The Section this row sits inside, so a result can say
-                            # "Appearance › Type › Text scale" rather than just the row.
-                            # Still on the stack at this point — see the note above.
-                            owner = next(
-                                (b[2].get("title") for b in reversed(open_blocks)
-                                 if b[1] in OWNERS),
-                                None,
-                            )
-                            if owner:
-                                entry["section"] = owner
+                    _, kind, props, part, values, _m = open_blocks.pop()
+                    if kind in VALUE_KINDS:
+                        entry = None
+                    else:
+                        title_key, detail_key, tag = INDEXED[kind]
+                        title = props.get(title_key)
+                        if kind == "InputField" and not keep_input(props, open_blocks):
+                            title = None
+                        entry = None
+                        if title:
+                            entry = {"file": path.name, "part": part,
+                                     "kind": tag, "title": title}
+                            # The explanation moved out of the layout into `help` (a tip on
+                            # the control, components/HelpTip) — it is still the best text
+                            # to match a search against when the state line is computed.
+                            detail = props.get(detail_key) if detail_key else None
+                            detail = detail or props.get("help")
+                            if detail:
+                                entry["detail"] = detail
+                            if tag == "row":
+                                # The Section this row sits inside, so a result can say
+                                # "Appearance › Type › Text scale" rather than just the row.
+                                # Still on the stack at this point — see the note above.
+                                owner = next(
+                                    (b[2].get("title") for b in reversed(open_blocks)
+                                     if b[1] in OWNERS),
+                                    None,
+                                )
+                                if owner:
+                                    entry["section"] = owner
+                    if values:
+                        uniq = list(dict.fromkeys(values))
+                        if entry:
+                            entry["values"] = uniq
+                        else:
+                            # A choice control, or a row too computed to index: pass
+                            # the choices to the nearest enclosing block that is not
+                            # itself a choice control (the row, else the Section).
+                            host = next((b for b in reversed(open_blocks)
+                                         if b[1] not in VALUE_KINDS), None)
+                            if host:
+                                host[4].extend(uniq)
+                    if entry:
                         entries.append(entry)
 
     return entries

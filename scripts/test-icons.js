@@ -118,7 +118,9 @@ for (const file of qmlFiles(repo)) {
     }
 }
 
-const missing = [...used.entries()].filter(([n]) => !(n in SYMBOL));
+// Drawn by components/Dumbbell, not set in the font (MaterialIcon says why), so it is not in the map.
+const DRAWN = new Set(["dumbbell"]);
+const missing = [...used.entries()].filter(([n]) => !(n in SYMBOL) && !DRAWN.has(n));
 ok(`every symbol used in the tree is in the map (${used.size} in use)`,
    missing.length === 0,
    missing.map(([n, f]) => `${n}  (${f.replace(repo + "/", "")})`).join("\n          "));

@@ -84,6 +84,7 @@ Item {
     IconButton {
         id: pill
         tipProvider: Config.barTooltips ? function () { return ModuleGlance.tip("bluetooth") } : null
+        quickId: "bluetooth"
         container: false
         height: Config.barPillHeight
         width:  root.collapsed ? collapsedW : expandedW

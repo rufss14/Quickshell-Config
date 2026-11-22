@@ -130,6 +130,7 @@ Singleton {
         let m
         try { m = JSON.parse(line) } catch (e) { return }
         if (m.t === "sessions") {
+            const wasReady = root.ready
             root.ready = true
             root._restarts = 0
             const next = Array.isArray(m.sessions) ? m.sessions : []
@@ -141,8 +142,19 @@ Singleton {
             for (const s of next)
                 if (!panelOpen && was[s.sid] === "busy" && s.status !== "busy" && fresh.indexOf(s.sid) < 0)
                     fresh.push(s.sid)
+            const freshBefore = root.fresh.length
             root.fresh = fresh
+            const needsBefore = root.needsYou.length
             root.sessions = next
+            // A session starting to need you, or finishing a turn: the clock pill shows it while a
+            // panel hides the sidebar's peek (Notifications.glance). Not at the first list, which is
+            // only the sessions that were already there.
+            if (wasReady && Config.peekClaude) {
+                const needs = root.needsYou.length > needsBefore
+                const t = needs ? root.needsYou[0]
+                        : fresh.length > freshBefore ? next.find(s => s.sid === fresh[fresh.length - 1]) : null
+                if (t) Notifications.glanceEvent(root._glanceInfo(t, needs))
+            }
         } else if (m.t === "recent") {
             root.recent = Array.isArray(m.sessions) ? m.sessions : []
         } else if (m.t === "rate") {
@@ -158,6 +170,17 @@ Singleton {
                 root._error("Couldn't find its terminal window")
             }
         }
+    }
+    function _glanceInfo(t, needs) {
+        return { kind: "claude", pid: t.pid, needs: needs,
+                 title: needs ? Translation.tr("Claude needs you") : Translation.tr("Claude finished"),
+                 detail: t.title || t.project || "" }
+    }
+    // What the sidebar's Claude peek is showing, on the pill, for a panel about to cover it.
+    function glanceCurrent() {
+        const s = root.needsYou[0] ?? null
+        const t = s ?? root.sessions.find(x => x.sid === root.fresh[root.fresh.length - 1]) ?? null
+        return t !== null && Notifications.glanceEvent(root._glanceInfo(t, s !== null))
     }
     function _error(msg) { root.lastError = msg; errorBeat.restart() }
     Timer { id: errorBeat; interval: 5000; onTriggered: root.lastError = "" }

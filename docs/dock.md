@@ -190,3 +190,26 @@ group and `sideRail` lays them gapless (`joined`), and SideRegionPills draws one
 them (no divider inside). The dock's own right-click menu is surface-aware: "Move to the
 sidebar" on the bar, "Move to the bar" on the sidebar (`Config.placeModule`).
 
+
+## Icon tiles and the start button (sidebar dock)
+
+`Config.dockIconPlate` (default on; Dock options › Icon tiles): each app icon sits on a `surfaceHigh` tile (`DockIconStrip.plated`,
+`plateSize` = icon + `spacingSm`, radius concentric with the cell) with the icon a margin smaller inside it, so a disc, a square and a logo
+read as one set. Icons keep their own colours (the user's call). A focused app's tile does NOT change: the glider says focus, and a box
+behind the focused app was rejected before (as were per-cell plates in the sidebar, 2026-10-17; this one is the icon's, not the cell's).
+Not on the bar's dock (`edge: "top"`).
+
+## Fixed slots (the bars' docks)
+
+`Config.dockSlots` (default 5, 0 = off; Dock options › App slots): the sidebar's and the top bar's dock show that many app slots
+whatever is running, so they never change length and their neighbours stay put (`DockIconStrip.fixedSlots`, set by `DockHost` and
+`DockPill` from `Config.dockSlotCount`; the overview's strip doesn't). Empty slots are a small dot (the workspace pill's empty slot);
+running apps sit on run pills (`DockRunPill` is on in fixed mode whatever `dockInnerPill` says).
+
+- **View:** `viewMax` = start buttons + `fixedSlots` slots (or the room, if smaller). Past that the apps scroll UNDER the start
+  button, which stands still (`leadLayer`; `appsView` clips from `lead`, only while scrolling, so magnification still grows out of a dock
+  that doesn't scroll). The head fade starts where the start button ends.
+- **Scrolling:** a plain wheel over a dock that overflows scrolls it a slot at a time (`wheelScrolls`); an app's own wheel (volume,
+  or its windows) is Ctrl+wheel then. Shift+wheel and a sideways swipe still scroll. The focused app is scrolled into view when focus
+  moves (`_reveal`).
+- **No pin | running gap** in fixed mode (`pinGap`): it would change the length when the first unpinned app opens.

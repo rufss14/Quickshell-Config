@@ -17,6 +17,7 @@ IconButton {
     id: root
 
     tipProvider: Config.barTooltips ? function () { return ModuleGlance.tip("update") } : null
+    quickId: "update"
 
     // NOTE: `accent` is inherited from IconButton (default: Colors.primary) and drives
     // both the state ladder and the glow ring below. Do not redeclare it here — that
@@ -66,8 +67,12 @@ IconButton {
     // Count badge — the shared one (CountBadge), which the sidebar's bell wears too.
     // A newer Quicktest release counts as one (services/ShellUpdate) — on an
     // otherwise current system it's the only thing that would light this up.
+    // A catalogue tile (ModuleLibrary) sets `preview`: the count lands on the glyph once the pill is
+    // fitted into its well, and says nothing there.
+    property bool preview: false
+
     CountBadge {
-        visible: count > 0
+        visible: !root.preview && count > 0
         count:   Updates.total + (ShellUpdate.available ? 1 : 0)
         tint:    Updates.hasError ? Colors.of(QsWindow.window).warning : Colors.of(QsWindow.window).primary
 

@@ -208,6 +208,9 @@ ConfigBarLayout {
     property bool   cavaBgPeaks: false
     property bool   cavaBgGlow: false
     property bool   cavaBgRingCover: true
+    // Wear the shell's gradient (`barGradient`: its colours, its angle) instead of the blend above. It
+    // applies only while that gradient is on, so turning the gradient off never edits this choice.
+    property bool   cavaBgGradient: false
     // Every colour of the scheme worth drawing with, and the cover's.
     readonly property var cavaBgColors: [
         { id: "primary", label: "Primary" },
@@ -424,6 +427,14 @@ ConfigBarLayout {
     //
     // Default 1. The effect is the point of the card, and this is the way back out.
     property real lyricsMotion: 1.0
+    // How the card moves between lines (OverviewLyricsSynced). `lyricsStagger`: the lines further from the sung one follow
+    // the slide a beat later, a ripple instead of one slab. `lyricsSoftFocus`: lines two or more away from the sung one are
+    // blurred a little, more the further they are (each is a cached layer, off for a still card). `lyricsScrollAhead`: how
+    // many seconds before a line starts the card begins sliding to it, so it arrives as the first word lights; 0 = on the
+    // line's start. All on by default: this is the card's feel, and these are the way back out.
+    property bool lyricsStagger: true
+    property bool lyricsSoftFocus: true
+    property real lyricsScrollAhead: 0.15
 
     // ── Lyrics translation ────────────────────────────────────────────────────
     // A translated line under each lyric. OFF by default, and that default is deliberate
@@ -677,6 +688,11 @@ ConfigBarLayout {
     // behaviour — hand-pinned colours outrank the album. Config for the album tab
     // in the colours panel.
     property bool albumSchemeLock: false
+
+    // How long the shell keeps wearing the cover after the music stops (or the source goes), in seconds, before the
+    // wallpaper's colours come back; -1 keeps it until something else plays. The gap between two tracks is shorter
+    // than any of the choices, so none of them strobes.
+    property int albumHold: 20
 
     // WHERE the album palette goes (services/AlbumScheme, WorkspaceTheme):
     //   "all"        the whole shell (and, with albumSchemeSystem, the whole system) — as it always was;

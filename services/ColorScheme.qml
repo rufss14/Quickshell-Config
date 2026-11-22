@@ -4,6 +4,8 @@ import "../config"
 import Quickshell.Io
 import QtQuick
 import "palette.js" as Palette
+import "schemes.js" as Schemes
+import "gradient.js" as Gradient
 
 // ── ColorScheme ───────────────────────────────────────────────────────────────
 // The palette editor's logic: overrides, saved schemes, and pushing a palette out.
@@ -187,10 +189,12 @@ Singleton {
         root._writeOverrides(({ special: ({}), colors: ({}) }))
     }
 
-    // The lock button: hold what is on screen now (nothing changes visually, so no
-    // reload), or hand everything back to the wallpaper.
+    // The lock button: it ONLY locks and unlocks. Locking holds what is on screen now (nothing changes visually,
+    // so no reload). Unlocking drops the pins and nothing else: the shell keeps wearing what it wears (colors.json
+    // is untouched, no pywal run, no reload), and the next wallpaper change is what brings the wallpaper's own
+    // colours back. Handing the colours back NOW is `releaseAll()` / `useWallpaper()`, an explicit act.
     function toggleLock() {
-        if (root.locked) { root.releaseAll(); return }
+        if (root.locked) { root.clearOverrides(); return }
         const flat = root._flat(root.live)
         if (Object.keys(flat).length > 0) root.pinMany(flat)
     }
@@ -205,6 +209,8 @@ Singleton {
     }
 
     property bool _regenAfterWrite: false
+    // The label of a reload to run once the overrides write lands (see _pinThenReload).
+    property string _reloadAfterWrite: ""
 
     // Kept for callers that only want the file changed without a rebuild.
     function clearOverrides() {
@@ -230,6 +236,7 @@ Singleton {
                 // successful write — a pin, say — would regenerate from the wallpaper and
                 // throw away the edit that just succeeded.
                 root._regenAfterWrite = false
+                root._reloadAfterWrite = ""
                 return
             }
             // Something changed while we were writing — write again, with whatever the
@@ -246,6 +253,13 @@ Singleton {
             if (root._regenAfterWrite) {
                 root._regenAfterWrite = false
                 root.regenerate()
+            }
+            // A pin that asked for a reload (a scheme applied or worn): the file is on disk now, so the
+            // pipeline's merge reads the new pins and not the ones this write replaced.
+            if (root._reloadAfterWrite !== "") {
+                const label = root._reloadAfterWrite
+                root._reloadAfterWrite = ""
+                root.reload(label)
             }
         }
     }
@@ -275,6 +289,14 @@ Singleton {
         overridesWriter.payload = JSON.stringify(root._overrides, null, 2)
         overridesWriter.running = false
         overridesWriter.running = true
+    }
+
+    // Pin `next` (a whole overrides document) and push it to every app once it is on disk. The pins are
+    // written by one process and the reload (reload-theme.sh) is another; started together, the script
+    // could read the file before the write finished and apply the colours that were pinned BEFORE.
+    function _pinThenReload(next, label) {
+        root._reloadAfterWrite = label
+        root._writeOverrides(next)
     }
 
     // ── Applying ──────────────────────────────────────────────────────────────
@@ -329,8 +351,10 @@ Singleton {
             const flat = root._flat(paletteObj)
             if (root._unchanged(flat)) return           // the locked scheme, re-applied: nothing to do
 
-            root.pinMany(flat)
-            root.reload(label ?? "Colour scheme")
+            const next = ({ special: Object.assign({}, root._overrides.special),
+                            colors:  Object.assign({}, root._overrides.colors) })
+            for (const slot in flat) next[root._sectionOf(slot)][slot] = flat[slot]
+            root._pinThenReload(next, label ?? "Colour scheme")
             return
         }
 
@@ -503,6 +527,116 @@ Singleton {
         }
     }
 
+    // ── The classics, and wearing a scheme ────────────────────────────────────
+    // The schemes the shell ships (services/schemes.js), in the shape `presets` have, so every
+    // function above that takes a preset takes these. They are code, not files: nothing to list,
+    // nothing a user can delete or save over.
+    readonly property var classics: Schemes.list()
+
+    // Which scheme is the shell wearing: read back from the colours on disk, like the editor's
+    // "loaded" marker, so it can't disagree with what is on screen. "" = a wallpaper's palette,
+    // or one that has been edited since.
+    readonly property string worn: Palette.findScheme(root.live, root.classics.concat(root._presets), Config.themeMode, 3)
+
+    // Where the colours on screen come from, for every view that says so (the Colours panel's Presets tab,
+    // Settings › Colour schemes). A pinned palette, or theming off, is one that STAYS; otherwise the next
+    // wallpaper replaces it. On the wallpaper = theming on, nothing pinned, and no scheme matches.
+    readonly property bool held: root.locked || !Config.wallTheming
+    readonly property bool wearingWallpaper: Config.wallTheming && !root.locked && root.worn === ""
+
+    // Choosing a scheme: it takes the whole shell and HOLDS through wallpaper changes (the colours are
+    // pinned), which is what picking one means. The other route, applyPalette(), is a temporary look the
+    // next wallpaper replaces. `mode` is the version to wear (the shell's own when left out); the shell
+    // goes into the mode of whatever it ends up wearing, so a scheme with only one mode puts it there.
+    function wear(preset, mode) {
+        if (!preset || root.busy) return
+        const pick = Palette.pickVariant(preset.variants, mode ?? Config.themeMode)
+        if (!pick.palette) return
+        if (pick.mode !== Config.themeMode) Config.themeMode = pick.mode
+        root.releaseForApply()
+        root.useScheme(preset)
+        root.wearGradient(preset)
+        // Exactly the scheme's eighteen slots, replacing whatever was pinned (not merged into it): a stale pin
+        // from an earlier edit must not survive into a scheme that doesn't contain it.
+        const flat = root._flat(pick.palette)
+        const next = ({ special: ({}), colors: ({}) })
+        for (const slot in flat) next[root._sectionOf(slot)][slot] = flat[slot]
+        root._pinThenReload(next, "Scheme · " + preset.name)
+    }
+
+    // ── A scheme's gradient ───────────────────────────────────────────────────
+    // The gradient belongs to the scheme (services/gradient.js): a scheme file may carry a `gradient`, and
+    // whenever the scheme on show changes, by any route (a card, the editor's Apply, the wallpaper, the album),
+    // the gradient becomes that scheme's, or goes off when it has none. Off is the default. What was tuned by
+    // hand is kept in the setting (angle, stops) for the next time it is on.
+    function syncGradient() {
+        root.wearGradient(root._presets.concat(root.classics).find(p => p.name === root.worn))
+    }
+    onWornChanged: root.syncGradient()
+
+    // Editing the gradient while a SAVED scheme is on show writes it into that scheme (a moment after the last
+    // change: a slider drag is a hundred edits), so it is on whenever that scheme is. A classic, the
+    // wallpaper's colours or an unsaved palette cannot keep one: it lasts until the scheme on show changes.
+    readonly property var wornSaved: root._presets.find(p => p.name === root.worn) ?? null
+    function rememberGradient() { if (root.wornSaved) gradientKeep.restart() }
+    Timer {
+        id: gradientKeep
+        interval: 700
+        onTriggered: {
+            const p = root.wornSaved
+            if (!p) return
+            const on = Gradient.clean(Config.barGradient).on
+            if (!on && !p.palette?.gradient) return
+            root.saveScheme(p.name, undefined, on ? root.gradientForSave() : null, true)
+        }
+    }
+
+    function wearGradient(preset) {
+        const g = preset?.palette?.gradient
+        const now = Gradient.clean(Config.barGradient)
+        if (g) Config.barGradient = Gradient.clean(Object.assign({}, g, { on: true, from: preset.name }))
+        else if (now.on) Config.barGradient = Object.assign({}, now, { on: false, from: "" })
+    }
+
+    // ── Apps that can wear it ─────────────────────────────────────────────────
+    // The gradient, with its roles resolved against the palette on screen, written to
+    // $XDG_STATE_HOME/quicktest/gradient.json for the scripts that theme apps (scripts/app-gradient.py puts it in kitty, GTK4
+    // apps, Discord and Spotify). Off writes no stops, so a wallpaper change with no gradient rewrites nothing. A colour
+    // ease changes the palette a dozen times in a third of a second: the Timer waits for it to settle.
+    readonly property string _gradientJson: {
+        const d = Gradient.clean(Config.barGradient)
+        return JSON.stringify({ on: d.on, angle: d.angle, mid: d.mid, strength: d.strength,
+                                stops: d.on ? Gradient.raw(d, n => String(Colors.role(n, Colors.primary))) : [] })
+    }
+    on_GradientJsonChanged: gradientExport.restart()
+    Timer { id: gradientExport; interval: 600; onTriggered: { gradientWriter.running = false; gradientWriter.running = true } }
+    Process {
+        id: gradientWriter
+        running: false
+        environment: ({ "GX_JSON": root._gradientJson })
+        command: ["bash", "-c",
+            'd="${XDG_STATE_HOME:-$HOME/.local/state}/quicktest"; mkdir -p "$d" && printf %s "$GX_JSON" > "$d/gradient.json" '
+          + '&& python3 "$1/scripts/app-gradient.py" all --reload',
+            "_", root.shellDir]
+    }
+
+    // The gradient on show, as a scheme file stores it (no `from`).
+    function gradientForSave() {
+        const d = Gradient.clean(Config.barGradient)
+        return { on: true, angle: Math.round(d.angle), strength: Math.round(d.strength * 100) / 100,
+                 mid: Math.round(d.mid * 100) / 100, stops: d.stops }
+    }
+
+    // The other way round: let go of every pin and take the wallpaper's colours again (and theming on, or
+    // there would be nothing to take them from).
+    function useWallpaper() {
+        if (root.busy) return
+        root.releaseForApply()
+        if (!Config.wallTheming) Config.wallTheming = true
+        if (root.locked) root.releaseAll()
+        else root.regenerate()
+    }
+
     // True once the library has been listed at least once. A workspace's scheme is looked up BY NAME
     // in `presets`, which is empty until then — and "not there yet" must not read as "deleted", or
     // every screen would wear the wallpaper's colours for the moment it takes to list them.
@@ -523,10 +657,15 @@ Singleton {
     readonly property var marked: Object.keys(Config.schemeWorkspaces).map(Number)
         .filter(n => n > 0).sort((a, b) => a - b)
 
+    // A saved scheme, else a classic, by name (a workspace holds its scheme by name, and a classic can be one).
+    function _preset(name) {
+        return root._presets.find(x => x.name === name) ?? root.classics.find(x => x.name === name) ?? null
+    }
+
     // The palette `name` is worn as in the shell's current mode (a scheme with only the other mode
     // shows that one — the same rule as loading it), or null when there is no such scheme.
     function schemePalette(name) {
-        const p = root._presets.find(x => x.name === name)
+        const p = root._preset(name)
         return p ? (Palette.pickVariant(p.variants ?? Palette.unpackScheme(p.palette), Config.themeMode).palette ?? null) : null
     }
     // What workspace `ws` wears: { name, palette } — null when it has none, or its scheme is gone.
@@ -540,7 +679,7 @@ Singleton {
         return root.marked.filter(n => Config.schemeWorkspaces[String(n)] === name)
     }
 
-    function choose(name) { if (root._presets.some(x => x.name === name)) root.pending = name }
+    function choose(name) { if (root._preset(name)) root.pending = name }
     function cancelPick() { root.pending = "" }
 
     // The picker's Apply: `name` for these workspaces; the rest keep what they wear.
@@ -551,13 +690,13 @@ Singleton {
             const n = Math.floor(Number(v))
             if (n > 0 && ws.indexOf(n) < 0) ws.push(n)
         }
-        if (ws.length === 0 || !root._presets.some(x => x.name === name)) return
+        if (ws.length === 0 || !root._preset(name)) return
         // EVERY workspace is not ten exceptions, it is the shell's own scheme: ten entries would each outrank
         // the shell's palette, so nothing applied afterwards could show through (the Wallpaper picker's rule
         // for the same case). Applied as the shell's colours, with no per-workspace entries left.
         if (ws.length >= Wallpaper.pickable && ws.every(n => n <= Wallpaper.pickable)) {
             root.forgetAllWorkspaces()
-            root.useScheme(root._presets.find(x => x.name === name))
+            root.useScheme(root._preset(name))
             const pal = root.schemePalette(name)
             if (pal) root.applyPalette(pal, "Scheme · " + name)
             return
@@ -598,7 +737,11 @@ Singleton {
     // the mode and then re-derives the palette in it from the wallpaper, as it always did, UNLESS the
     // scheme the shell is wearing is a saved one that holds the other mode too: then THAT version is
     // applied, so a scheme you made in both stays itself when the mode changes.
-    function currentPreset() { return root._presets.find(p => p.name === root._loadedName) ?? null }
+    // A classic too: its name goes through sanitiseName when loaded ("Rosé Pine" → "Ros Pine"), so it is matched the same way.
+    function currentPreset() {
+        return root._presets.find(p => p.name === root._loadedName)
+            ?? root.classics.find(p => root.sanitiseName(p.name) === root._loadedName) ?? null
+    }
 
     function switchMode(mode) {
         if (mode !== "light" && mode !== "dark") return
@@ -646,7 +789,10 @@ Singleton {
     // `variants` is { dark?, light? } — the palettes to write. A mode left out keeps what the scheme
     // already holds for it (so updating a scheme's light version never costs it its dark one); a plain
     // palette is read as the current mode's.
-    function saveScheme(name, variants) {
+    // `gradient`: left out keeps the one the scheme already has (a new scheme has none: the gradient on show belongs
+    // to the scheme wearing it, not to whatever is saved next), `null` drops it, an object sets it. `quiet`: no
+    // "saved" note (the gradient page saves as you edit).
+    function saveScheme(name, variants, gradient, quiet) {
         const n = root.sanitiseName(name)
         if (n === "") {
             runnerInstance.notify("Name required", "Give the scheme a name first.", "normal")
@@ -662,8 +808,12 @@ Singleton {
         const packed = Palette.packScheme({ dark:  variants?.dark  ?? had.dark,
                                             light: variants?.light ?? had.light })
         if (!packed) return false
+        const keep = gradient === undefined ? root._presets.find(p => p.name === n)?.palette?.gradient : gradient
+        if (keep) packed.gradient = Gradient.clean(keep)
+        if (packed.gradient) delete packed.gradient.from
         schemeSaver.payload = JSON.stringify(packed, null, 2)
         schemeSaver.sname = n
+        schemeSaver.quiet = quiet === true
         schemeSaver.running = false
         schemeSaver.running = true
         return true
@@ -674,17 +824,20 @@ Singleton {
         running: false
         property string payload: ""
         property string sname: ""
+        property bool quiet: false
         environment: ({ "CS_PAYLOAD": schemeSaver.payload })
         command: ["bash", "-c",
             'mkdir -p "$1" && printf %s "$CS_PAYLOAD" > "$1/$2.json"',
             "_", root.schemesDir, schemeSaver.sname]
         onExited: function(code) {
             if (code === 0) {
-                runnerInstance.notify("Scheme saved", "“" + schemeSaver.sname + "” saved.", "low")
-                root._loadedName = schemeSaver.sname   // you're now editing what you just saved
-                // …and it now holds the mode you were in, whatever it held when it was loaded.
-                root._loadedMode = Config.themeMode === "light" ? "light" : "dark"
-                root._loadedExact = true
+                if (!schemeSaver.quiet) runnerInstance.notify("Scheme saved", "“" + schemeSaver.sname + "” saved.", "low")
+                if (!schemeSaver.quiet) {
+                    root._loadedName = schemeSaver.sname   // you're now editing what you just saved
+                    // …and it now holds the mode you were in, whatever it held when it was loaded.
+                    root._loadedMode = Config.themeMode === "light" ? "light" : "dark"
+                    root._loadedExact = true
+                }
                 root.refreshPresets()
             } else {
                 runnerInstance.notify("Save failed", "Check the name and permissions.", "critical")
@@ -722,6 +875,17 @@ Singleton {
         root._loadedMode = pick.mode
         root._loadedExact = pick.exact
         root.schemeLoaded(preset.name, pick.palette)
+    }
+
+    // A palette that is not a saved scheme (the album's cover colours) into the editor: the seeds take it, the name
+    // field gets `name`, and no scheme is marked as the one being edited.
+    function openPalette(name, palette) {
+        if (!palette) return
+        root._loadedScheme = palette
+        root._loadedName = ""
+        root._loadedMode = Config.themeMode
+        root._loadedExact = true
+        root.schemeLoaded(name, palette)
     }
 
     function loadScheme(name) {

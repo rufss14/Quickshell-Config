@@ -99,7 +99,7 @@ ColumnLayout {
             MorphShape {
                 anchors.fill: parent
                 shape: "cookie9"
-                fillColor: Colors.of(QsWindow.window).surfaceHigh
+                fillColor: Colors.of(QsWindow.window).plate
             }
             MaterialIcon {
                 anchors.centerIn: parent
@@ -145,7 +145,7 @@ ColumnLayout {
             implicitHeight: rowCol.implicitHeight + Tokens.spacingMd * 2
             radius: Tokens.radiusCard
             // The opened row lifts from the section tone to a solid container.
-            color: row.open ? Colors.of(QsWindow.window).surfaceContainer : Colors.of(QsWindow.window).section
+            color: row.open ? Colors.of(QsWindow.window).plateLow : Colors.of(QsWindow.window).section
             Behavior on color { ColorAnimation { duration: Motion.respond } }
 
             // Rises into place, row after row; the ring fills once the row is up.

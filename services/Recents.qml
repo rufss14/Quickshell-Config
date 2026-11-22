@@ -23,6 +23,12 @@ Singleton {
     property var _cache: []
     property bool _stale: true
 
+    // Bumped whenever the store is read again: a binding that calls recent() depends on it, so a file
+    // another app opens shows up without anything polling.
+    property int revision: 0
+    // Every local file once, newest use first (xbel.js recent): the island's Files page.
+    function recent(limit) { void root.revision; return Xbel.recent(root.entries(), limit) }
+
     function entries() {
         if (root._stale) {
             root._cache = file.loaded ? Xbel.parse(file.text()) : []
@@ -38,7 +44,7 @@ Singleton {
         watchChanges: true
         printErrors: false
         onFileChanged: reload()
-        onLoaded: root._stale = true
-        onLoadFailed: root._stale = true
+        onLoaded: { root._stale = true; root.revision++ }
+        onLoadFailed: { root._stale = true; root.revision++ }
     }
 }

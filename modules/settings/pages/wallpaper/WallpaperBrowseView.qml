@@ -12,15 +12,14 @@ import "../../../../services"
 import "../../../../services/wallfx.js" as FX
 import "../.."
 
-// WallpaperBrowseView — part of WallpaperPage.qml, moved into its own file (2026-11-08). Reads and writes the
-// page's state through `page` (was `root`).
-// ── BROWSE (gallery sub-mode) ────────────────────────────────────
+// WallpaperBrowseView — the gallery's Add images sub-view (WallpaperPage.qml `browsing`). Reads and
+// writes the page's state through `page`; Back returns to the gallery.
 ColumnLayout {
     id: browserView
     // The page that owns the state (WallpaperPage.qml's root).
     required property var page
     anchors.fill: parent
-    visible: page.view === "gallery" && page.browsing
+    visible: page.browsing
     spacing: Tokens.spacingSm
 
     RowLayout {
@@ -77,10 +76,9 @@ ColumnLayout {
     Rectangle {
         Layout.fillWidth:  true
         Layout.fillHeight: true
-        radius: Tokens.radiusSm
-        color: Colors.of(QsWindow.window).surfaceContainer
-        border.width: Tokens.borderWidth
-        border.color: Colors.of(QsWindow.window).outline
+        // A plate on the tone ladder, no outline: the hairlines belong to the pictures in it.
+        radius: Tokens.radiusCard
+        color: Colors.of(QsWindow.window).section
 
         FolderListModel {
             id: fsModel

@@ -118,7 +118,7 @@ FocusScope {
                 Layout.preferredHeight: 27
                 radius: Tokens.radiusXs
                 color: root.forPalette && root.schemePal ? Palette.slotValue(root.schemePal, "background")
-                                                        : Colors.of(QsWindow.window).surfaceContainer
+                                                        : Colors.of(QsWindow.window).plateLow
                 Image {
                     anchors.fill: parent
                     visible: !root.forPalette
@@ -215,7 +215,7 @@ FocusScope {
                     ClippingRectangle {
                         anchors.fill: parent
                         radius: Tokens.radiusCard
-                        color: Colors.of(QsWindow.window).surfaceContainer
+                        color: Colors.of(QsWindow.window).plateLow
 
                         // What it has now…
                         Image {

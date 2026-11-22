@@ -150,7 +150,8 @@ ListView {
                         id: thumb
                         anchors.fill: parent
                         visible: row.isImage && status === Image.Ready
-                        source: row.isImage ? "file://" + row.modelData.file : ""
+                        // A picture can't be masked, so stream mode drops it (the tile keeps its glyph).
+                        source: row.isImage && !StreamMode.active ? "file://" + row.modelData.file : ""
                         sourceSize: Qt.size(list.thumbSize * 2, list.thumbSize * 2)
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
@@ -306,7 +307,7 @@ ListView {
                 // Re-opening reads from the local file, so it costs nothing real.
                 Image {
                     anchors.fill: parent
-                    source: row.expanded ? "file://" + row.modelData.file : ""
+                    source: row.expanded && !StreamMode.active ? "file://" + row.modelData.file : ""
                     sourceSize: Qt.size(720, 720)
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
@@ -321,7 +322,7 @@ ListView {
             if (row.isImage || row.isLink) return ""
             const raw = row.modelData.preview || ""
             const lines = raw.split("\n").filter(l => l.trim() !== "")
-            return lines.length > 1 ? lines[1].trim() : ""
+            return lines.length > 1 && !StreamMode.active ? lines[1].trim() : ""
         }
     }
 }

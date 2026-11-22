@@ -12,8 +12,9 @@ import "../../services"
 // (Switcher.marks), or Ctrl+A's — everything the search shows, so `app:kitty` then Ctrl+A is "all
 // my terminals". What you can do to all of them at once, in WindowInspector's language:
 //
-//   (ico)(ico)(ico)  3 windows                ╭ float pin ╮ Clear   1 2 3 4 5   (x)
-//                    kitty, Zen · on 1, 2     ╰───────────╯         6 7 8 9 10
+//   (ico)(ico)(ico)  3 windows                ╭ float pin ╮  (x)
+//                    kitty, Zen · on 1, 2     ╰───────────╯
+//   ▸ 1 2 3 4 5 6 7 8 9 10                                     Clear
 //
 // Float and pin are one switch for the lot: if every window already has it, they all lose it;
 // otherwise the ones without get it (a plain toggle on each would swap the odd ones out). A
@@ -89,128 +90,142 @@ Item {
         }
     }
 
-    implicitWidth: row.implicitWidth
-    implicitHeight: row.implicitHeight
+    implicitWidth: col.implicitWidth
+    implicitHeight: col.implicitHeight
 
-    RowLayout {
-        id: row
+    // The same two rows as the window's face (WindowInspector): who and what you can do, then where to send them.
+    ColumnLayout {
+        id: col
         anchors.fill: parent
-        spacing: Tokens.spacingLg
+        spacing: Tokens.spacingMd
 
-        // ── Who is in it: their icons, overlapping ────────────────────────────
-        Item {
-            id: stack
-            readonly property int shown: Math.min(5, root.list.length)
-            readonly property int disc: Tokens.iconXl + Tokens.spacingSm
-            readonly property int step: Math.round(disc * 0.62)
-            Layout.alignment: Qt.AlignVCenter
-            SpringValue {
-                id: stackW
-                target: stack.disc + (stack.shown - 1) * stack.step
-                spec: Motion.springSpatial
-            }
-            Layout.preferredWidth: stackW.value
-            Layout.preferredHeight: stack.disc
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            spacing: Tokens.spacingLg
 
-            Repeater {
-                model: stack.shown
-                delegate: Rectangle {
-                    id: disc
-                    required property int index
-                    readonly property string path: Icons.pathForAppId(root.list[disc.index]?.appClass ?? "")
-                    x: disc.index * stack.step
-                    // Earlier ones on top, so the first window reads as the lead.
-                    z: stack.shown - disc.index
-                    width: stack.disc
-                    height: stack.disc
-                    radius: width / 2
-                    color: Colors.of(QsWindow.window).surfaceHigh
-                    border.width: Tokens.borderChrome
-                    border.color: Colors.of(QsWindow.window).alpha(root.accent, 0.4)
-                    Image {
-                        anchors.centerIn: parent
-                        visible: disc.path !== ""
-                        source: disc.path
-                        width: Tokens.iconLg
-                        height: Tokens.iconLg
-                        sourceSize: Qt.size(Tokens.iconLg, Tokens.iconLg)
-                        fillMode: Image.PreserveAspectFit
-                        smooth: true
-                    }
-                    MaterialIcon {
-                        anchors.centerIn: parent
-                        visible: disc.path === ""
-                        name: "window"
-                        color: root.accent
-                        font.pixelSize: Tokens.iconMd
+            // ── Who is in it: their icons, overlapping ────────────────────────
+            Item {
+                id: stack
+                readonly property int shown: Math.min(5, root.list.length)
+                readonly property int disc: Tokens.iconXl + Tokens.spacingSm
+                readonly property int step: Math.round(disc * 0.62)
+                Layout.alignment: Qt.AlignVCenter
+                SpringValue {
+                    id: stackW
+                    target: stack.disc + (stack.shown - 1) * stack.step
+                    spec: Motion.springSpatial
+                }
+                Layout.preferredWidth: stackW.value
+                Layout.preferredHeight: stack.disc
+
+                Repeater {
+                    model: stack.shown
+                    delegate: Rectangle {
+                        id: disc
+                        required property int index
+                        readonly property string path: Icons.pathForAppId(root.list[disc.index]?.appClass ?? "")
+                        x: disc.index * stack.step
+                        // Earlier ones on top, so the first window reads as the lead.
+                        z: stack.shown - disc.index
+                        width: stack.disc
+                        height: stack.disc
+                        radius: width / 2
+                        color: Colors.of(QsWindow.window).surfaceHigh
+                        border.width: Tokens.borderChrome
+                        // A cut in the island's own ground, so the overlapping discs read apart.
+                        border.color: Colors.of(QsWindow.window).surfaceFor(Tokens.elevationCard)
+                        Image {
+                            anchors.centerIn: parent
+                            visible: disc.path !== ""
+                            source: disc.path
+                            width: Tokens.iconLg
+                            height: Tokens.iconLg
+                            sourceSize: Qt.size(Tokens.iconLg, Tokens.iconLg)
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                        }
+                        MaterialIcon {
+                            anchors.centerIn: parent
+                            visible: disc.path === ""
+                            name: "window"
+                            color: root.accent
+                            font.pixelSize: Tokens.iconMd
+                        }
                     }
                 }
             }
+
+            // ── What it is ────────────────────────────────────────────────────
+            ColumnLayout {
+                Layout.alignment: Qt.AlignVCenter
+                Layout.fillWidth: true
+                Layout.preferredWidth: 220
+                Layout.fillHeight: false
+                spacing: Tokens.spacingXs
+                StyledText {
+                    Layout.fillWidth: true
+                    text: root.list.length + (root.list.length === 1 ? " window" : " windows")
+                    variant: "title"
+                    font.weight: Font.DemiBold
+                }
+                StyledText {
+                    Layout.fillWidth: true
+                    text: root.summary
+                    variant: "caption"
+                    emphasis: "dim"
+                    elide: Text.ElideRight
+                }
+            }
+
+            // ── What you can do to all of them ────────────────────────────────
+            InspectorActions {
+                Layout.alignment: Qt.AlignVCenter
+                many: true
+                showFullscreen: false
+                floating: root.allFloating
+                pinned: root.allPinned
+                closeArmed: closeLatch.armed
+                accent: root.accent
+                onFloatToggled: root.floatAll()
+                onPinToggled: root.pinAll()
+                onCloseAsked: root.requestClose()
+            }
         }
 
-        // ── What it is ────────────────────────────────────────────────────────
-        ColumnLayout {
-            Layout.alignment: Qt.AlignVCenter
-            Layout.preferredWidth: 220
+        // ── Second row: send them to a workspace ──────────────────────────────
+        RowLayout {
+            Layout.fillWidth: true
             Layout.fillHeight: false
-            spacing: Tokens.spacingXs
-            StyledText {
-                Layout.fillWidth: true
-                text: root.list.length + (root.list.length === 1 ? " window" : " windows")
-                variant: "title"
-                font.weight: Font.DemiBold
-            }
-            StyledText {
-                Layout.fillWidth: true
-                text: root.summary
-                variant: "caption"
-                emphasis: "dim"
-                elide: Text.ElideRight
-            }
-        }
+            spacing: Tokens.spacingLg
 
-        // ── What you can do to all of them ────────────────────────────────────
-        ChipTray {
-            Layout.alignment: Qt.AlignVCenter
-            ChipButton {
-                symbol: "open_with"
-                on: root.allFloating
-                tint: root.accent
-                onActivated: root.floatAll()
+            RowLayout {
+                Layout.alignment: Qt.AlignVCenter
+                Layout.fillHeight: false
+                spacing: Tokens.spacingSm
+                MaterialIcon {
+                    name: "drive_file_move"
+                    color: Colors.of(QsWindow.window).fgMuted
+                    font.pixelSize: Tokens.iconSm
+                    HoverTip { text: Translation.tr("Send these windows to a workspace. Brighter numbers have windows on them.") }
+                }
+                WorkspaceMap {
+                    firstWorkspace: root.firstWorkspace
+                    // Every one of them is already there.
+                    here: root.spaces.length === 1 ? root.spaces : []
+                    accent: root.accent
+                    onPicked: ws => root.sendAll(ws)
+                }
             }
+
+            Item { Layout.fillWidth: true }
+
             ChipButton {
-                symbol: "keep"
-                on: root.allPinned
-                tint: root.accent
-                onActivated: root.pinAll()
-            }
-            ChipButton {
+                Layout.alignment: Qt.AlignVCenter
                 label: Translation.tr("Clear")
                 tint: root.accent
                 onActivated: Switcher.clearMarks()
             }
-        }
-
-        // ── Send them to a workspace ──────────────────────────────────────────
-        WorkspaceChips {
-            Layout.alignment: Qt.AlignVCenter
-            firstWorkspace: root.firstWorkspace
-            // Every one of them is already there.
-            here: root.spaces.length === 1 ? root.spaces : []
-            accent: root.accent
-            onPicked: ws => root.sendAll(ws)
-        }
-
-        // ── Close them all — twice ────────────────────────────────────────────
-        CookieButton {
-            Layout.alignment: Qt.AlignVCenter
-            implicitWidth: 44
-            implicitHeight: 44
-            name: closeLatch.armed ? "delete" : "close"
-            tint: Colors.of(QsWindow.window).danger
-            primary: closeLatch.armed
-            points: 6
-            onActivated: root.requestClose()
         }
     }
 }

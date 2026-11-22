@@ -58,6 +58,8 @@ QtObject {
             case "settings":    return settingsC
             case "privacy":     return privacyC
             case "nightlight":  return nightLightC
+            case "stream":      return streamC
+            case "spacer":      return spacerC
             case "brightness":  return brightnessC
             case "window":      return windowC
             case "layout":      return layoutC
@@ -160,6 +162,12 @@ QtObject {
             iconColor:  NightLight.shouldBeOn ? nightPill.accent : Colors.of(QsWindow.window).stateIdleFg
         }
     }
+
+    // Mirrors Bar.qml's streamC: it shows only while a capture runs, like the real one.
+    property Component _streamC: Component { id: streamC; StreamPill {} }
+
+    // Always outlined here: a library tile or a preview of an empty module would be blank.
+    property Component _spacerC: Component { id: spacerC; SpacerPill { guide: true } }
 
     // Live, like the visualizer below it: this is a real toggle reading real state, so
     // the preview shows what the pill is doing right now rather than a posed "off".

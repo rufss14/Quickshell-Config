@@ -4,6 +4,7 @@ import QtQuick
 import "layout.js" as Layout
 import "modules.js" as Catalogue
 import "surfaces.js" as Surfaces
+import "islands.js" as Islands
 // ConfigBarLayout — part of Config, split out of Config.qml by area (2026-11-08). The parts form
 // one inheritance chain (ConfigShell ← ConfigEdges ← ConfigBarLayout ← ConfigSystem ←
 // ConfigDesktop ← Config), so every property still lives on the one `Config` singleton
@@ -579,7 +580,6 @@ ConfigEdges {
     }
     function clockPanelHeader()      { return root.panelHeader("clock") }
     function gamemodePanelHeader()   { return root.panelHeader("gamemode") }
-    function mixerPanelHeader()      { return root.panelHeader("volume") }
     function screentimePanelHeader() { return root.panelHeader("screentime") }
 
     // ── Accent ────────────────────────────────────────────────────────────────
@@ -618,6 +618,7 @@ ConfigEdges {
     // SideRegionPills splits round an opted-out module as BarGroup does on the bar.
     property bool barInnerPill: true
     function moduleInnerPill(id) {
+        if (id === "spacer") return false
         const on = root.surfaceOf(id) === "side" ? root.sideInnerPill : root.barInnerPill
         return on && root._moduleSetting(id, "innerPill", true) === true
     }
@@ -719,55 +720,54 @@ ConfigEdges {
         root.groupSettings = next
     }
 
+    // ── The spacer module ─────────────────────────────────────────────────────
+    // An empty module that only takes room, on the bar or the sidebar. Its length is `size`, plus the
+    // length of the module it follows ("grow"), or `size` less that, never below 0 ("fill": the two
+    // together stay one length; services/spacer.js). config.json is hand-editable, so the size is
+    // clamped here and a follow target is checked (spacerCanFollow).
+    readonly property int spacerMax: 400
+    function spacerSize() {
+        const v = Number(root._moduleSetting("spacer", "size", 24))
+        return isFinite(v) ? Math.max(0, Math.min(root.spacerMax, Math.round(v))) : 24
+    }
+    function setSpacerSize(px) {
+        root.setModuleSetting("spacer", "size", Math.max(0, Math.min(root.spacerMax, Math.round(px))))
+    }
+    // The surface it stands on (the bar until it is placed, as the library tile shows it).
+    function _spacerSurface() { return root.surfaceOf("spacer") === "side" ? "side" : "bar" }
+    // A module on the SAME surface, not another spacer; on the sidebar a small module (the dock's
+    // length depends on the room the small ones leave, so following it would be a cycle).
+    function spacerCanFollow(id) {
+        if (id === "" || id === "spacer") return false
+        const on = root._spacerSurface()
+        return root.surfaceOf(id) === on && (on === "bar" || root.sidebarIsSmall(id))
+    }
+    function spacerFollow() {
+        const id = String(root._moduleSetting("spacer", "follow", ""))
+        return root.spacerCanFollow(id) ? id : ""
+    }
+    function setSpacerFollow(id) { root.setModuleSetting("spacer", "follow", String(id ?? "")) }
+    function spacerFill() { return root._moduleSetting("spacer", "mode", "grow") === "fill" }
+    function setSpacerFill(on) { root.setModuleSetting("spacer", "mode", on ? "fill" : "grow") }
+
     // ── Panel placement ───────────────────────────────────────────────────────
-    // Which column — the bar's left dock, right dock, or the centre slot it
-    // otherwise shares with the update/launcher panels — each accordion panel
-    // opens in. Defaults to the side its own bar button already lives on — the
-    // wallpaper, colour scheme, equalizer and Now Playing pills sit left of
-    // centre; wifi, bluetooth and gaming sit right — but a module can be dragged
-    // to the other side of the bar (see BarArrange) without its panel following
-    // automatically, so this exists for the case where you'd rather it did. None
-    // default to "center": that's purely an option to move a panel to, and it
-    // still loses that slot to the update/launcher panels when both want it — see
-    // BarPanelDock's centerAccordion.
+    // Which of the bar's three islands (left, middle, right) each panel is a page of.
+    // The defaults are the islands' own grouping (islands.js): by what a panel is
+    // about, so a button may open an island that is not the one under it.
     //
     // A plain {name: "left"|"right"|"center"} map, only for overrides: a name
     // that agrees with its default is never written, so an untouched shell has an
-    // empty map and `defaultPanelSide` is the only thing consulted. "update" and
-    // "launcher" aren't in here — they already own the centre slot outright and
-    // have no other side to pick.
-    readonly property var _defaultPanelSides: ({
-        wallpaper:   "left",
-        colorScheme: "left",
-        equalizer:   "left",
-        media:       "left",
-        wifi:        "right",
-        bluetooth:   "right",
-        gaming:      "right",
-        clock:       "right",
-        notifications: "right",
-        brightness:  "right",
-        window:      "left",
-        layout:      "left",
-        stats:       "right",
-        clipboard:   "right",
-        timer:       "right",
-        claude:      "right",
-        screentime:  "right",
-        inactivity:  "right",
-        tasks:       "right",
-        clips:       "right"
-    })
+    // empty map and the grouping is the only thing consulted. "update" and
+    // "launcher" aren't in here: they own the middle island outright and have no
+    // other side to pick.
+    readonly property var _defaultPanelSides: Islands.defaults()
     readonly property var panelNames: Object.keys(root._defaultPanelSides)
 
     property var panelPlacement: ({})
 
-    function defaultPanelSide(name) { return root._defaultPanelSides[name] || "left" }
+    function defaultPanelSide(name) { return Islands.defaultSide(name) }
 
-    function panelSide(name) {
-        const v = root.panelPlacement[name]
-        return (v === "left" || v === "right" || v === "center") ? v : root.defaultPanelSide(name)
-    }
+    function panelSide(name) { return Islands.sideOf(name, root.panelPlacement) }
 
     function setPanelSide(name, side) {
         if (side !== "left" && side !== "right" && side !== "center") return

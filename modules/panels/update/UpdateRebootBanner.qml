@@ -31,7 +31,7 @@ Rectangle {
         StyledText {
             Layout.fillWidth: true
             text: "Replaces " + Updates.rebootPackages.length + " kernel/driver package"
-                + (Updates.rebootPackages.length === 1 ? "" : "s") + " — reboot afterwards."
+                + (Updates.rebootPackages.length === 1 ? "" : "s") + ". Reboot afterwards."
             variant: "caption"
             emphasis: "dim"
             wrapMode: Text.WordWrap

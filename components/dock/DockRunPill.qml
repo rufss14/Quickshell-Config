@@ -49,10 +49,13 @@ Surface {
     // One step up with the bar's feedback: the sidebar draws its own inner pill
     // round the whole dock at Nested, and a run pill at Nested on it would vanish.
     elevation:    strip.barFeedback ? Tokens.elevationPopup : Tokens.elevationNested
+    // Over a gradient or glass it is a veil, not an opaque popup-tone block on the sidebar.
+    color: Colors.of(QsWindow.window).veiled ? Colors.of(QsWindow.window).plate
+         : Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceFor(pill.elevation), pill.fillOpacity)
     cornerRadius: strip.cellRadius
     borderWidth:  0
     castsShadow:  false
-    itemOpacity:  Config.dockInnerPill && pill.head && strip.dragKey === "" && strip.insertAt < 0 ? 1 : 0
+    itemOpacity:  (Config.dockInnerPill || strip.fixed) && pill.head && strip.dragKey === "" && strip.insertAt < 0 ? 1 : 0
     visible: pill.opacity > 0.01
     Behavior on itemOpacity { NumberAnimation { duration: Motion.standard } }
 }

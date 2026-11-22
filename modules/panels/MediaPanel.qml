@@ -968,6 +968,23 @@ Item {
                 }
             }
             SettingRow {
+                label:  Translation.tr("Hear the Discord call")
+                detail: !Config.karaokeDiscord ? "Only your microphone"
+                      : Karaoke.callListening ? "Your friends in the call can sing too"
+                      : Karaoke.callError !== "" ? Karaoke.callError
+                      : Discord.inCall ? "In a call — waiting for its audio"
+                      : "Join a call and your friends can sing too"
+                Layout.minimumHeight: 36
+                symbol:      "group"
+                symbolFill:  Config.karaokeDiscord ? 1 : 0
+                symbolColor: Config.karaokeDiscord ? root.accent : Colors.of(QsWindow.window).fgMuted
+                Toggle {
+                    accent:  root.accent
+                    checked: Config.karaokeDiscord
+                    onToggled: Config.karaokeDiscord = !Config.karaokeDiscord
+                }
+            }
+            SettingRow {
                 label:  Translation.tr("Song language")
                 detail: Config.karaokeLanguage !== "" ? "Pinned to " + Karaoke.languageName
                       : Karaoke.detectedLanguage !== ""

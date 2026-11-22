@@ -425,9 +425,13 @@ function insertTarget(from, center, slot, count, pinCount) {
 // to ~/Downloads when there's no file or no entry. Only $HOME is expanded — it's
 // the one variable the format allows. A value that isn't an absolute path after
 // expansion is ignored rather than trusted.
-function downloadDir(text, home) {
-    const fallback = home + "/Downloads"
-    const m = /^\s*XDG_DOWNLOAD_DIR\s*=\s*"([^"]*)"\s*$/m.exec(String(text || ""))
+function downloadDir(text, home) { return userDir(text, home, "DOWNLOAD", "Downloads") }
+
+// Any of xdg-user-dirs' folders by its key (DOWNLOAD, PICTURES, DESKTOP…), the same rules, with `~/<leaf>` as the
+// fallback.
+function userDir(text, home, key, leaf) {
+    const fallback = home + "/" + leaf
+    const m = new RegExp("^\\s*XDG_" + key + "_DIR\\s*=\\s*\"([^\"]*)\"\\s*$", "m").exec(String(text || ""))
     if (!m) return fallback
     const dir = m[1].replace(/^\$HOME(?=\/|$)/, home).replace(/\/+$/, "")
     return dir.startsWith("/") ? dir : fallback

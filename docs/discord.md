@@ -42,6 +42,15 @@ toggles real mute — ask first.
   `xdotool` (XTEST); native Wayland needs `wtype`. The choice comes from
   `Hypr.windows[].xwayland` — never assume.
 
+### Call timer (2026-11-15)
+
+RPC never says when a call started. `scripts/discordlog.py` reads it from the client's own `<config>/discord*/logs/renderer_js.log`
+(`[RTCConnection(<channel id>, default)] RTC connection state: … => RTC_CONNECTED`, local time; `=> DISCONNECTED` ends it;
+`stream` connections ignored; last 3 MB only). The helper adds `callStart` (ms, 0 = unknown) to the snapshot, re-read when the
+channel or the connection status changes (the log line lands just after the join); `Discord.callStartedAt` takes it. Vesktop,
+WebCord and the like write no such log: 0, and the old "when this shell first saw the channel" stands. A reconnect (Discord
+restart mid-call, region move) is a new RTC_CONNECTED, so the timer restarts, as Discord's own would. Test: `scripts/test-discordlog.py`.
+
 ### Call log and the scoreboard (2026-11-08)
 
 `services/calllog.js` (pure, `bun scripts/test-calllog.js`) → `services/CallLog.qml` (eager in shell.qml, `Config.callLog`,
@@ -344,3 +353,11 @@ reintroducing it) instead of asserting both modes are styled.
   write, so the live `~/.config/Vencord/themes/quicktest.theme.css` was patched directly) but the
   plugin's `.ts` needs a Vencord rebuild (`cd ~/.local/share/vencord-src && pnpm build`) and a
   Discord restart to actually take effect — the wave fix doesn't do anything in Discord until then.
+
+## Your own picture (2026-11-12)
+
+The helper publishes `me` — `{ id, name, avatar }`, from READY and every AUTHENTICATE reply (`note_me`; the picture is the CDN URL at
+`size=128`, a default one if you have none) — so `Discord.me` / `Discord.meAvatar` / `Discord.meName` answer outside a call too. The last one seen is
+kept in `statePath("discord-me.json")` (a name and a public CDN URL, nothing secret) and used while Discord is shut; all of it is empty while
+`Config.discordEnabled` is off. The island's user row wears it (`IslandUser`), falling back to the lock screen's picture, then your initial.
+Tested in `scripts/test-discord-rpc.py`. Unverified live: a real READY's `user` fields (the test's mock carries `global_name` and `avatar`).

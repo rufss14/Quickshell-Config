@@ -14,15 +14,15 @@ import "../../state"
 // (It lived at the end of a strip of chips under the grid until 2026-10-20, when the strip
 // went: the user's call.)
 // ─────────────────────────────────────────────────────────────────────────────
-Surface {
+GroundCard {
     id: root
+    popup: true
 
     property bool shown: false
     property string armed: ""
     onShownChanged: root.armed = ""
 
-    elevation: Tokens.elevationPopup
-    cornerRadius: Tokens.radiusCard
+    radius: Tokens.radiusCard
     implicitWidth: Tokens.sideCardUnit * 8
     implicitHeight: sessCol.implicitHeight + Tokens.spacingMd * 2
     visible: opacity > 0.01

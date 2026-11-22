@@ -226,7 +226,7 @@ Item {
                 y: arc.cy - arc.ry * Math.sin(Math.PI * sunAt.value) - height / 2
                 spec: Motion.springSpatialFast
                 shape: root.daytime && !Config.barShape ? "sunny" : "circle"
-                fillColor: root.daytime ? root.accent : Colors.of(QsWindow.window).surfaceHigh
+                fillColor: root.daytime ? root.accent : Colors.of(QsWindow.window).plate
                 strokeColor: root.daytime ? "transparent" : Colors.of(QsWindow.window).alpha(root.accent, 0.5)
                 strokeWidth: 1.5
             }
@@ -279,7 +279,7 @@ Item {
                     width: parent.width
                     height: parent.height
                     radius: width / 2
-                    color: Colors.of(QsWindow.window).surfaceHigh
+                    color: Colors.of(QsWindow.window).plate
                     x: (root.waxing ? -1 : 1) * parent.width * (root.moonLit / 100) * 1.05
                 }
             }

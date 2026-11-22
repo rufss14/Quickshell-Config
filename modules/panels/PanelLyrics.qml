@@ -56,6 +56,7 @@ Item {
 
     // ── The lyrics ────────────────────────────────────────────────────────────
     OverviewLyrics {
+        timing: false
         id: lyr
         anchors.fill: parent
 
@@ -110,6 +111,13 @@ Item {
     property string heldTitle: ""
     property string heldSub:   ""
 
+    // Asks again for the playing track: the Spotify bridge (its lyrics), and the shell's own lookup.
+    function retryLyrics() {
+        const uri = SpotifyBridge.trackUri
+        if (uri.indexOf("spotify:track:") === 0) SpotifyBridge.refetchLyrics(uri)
+        if (root.player) Lyrics.loadFor(root.player)
+    }
+
     function _words() {
         const st = Lyrics.state
         if (st === "loading")      return { icon: "hourglass_top", title: Lyrics.loadingText, sub: Lyrics.loadingSub }
@@ -118,8 +126,31 @@ Item {
         if (st === "idle")         return { icon: "lyrics",        title: "Lyrics are off",      sub: "" }
         if (Lyrics.blockedReason === "connecting") return { icon: "hourglass_top", title: "Connecting to Spotify…", sub: "" }
         if (Lyrics.blockedReason === "waiting")    return { icon: "hourglass_top", title: "Waiting for Spotify",    sub: "" }
-        return { icon: "lyrics", title: "No lyrics found", sub: "This track has none to show" }
+        return { icon: "lyrics", title: "No lyrics found", sub: "This track has none to show", none: true }
     }
+
+    // ── "No lyrics found" is said last, and once ──────────────────────────────
+    // Every other state here is "still looking" or a reason; this one is a verdict, and it was being given the moment the
+    // fallback lookup came back empty, often a beat BEFORE the Spotify bridge's lyrics landed (the user saw it drawn over
+    // lyrics that were already there). So the verdict waits: first a quiet second ask (the bridge and the fallback, once
+    // per song), then a few seconds more, and if words arrive meanwhile the message never shows at all.
+    readonly property bool wantsNone: lyr.emptyShown && root._words().none === true
+    property bool noneSettled: false
+    property string _retriedFor: ""
+    function _retryQuietly() {
+        const key = (root.player?.trackArtist ?? "") + "\u0001" + (root.player?.trackTitle ?? "")
+        if (key === root._retriedFor) return
+        root._retriedFor = key
+        root.retryLyrics()
+    }
+    onWantsNoneChanged: {
+        root.noneSettled = false
+        settle.stop()
+        giveUp.stop()
+        if (root.wantsNone) settle.restart()
+    }
+    Timer { id: settle; interval: 1200; onTriggered: { root._retryQuietly(); giveUp.restart() } }
+    Timer { id: giveUp; interval: 4500; onTriggered: root.noneSettled = true }
     function _hold() {
         if (!lyr.emptyShown) return
         const w = root._words()
@@ -143,7 +174,7 @@ Item {
     Item {
         id: empty
         anchors.fill: parent
-        opacity: lyr.emptyShown ? 1 : 0
+        opacity: lyr.emptyShown && (!root.wantsNone || root.noneSettled) ? 1 : 0
         visible: opacity > 0.005
         Behavior on opacity { NumberAnimation { duration: Motion.standard; easing.type: Motion.travel } }
 
@@ -170,6 +201,15 @@ Item {
                     fill: 0
                     font.pixelSize: Tokens.iconXl
                     color: root.accent
+                }
+                // Tapped, it asks again: Spotify's lyrics for this track, and the fallback lookup.
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.retryLyrics()
+                    Accessible.role: Accessible.Button
+                    Accessible.name: Translation.tr("Try the lyrics again")
+                    Accessible.onPressAction: root.retryLyrics()
                 }
             }
 
@@ -214,69 +254,13 @@ Item {
     // accent chip at its head, the offset a stepper beside it: minus and plus are ChipButtons
     // (an icon on the tray until the pointer lights it), and the number between them is
     // dim at 0 and takes the accent once there is a correction to read; tapping it zeroes.
-    ChipTray {
+    LyricsTiming {
         id: tools
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Tokens.spacingSm
-
-        // Only with synced lyrics to line up, and only while the pointer is here.
-        opacity: Lyrics.hasSynced && hover.hovered ? 1 : 0
-        groupShown: opacity > 0.005
-        Behavior on opacity { NumberAnimation { duration: Motion.respond } }
-
-        // Where the lyrics came from. Clipped to a share of the card, so a long provider name
-        // can't push the stepper out of it.
-        Rectangle {
-            readonly property int _h: Tokens.iconXl + Tokens.spacingXs
-            height: _h
-            width:  Math.min(srcName.implicitWidth, root.width * 0.4) + Tokens.spacingLg * 2
-            radius: height / 2
-            color:  Colors.of(QsWindow.window).alpha(root.accent, 0.16)
-
-            StyledText {
-                id: srcName
-                anchors.centerIn: parent
-                width: parent.width - Tokens.spacingLg * 2
-                horizontalAlignment: Text.AlignHCenter
-                text: root.provenance
-                variant: "caption"
-                font.weight: Font.DemiBold
-                color: root.accent
-                elide: Text.ElideRight
-            }
-        }
-
-        ChipButton {
-            symbol: "remove"
-            tint: root.accent
-            onActivated: Lyrics.nudge(-0.1)
-        }
-
-        Item {
-            width:  Tokens.spacingXxl * 2
-            height: Tokens.iconXl + Tokens.spacingXs
-
-            StyledText {
-                anchors.centerIn: parent
-                text: (Lyrics.offset > 0 ? "+" : "") + Lyrics.offset.toFixed(1) + "s"
-                variant: "label"
-                font.family: Tokens.fontMono
-                font.weight: Lyrics.offset === 0 ? Font.Normal : Font.DemiBold
-                color: Lyrics.offset === 0 ? Colors.of(QsWindow.window).fgMuted : root.accent
-                Behavior on color { ColorAnimation { duration: Motion.respond } }
-            }
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: Lyrics.resetOffset()
-            }
-        }
-
-        ChipButton {
-            symbol: "add"
-            tint: root.accent
-            onActivated: Lyrics.nudge(0.1)
-        }
+        shown: hover.hovered
+        provenance: root.provenance
+        accent: root.accent
     }
 }

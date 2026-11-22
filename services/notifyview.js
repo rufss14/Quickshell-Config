@@ -134,3 +134,15 @@ function toggleIn(list, v) {
     next.splice(i, 1);
     return next;
 }
+
+// The one line a bar pill carries under a notification's title (the clock pill's glance): the body with
+// its markup and line breaks flattened, or "" when it runs past `max` characters. Cut text reads worse
+// than none, so a long body is left out, not shortened. Tags go before entities are decoded, so
+// "&lt;b&gt;" stays visible text.
+function glanceBody(body, max) {
+    const t = String(body || "").replace(/<[^>]*>/g, "")
+        .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+        .replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, "&")
+        .replace(/\s+/g, " ").trim();
+    return t.length > 0 && t.length <= max ? t : "";
+}

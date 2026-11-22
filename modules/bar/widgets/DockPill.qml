@@ -49,6 +49,7 @@ Item {
         screen:         root.screen
         monitor:        root.monitor
         scope:          Config.dockScope
+        fixedSlots:     Config.dockSlotCount
         contextMenu:    root.popups ? root.popups.menu : null
         previewHovered: root.popups ? root.popups.previewHovered : false
     }

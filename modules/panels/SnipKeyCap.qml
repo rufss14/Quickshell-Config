@@ -25,7 +25,7 @@ Rectangle {
     implicitWidth: Math.max(cap.implicitHeight, content.implicitWidth + Tokens.spacingMd * 2)
     radius: Tokens.radiusXs + Tokens.spacingXs
     color: cap.onFilled ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fgOnPrimary, 0.18)
-                        : Colors.of(QsWindow.window).surfaceHigh
+                        : Colors.of(QsWindow.window).plate
     border.width: cap.onFilled ? 0 : Tokens.borderWidth
     border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.12)
 

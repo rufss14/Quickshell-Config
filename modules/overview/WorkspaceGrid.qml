@@ -7,7 +7,6 @@ import "../../components"
 import "../../services"
 import "../../state"
 import "../../services/switcher.js" as SwitchJs
-import "../notifications"
 import QtQuick.Layouts
 import "grid"
 
@@ -139,7 +138,7 @@ Item {
     // Was FIXED (340×192 on every screen) back when every cell was always drawn; with only
     // the busy ones drawn, a fixed size wasted the room the empty ones gave up. Now: the
     // column count that gives the BIGGEST cell for this many, inside `maxWidth`×`maxHeight`
-    // (less what the notifications card beside them takes), at the monitor's own aspect; never past `maxCell` of the real
+    // at the monitor's own aspect; never past `maxCell` of the real
     // monitor (one busy workspace shouldn't be a wall). The board then sits centred in the
     // room, and the grid's own size is the room's — so the overview's composition doesn't
     // move when a workspace fills or empties; only the cells inside it do (animated).
@@ -163,33 +162,8 @@ Item {
     readonly property real _roomW: root.maxWidth > 0 ? root.maxWidth : 5 * 340 + 4 * root.gap
     readonly property real _roomH: (root.maxHeight > 0 ? root.maxHeight : 2 * 192 + root.gap) - root.dotsH
     readonly property var _layFull: root._fit(root._roomW, root._roomH, Math.max(1, root.slots.length))
-    // The cells stay CENTRED with the centre beside them (the user: "workspaces should stay on
-    // the middle, notifications goes to the right"), so its room comes off BOTH sides.
-    readonly property var _layNotes: root._fit(root._roomW - (root.notesW + root.gap * 2) * 2, root._roomH, Math.max(1, root.slots.length))
-
-    // ── The notification centre, beside the busy cells ────────────────────────
-    // The user: the notifications show in the collapsed grid, to the right of the busy
-    // workspaces, "if there's space". There's space when the cells, sharing the room with it,
-    // keep at least ~two thirds of the size they'd have alone — a busy workspace or two, as a
-    // rule. Not while the grid is opened out (Shift's toggle): those are all ten cells.
-    readonly property int notesW: Math.round(Tokens.sideCardUnit * 6.5)
-    // The side faces (Ask / News / Changes, the notification centre) are the overview's "More" (Config.overviewMore): folded
-    // away by default, so a first look is the workspaces.
-    readonly property bool notesOn: root.maxWidth > 0 && !root.showAll && Config.overviewMore
-                                    && root._layNotes.w >= root._layFull.w * 0.65
-    // The two side faces (the notifications right, OverviewFeed left) keep clear of what the card
-    // has in its left corners — the watermark above, Shift/Ctrl below (Overview passes their room).
-    // Both faces, so their headers line up across the grid.
-    property real sideTop: 0
-    property real sideBottom: 0
-    // The card's whole height, not just the cells': stopping where the cells do leaves an empty
-    // strip above the Shift/Ctrl chips (the user: the face "leaves some space out").
-    readonly property real sideY: root.sideTop
-    readonly property real sideH: Math.max(0, root.boardH - root.sideBottom - root.sideTop)
-    // …and as wide as the room beside the cells lets them (the user: the face "leaves some space out"):
-    // the cells are often height-bound, which leaves more than `notesW` at each side. Up to 1.4×.
-    readonly property int sideW: Math.max(root.notesW, Math.min(Math.round(root.notesW * 1.4), Math.floor(root.originX - root.gap * 2)))
-    readonly property var lay: root.notesOn ? root._layNotes : root._layFull
+    // The cells share the card's room, centred in it; the drawer (More) is a card of its own beside this one.
+    readonly property var lay: root._layFull
     readonly property int layCols: root.lay.cols
     readonly property int layRows: root.lay.rows
 
@@ -264,8 +238,6 @@ Item {
     property int peekWs: -1
     property int _peekCandidate: -1
     readonly property bool peeking: root.peekWs > 0 && root.active && !root.ghosting
-    // Turn the left face to a page (overviewdebug / scripts/overview-shots.sh; nothing else calls it).
-    function feedPage(n) { if (feedLoader.item) feedLoader.item.go(n) }
     function hoverCell(ws, on) {
         if (on) {
             root._peekCandidate = ws
@@ -719,76 +691,6 @@ Item {
             grid: root
         }
 
-        // ══ The notification centre (see `notesOn`) ═══════════════════════════
-        // Right of the centred cells, as tall as they are. The same body the bar's panel wears
-        // (NotificationCentre, `compact`: one slim title row, the card being 6.5 units wide) —
-        // so the groups, chips, Undo and empty state are one design, not a second copy. It is
-        // built when the card is shown and gone when it has faded: opening it counts everything
-        // seen, as the panel does, and what was new keeps its dot.
-        Item {
-            id: notes
-            readonly property bool shown: root.notesOn && root.active
-            x: root.originX + root.cellsW + root.gap * 2
-            y: root.sideY
-            width: root.sideW
-            height: root.sideH
-            Behavior on x { enabled: root.active; NumberAnimation { duration: Motion.spatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.emphasizedDecel } }
-            visible: opacity > 0.01
-            opacity: notes.shown ? 1 : 0
-            transform: Translate {
-                x: notes.shown ? 0 : Tokens.spacingXl
-                Behavior on x { NumberAnimation { duration: Motion.spatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.emphasizedDecel } }
-            }
-            Behavior on opacity {
-                SequentialAnimation {
-                    PauseAnimation { duration: notes.shown ? Motion.stagger * 6 : 0 }
-                    NumberAnimation { duration: notes.shown ? Motion.standard : Motion.fast }
-                }
-            }
-
-            // Sized by the Loader (anchors), which is what we want: the centre fills the card.
-            Loader {
-                anchors.fill: parent
-                active: notes.shown || notes.visible
-                sourceComponent: NotificationCentre {
-                    compact: true
-                    fill: true
-                }
-            }
-        }
-
-        // ══ The left face: pages you swipe (OverviewFeed) ══════════════════════
-        // The notification centre's mirror, on the same terms (`notesOn`), arriving from the left
-        // as that one does from the right. Built while shown and for its fade.
-        Item {
-            id: feed
-            readonly property bool shown: root.notesOn && root.active
-            x: root.originX - root.gap * 2 - root.sideW
-            y: root.sideY
-            width: root.sideW
-            height: root.sideH
-            Behavior on x { enabled: root.active; NumberAnimation { duration: Motion.spatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.emphasizedDecel } }
-            visible: opacity > 0.01
-            opacity: feed.shown ? 1 : 0
-            transform: Translate {
-                x: feed.shown ? 0 : -Tokens.spacingXl
-                Behavior on x { NumberAnimation { duration: Motion.spatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.emphasizedDecel } }
-            }
-            Behavior on opacity {
-                SequentialAnimation {
-                    PauseAnimation { duration: feed.shown ? Motion.stagger * 6 : 0 }
-                    NumberAnimation { duration: feed.shown ? Motion.standard : Motion.fast }
-                }
-            }
-
-            Loader {
-                id: feedLoader
-                anchors.fill: parent
-                active: feed.shown || feed.visible
-                sourceComponent: OverviewFeed { shown: feed.shown }
-            }
-        }
-
         // ══ Which is which ═════════════════════════════════════════════════════
         // A small number on every OTHER busy cell's top-left corner, where the focused one wears the cookie
         // below: the big faded number sits behind the windows, so a busy cell said nothing about which
@@ -900,8 +802,9 @@ Item {
         }
 
         // ══ The peek (see `peekWs`) ═══════════════════════════════════════════
-        Surface {
+        GroundCard {
             id: peek
+            popup: true
             // The last cell peeked, kept while the card fades out.
             property int ws: -1
             readonly property bool shown: root.peeking
@@ -930,8 +833,7 @@ Item {
             }
 
             z: 950
-            elevation: Tokens.elevationPopup
-            cornerRadius: Tokens.radiusCard
+            radius: Tokens.radiusCard
             // A cell's width, up to a list's: cells grow with the room now (see `lay`).
             width: Math.max(Tokens.sideCardUnit * 6, Math.min(root.cellW, Tokens.sideCardUnit * 8))
             height: peekCol.implicitHeight + Tokens.spacingMd * 2
@@ -1048,7 +950,7 @@ Item {
                             color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)
                             Image {
                                 anchors.centerIn: parent
-                                visible: peekRow.iconPath !== ""
+                                visible: peekRow.iconPath !== "" && !StreamMode.active
                                 source: peekRow.iconPath
                                 width: Tokens.iconLg
                                 height: Tokens.iconLg
@@ -1056,8 +958,8 @@ Item {
                             }
                             MaterialIcon {
                                 anchors.centerIn: parent
-                                visible: peekRow.iconPath === ""
-                                name: "apps"
+                                visible: peekRow.iconPath === "" || StreamMode.active
+                                name: StreamMode.active ? "visibility_off" : "apps"
                                 color: Colors.of(QsWindow.window).fgMuted
                                 font.pixelSize: Tokens.iconMd
                             }
@@ -1071,14 +973,14 @@ Item {
                             spacing: 0
                             StyledText {
                                 width: parent.width
-                                text: peekRow.modelData.title || peekRow.modelData.appClass || ""
+                                text: StreamMode.mask(peekRow.modelData.title || peekRow.modelData.appClass || "")
                                 variant: "label"
                                 font.weight: Font.Medium
                                 elide: Text.ElideRight
                             }
                             StyledText {
                                 width: parent.width
-                                text: Icons.nameForAppId(peekRow.modelData.appClass ?? "") || peekRow.modelData.appClass || ""
+                                text: StreamMode.mask(Icons.nameForAppId(peekRow.modelData.appClass ?? "") || peekRow.modelData.appClass || "")
                                 variant: "micro"
                                 emphasis: "dim"
                                 elide: Text.ElideRight

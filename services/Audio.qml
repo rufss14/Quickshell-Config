@@ -96,9 +96,15 @@ Singleton {
     // under "Recording" — a list whose whole purpose is answering "what is listening to
     // me" — is not just noise, it's the wrong answer. Same reasoning as _isMonitor
     // above, one layer out: both observe output, neither records you.
+    //
+    // The shell's own visualiser for one player (`cava` and `pw-record --target spotify`) does not set that flag: it
+    // names an APP's stream as its target, and says so with `media.role: Music` on a Capture. Music is what a capture
+    // of playback is, never your voice, so it counts here too (measured with pw-dump: both showed up under
+    // "Recording", and the mixer said three apps could hear you).
     function _capturesSink(node) {
         const p = node?.properties ?? {}
         return String(p["stream.capture.sink"] ?? "").toLowerCase() === "true"
+            || (p["media.category"] === "Capture" && p["media.role"] === "Music")
     }
 
     // Applications currently capturing audio, one entry per app.
@@ -272,8 +278,8 @@ Singleton {
     //
     // `application.name` is NOT the app's name — it's whatever string the audio
     // library happened to register with. Discord registers its stream as
-    // "WEBRTC VoiceEngine"; Chromium-based apps do similar. Preferring it (which
-    // this used to) put "WEBRTC VoiceEngine" in the mixer instead of "Discord".
+    // "WEBRTC VoiceEngine"; Chromium-based apps do similar. Preferring it would
+    // put "WEBRTC VoiceEngine" in the mixer instead of "Discord".
     //
     // `application.process.binary` is the reliable identifier — it's the actual
     // executable, and it's what the .desktop file is named after, so it resolves
@@ -427,6 +433,18 @@ Singleton {
         // desktop entry is "zen" while its stream's binary is "zen-bin" — only its
         // application.name ("Zen") matches, and that is in _appCandidates().
         return root.streams.filter(n => root._appCandidates(n).some(c => c.toLowerCase() === id))
+    }
+
+    // The `object.serial` of a playback stream, "" when it has none yet. A capture pins to this and
+    // not to the stream's name (CavaStream.serial): an app that drops its stream and opens a new one
+    // keeps the name, never the serial.
+    function serialOfNode(node) {
+        const p = node ? (node.properties || {}) : {}
+        return p["object.serial"] === undefined ? "" : String(p["object.serial"])
+    }
+    function serialOf(name) {
+        if (!name) return ""
+        return root.serialOfNode(root.streams.find(n => n.name === name))
     }
 
     // ── A scroll step lands on a multiple of 5 ────────────────────────────────
@@ -1007,6 +1025,12 @@ Singleton {
     // NOT-FOUND here — wireplumber replaced it — so naming it would make the whole
     // command fail.
     //
+    // The two portal units come with it: xdg-desktop-portal-hyprland holds its PipeWire
+    // connection open for as long as it lives, so after a PipeWire restart it keeps
+    // talking to a dead socket and screen sharing (Discord, browsers) silently stops
+    // until the portal is restarted too (measured). pipewire.socket is
+    // socket-activated, so the portals reconnect even though they restart in the same job.
+    //
     // ── This is disruptive, and the UI must treat it that way ─────────────────
     // Audio drops for a second or two, and applications that hold a stream may not
     // recover it — some re-open, some go silent until restarted. So the button that calls
@@ -1022,7 +1046,8 @@ Singleton {
         id: restartProc
         running: false
         command: ["systemctl", "--user", "restart",
-                  "pipewire.service", "pipewire-pulse.service", "wireplumber.service"]
+                  "pipewire.service", "pipewire-pulse.service", "wireplumber.service",
+                  "xdg-desktop-portal-hyprland.service", "xdg-desktop-portal.service"]
         onExited: function(code) {
             if (code !== 0) console.warn("Audio: audio stack restart failed, exit", code)
         }
@@ -1054,8 +1079,7 @@ Singleton {
     }
 
     // Two states, not four: the icon only answers "is anything coming out at all" (the
-    // level is the slider beside it). Material Symbols names (2026-10-31; they were the
-    // Fluent set's headphones / headphones-sound-wave): silent is the crossed-out headset,
+    // level is the slider beside it). Material Symbols names: silent is the crossed-out headset,
     // so mute reads by shape as well as by VolumePill's danger tint.
     function iconName(vol, isMuted) {
         if (isMuted || vol <= 0.0) return "headset_off"

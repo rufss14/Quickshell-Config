@@ -69,7 +69,7 @@ Item {
         id: frame
         anchors.fill: parent
         radius: Tokens.radiusSm
-        color: Colors.of(QsWindow.window).surfaceHigh
+        color: Colors.of(QsWindow.window).plate
         clip: true
 
         Image {

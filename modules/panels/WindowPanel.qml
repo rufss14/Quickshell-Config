@@ -229,7 +229,7 @@ Item {
                 MorphShape {
                     anchors.fill: parent
                     shape: act.on ? "cookie7" : "circle"
-                    fillColor: act.on ? act.tint : Colors.of(QsWindow.window).surfaceHigh
+                    fillColor: act.on ? act.tint : Colors.of(QsWindow.window).plate
                 }
                 MaterialIcon {
                     anchors.centerIn: parent

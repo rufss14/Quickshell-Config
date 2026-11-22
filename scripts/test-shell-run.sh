@@ -21,7 +21,7 @@ chmod +x "$T/bin/qs" "$T/bin/notify-send"
 run() {   # run CODES... → starts (QS_SAFE per start, space-separated) and the exit code
     : >"$T/starts"; : >"$T/notes"; printf '%s\n' "$@" >"$T/codes"
     HOME="$T/home" XDG_CACHE_HOME="$T/cache" XDG_DATA_HOME="$T/data" XDG_STATE_HOME="$T/state" \
-    FAKE="$T" PATH="$T/bin:$PATH" QS_BIN="$T/bin/qs" QS_CRASH_WINDOW=60 \
+    FAKE="$T" PATH="$T/bin:$PATH" QS_BIN="$T/bin/qs" QS_NOTIFY="$T/bin/notify-send" QS_CRASH_WINDOW=60 \
         bash "$HERE/shell-run.sh" 2>/dev/null
     echo "$? $(tr '\n' ' ' <"$T/starts" | sed 's/ $//')"
 }

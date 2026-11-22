@@ -74,7 +74,7 @@ ColumnLayout {
     signal picked(int y, int m, int d)
 
     readonly property date now: Clock.now
-    readonly property bool offMonth: root.month !== root.now.getMonth()
+    readonly property bool offMonth: root.month !== root.now.getMonth() || root.year !== root.now.getFullYear()
                                   || root.year  !== root.now.getFullYear()
 
     // -1 = came from the left (paged back), +1 = from the right.
@@ -342,7 +342,7 @@ ColumnLayout {
                         width:  holidayName.implicitWidth + Tokens.spacingMd * 2
                         height: holidayName.implicitHeight + Tokens.spacingSm * 2
                         radius: Tokens.radiusXs
-                        color: Colors.of(QsWindow.window).surfaceHigh
+                        color: Colors.of(QsWindow.window).plate
                         border.width: Tokens.borderWidth
                         border.color: Colors.of(QsWindow.window).outlineNested
 

@@ -61,72 +61,30 @@ Item {
     readonly property bool elsewhere: Hypr.monitors.length > 1 && cell.screenOf !== null
                                       && cell.screenOf.name !== (grid.monitor?.name ?? "")
 
-    // ── Focus / target halo ──────────────────────────────────────────
-    // The border says "this one" in a hairline; this says it in light —
-    // a soft accent bloom hugging the card. The shared OverviewGlow,
-    // rounded rather than circular so it reads as this card's own shape
-    // rather than a spotlight of the wrong silhouette. Declared before
-    // `card` so it paints behind it, and `active`-gated: on a page where
-    // at most two cells (focused + drop target) are ever lit, the other
-    // eight idle for free.
-    OverviewGlow {
-        anchors.centerIn: card
-        circular:      false
-        contentWidth:  card.width
-        contentHeight: card.height
-        contentRadius: Tokens.radiusCard
-        accent:        cell.isTarget ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).primary
-        active:        cell.isFocused || cell.isTarget || (grid.peeking && grid.peekWs === cell.workspaceId)
-    }
-
-    Surface {
+    // A flat plate (island-style §1): empty = section, busy or under the pointer = surfaceHigh, the
+    // workspace you are on = the accent container. A drop target is where the window WILL GO, an
+    // action in progress, so it takes the accent itself and a ring.
+    Rectangle {
         id: card
+        readonly property var pal: Colors.of(QsWindow.window)
         x: cell.fitOffset.x
         y: cell.fitOffset.y
         width:  cell.fitSize.w
         height: cell.fitSize.h
         Behavior on width  { enabled: grid.active; NumberAnimation { duration: Motion.spatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.emphasizedDecel } }
         Behavior on height { enabled: grid.active; NumberAnimation { duration: Motion.spatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.emphasizedDecel } }
-        // Card, not Nested — this cell sits directly on the overview's
-        // dimmed backdrop (gridArea is a bare Item), same as CalendarCard,
-        // TimerCard, OverviewDock and everything else out here. Nested
-        // means "a control inside a card", which this isn't; it was the
-        // one card in the overview still on the wrong shade of grey.
-        elevation: Tokens.elevationCard
-        cornerRadius: Tokens.radiusCard
+        radius: Tokens.radiusCard
 
-        // The focused workspace is where you ARE → `focus`.
-        // A drop target is where the window WILL GO → `primary`, because
-        // that's an action in progress. They must not read the same.
-        focused: cell.isFocused || cell.isTarget
-        // A little see-through, like a panel's section cards: the overview's container
-        // carries the cookie field, and an empty workspace shows it drifting by.
-        color: Colors.of(QsWindow.window).fade(
-                 cell.justClicked   ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surface, Colors.of(QsWindow.window).primary, 0.40)
-               : cell.isTarget      ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surface, Colors.of(QsWindow.window).primary, 0.28)
-               : cell.isFocused     ? Colors.of(QsWindow.window).primaryContainer
-               : cell.offered       ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surface, Colors.of(QsWindow.window).primary, cellHover.hovered ? 0.2 : 0.1)
-               : cellHover.hovered  ? Colors.of(QsWindow.window).surfaceHigh
-               : Colors.of(QsWindow.window).surfaceContainer,
-                 cell.occupied || cell.offered || cellHover.hovered || cell.isTarget ? 0.9 : 0.62)
-
-        // A prominent edge, on the shell's chrome border width rather
-        // than the fine 1px hairline — a workspace cell is a big surface
-        // sitting on the wallpaper, the same class of thing as a bar pill
-        // or the screen frame, and reads better with their weight.
-        // Chrome weight only for the cell that is lit; the rest sit on a hairline (card, cell and preview each
-        // with a heavy edge reads as noise).
-        border.width: (cell.isTarget || cell.isFocused)
-                      ? Tokens.borderChrome + 1
-                      : Tokens.borderWidth
-        border.color: cell.isTarget  ? Colors.of(QsWindow.window).primary
-                    : cell.isFocused ? Colors.of(QsWindow.window).focus
-                    : cell.offered   ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).focus, cellHover.hovered ? 0.9 : 0.5)
-                    : cellHover.hovered ? Colors.of(QsWindow.window).outlineFocus
-                    : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.24)
+        color: cell.justClicked   ? card.pal.mix(card.pal.surfaceHigh, card.pal.primary, 0.40)
+             : cell.isTarget      ? card.pal.mix(card.pal.surfaceHigh, card.pal.primary, 0.30)
+             : cell.isFocused     ? card.pal.primaryContainer
+             : cell.offered       ? card.pal.mix(card.pal.surfaceContainer, card.pal.primary, cellHover.hovered ? 0.2 : 0.1)
+             : cell.occupied || cellHover.hovered ? card.pal.surfaceHigh
+             : card.pal.section
+        border.width: cell.isTarget ? Tokens.borderChrome : 0
+        border.color: card.pal.primary
 
         Behavior on color        { ColorAnimation { duration: Motion.respond } }
-        Behavior on border.color { ColorAnimation { duration: Motion.respond } }
 
         // ── Entrance ──────────────────────────────────────────────────
         // Fades and scales up from rest, staggered by index so the board
@@ -176,8 +134,7 @@ Item {
         ClippingRectangle {
             id: cellWall
             anchors.fill: parent
-            anchors.margins: card.border.width
-            radius: Math.max(0, card.radius - card.border.width)
+            radius: card.radius
             color: "transparent"
             readonly property string pic: cell.laid ? Wallpaper.pictureFor(cell.workspaceId) : ""
             // A workspace with its OWN picture always wears it; with the shared one, only a busy cell does,
@@ -208,7 +165,8 @@ Item {
             text: cell.workspaceId
             font.pixelSize: Math.round(card.height * 0.5)
             font.bold: true
-            color: cell.isFocused ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).fg
+            font.features: { "tnum": 1 }
+            color: cell.isFocused ? card.pal.fgOnPrimaryContainer : card.pal.fg
             opacity: cell.occupied ? 0.07 : 0.16
         }
         // A workspace with its own icon (WorkspaceLabels) wears that instead.
@@ -218,7 +176,7 @@ Item {
             name: visible ? WorkspaceLabels.iconOf(cell.workspaceId) : "star"
             fill: 1
             font.pixelSize: Math.round(card.height * 0.42)
-            color: cell.isFocused ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).fg
+            color: cell.isFocused ? card.pal.fgOnPrimaryContainer : card.pal.fg
             opacity: cell.occupied ? 0.07 : 0.16
         }
     }
@@ -234,8 +192,6 @@ Item {
         width: tabRow.implicitWidth + Tokens.spacingMd * 2
         radius: height / 2
         color: Colors.of(QsWindow.window).surfaceHigh
-        border.width: Tokens.borderWidth
-        border.color: Colors.of(QsWindow.window).outlineNested
         opacity: cell.elsewhere && cell.laid ? 1 : 0
         visible: opacity > 0.01
         Behavior on opacity { NumberAnimation { duration: Motion.standard } }
@@ -388,8 +344,6 @@ Item {
                     anchors.fill: parent
                     shape: cellHover.hovered ? "sunny" : "cookie9"
                     fillColor: Colors.of(QsWindow.window).primaryContainer
-                    strokeColor: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.6)
-                    strokeWidth: 2
                     RotationAnimator on rotation {
                         from: 0; to: 360
                         duration: 30000
@@ -426,8 +380,6 @@ Item {
                 height: newPill.chip + newPill.pad * 2
                 radius: height / 2
                 color: Colors.of(QsWindow.window).surfaceContainer
-                border.width: Tokens.borderWidth
-                border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)
                 Row {
                     anchors.centerIn: parent
                     spacing: Tokens.spacingXs
@@ -447,8 +399,6 @@ Item {
                                  : wsDot.first ? Colors.of(QsWindow.window).primaryContainer
                                  : dotHover.hovered ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.16)
                                  : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.06)
-                            border.width: wsDot.first && !wsDot.target ? Tokens.borderWidth : 0
-                            border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.7)
                             SpringValue {
                                 id: dotLean
                                 target: wsDot.target ? 1.18 : dotTap.pressed ? 0.9 : dotHover.hovered ? 1.06 : 1

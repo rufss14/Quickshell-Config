@@ -85,7 +85,10 @@ Item {
     id: root
 
     implicitWidth: 660
-    readonly property int margin: Tokens.spacingXl
+    // Shown as an island page (IslandCard): the rail names the panel and the card has its own
+    // gutter, so the title row and the outer padding stand down.
+    property bool island: false
+    readonly property int margin: root.island ? 0 : Tokens.spacingXl
     implicitHeight: content.implicitHeight + root.margin * 2
 
     readonly property color accent: Config.moduleAccent("clock", Colors.of(QsWindow.window).primary)
@@ -93,7 +96,9 @@ Item {
     readonly property real otherDay: 0.5
 
     Component.onCompleted: {
-        Clock.acquireSeconds(); Weather.acquire(); AirQuality.acquire(); Calendar.acquire()
+        Clock.acquireSeconds(); Calendar.acquire()
+        // The weather page is the bar panel's; an island has its own, which holds Weather itself.
+        if (!root.island) { Weather.acquire(); AirQuality.acquire() }
         // After creation, not during it: a ViewEnter / PopIn plays when its `active` TURNS true,
         // and a page that starts out shown would otherwise simply be there.
         Qt.callLater(function () { root.opened = true })
@@ -101,7 +106,8 @@ Item {
         root.syncAlarmIds()
     }
     Component.onDestruction: {
-        Clock.releaseSeconds(); Weather.release(); AirQuality.release(); Calendar.release()
+        Clock.releaseSeconds(); Calendar.release()
+        if (!root.island) { Weather.release(); AirQuality.release() }
         if (root.clocksSeen) WorldClock.release()
     }
 
@@ -118,7 +124,8 @@ Item {
     property bool opened: false
     // Held for Motion.emphasized first: that's the Accordion's own open pause, and the stagger
     // should play as the content fades in, not behind it. Zero once that has passed.
-    property int lead: Motion.emphasized
+    // An island has its own entrance, so nothing here waits for it.
+    property int lead: root.island ? 0 : Motion.emphasized
     Timer {
         running: true
         interval: Motion.emphasized + Motion.spatial * 2
@@ -141,6 +148,13 @@ Item {
     // The Clocks page's lists are built from the first visit too, and WorldClock is only asked for
     // offsets (one `date` run) then.
     property bool clocksSeen: false
+    // True a moment after the panel opens, when the Clocks page is built behind the one on show.
+    property bool warm: false
+    Timer {
+        running: true
+        interval: Motion.emphasized + Motion.spatial * 2
+        onTriggered: root.warm = true
+    }
     onClocksOnChanged: {
         // A planning cursor does not outlive the page: coming back, it is now.
         if (!root.clocksOn) root.planMs = -1
@@ -156,7 +170,8 @@ Item {
     }
 
     // ══ Selection ═════════════════════════════════════════════════════════════
-    property string view:      "weather"   // weather | calendar
+    // On an island there is no weather page: the island has its own (IslandWeather).
+    property string view:      root.island ? "calendar" : "weather"   // weather | calendar | clocks
     property int    dayIndex:  0           // into Weather.days — the day on the ring
     property double pickedDay: -1          // local-midnight ms clicked on the grid; -1 = upcoming
 
@@ -165,7 +180,7 @@ Item {
         const n = Weather.days.length
         if (n === 0) return
         root.dayIndex = Math.max(0, Math.min(i, n - 1))
-        weatherView.ring.snapToSlot(root.anchorFor(root.dayIndex), true)
+        if (root.ring) root.ring.snapToSlot(root.anchorFor(root.dayIndex), true)
     }
 
     function backToNow() {
@@ -212,7 +227,7 @@ Item {
         root.zoneError = WorldClock.add(zone)
         if (root.zoneError !== "") return
         root.zoneQuery = ""
-        clocksView.zoneField.clear()
+        if (clocksLoader.item) clocksLoader.item.zoneField.clear()
     }
 
     property string alarmText: ""
@@ -224,7 +239,7 @@ Item {
         if (Timers.alarms.length >= 12) { root.alarmError = "That's plenty of alarms — remove one first"; return }
         Timers.addAlarm(t.h, t.m, root.alarmDays)
         root.alarmText = ""
-        clocksView.alarmField.clear()
+        if (clocksLoader.item) clocksLoader.item.alarmField.clear()
     }
     // The alarms' ids, in order: the list's model. Timers replaces its whole array on every toggle, and a
     // model of the alarms themselves would rebuild every row (and lose the switch's animation); ids
@@ -249,7 +264,7 @@ Item {
     //   anywhere   Tab / Shift+Tab, 1 2 3: the page · T or Home: back to now
     //   weather    ← →: the hour · ↑ ↓: the day
     //   calendar   ← →: a day · ↑ ↓: a week · PgUp PgDn: a month · N: a new event
-    readonly property var pages: ["weather", "calendar", "clocks"]
+    readonly property var pages: root.island ? ["calendar", "clocks"] : ["weather", "calendar", "clocks"]
 
     function goPage(i) { root.view = root.pages[(i + root.pages.length) % root.pages.length] }
 
@@ -271,7 +286,7 @@ Item {
         if (root.view === "weather") {
             if (k === Qt.Key_Left || k === Qt.Key_Right) {
                 const n = root.ringHours.length
-                if (n > 0) weatherView.ring.snapToSlot(Math.max(0, Math.min(n - 1, root.slot + (k === Qt.Key_Right ? 1 : -1))))
+                if (n > 0 && root.ring) root.ring.snapToSlot(Math.max(0, Math.min(n - 1, root.slot + (k === Qt.Key_Right ? 1 : -1))))
                 return true
             }
             if (k === Qt.Key_Up || k === Qt.Key_Down) { root.setDay(root.dayIndex + (k === Qt.Key_Down ? 1 : -1)); return true }
@@ -335,23 +350,25 @@ Item {
     }
 
     // The slot being described: the one at the front while it moves, else the locked one.
-    readonly property int  slot: weatherView.ring.interacting ? weatherView.ring.frontSlot : weatherView.ring.lockedSlot
+    // The weather page's ring; there is none on an island (its page is never built).
+    readonly property var  ring: weatherLoader.item ? weatherLoader.item.ring : null
+    readonly property int  slot: !root.ring ? 0 : root.ring.interacting ? root.ring.frontSlot : root.ring.lockedSlot
     readonly property var  frontHour: root.ringHours[Math.min(root.slot, root.ringHours.length - 1)]?.hour ?? null
     readonly property bool describingNow: root.nowSlot >= 0 && root.slot === root.nowSlot
 
     // At rest on the present. Reads the SETTLED position only, never "is it moving":
     // tying it to motion flipped it on every scroll notch and spring.
     readonly property bool atNow: root.dayIndex === 0
-                               && (root.nowSlot < 0 || weatherView.ring.lockedSlot === root.nowSlot)
+                               && (root.nowSlot < 0 || !root.ring || root.ring.lockedSlot === root.nowSlot)
                                && root.pickedDay < 0 && calendarView.monthPager.atToday
 
     // Resting on now when the hour turns over: step forward with the clock. Also
     // catches the first data arriving after the panel opened.
     property int _lastNow: -1
     onNowSlotChanged: {
-        if (root.nowSlot >= 0 && !weatherView.ring.interacting
-                && (root._lastNow < 0 || weatherView.ring.lockedSlot === root._lastNow))
-            weatherView.ring.snapToSlot(root.nowSlot, root._lastNow < 0)
+        if (root.ring && root.nowSlot >= 0 && !root.ring.interacting
+                && (root._lastNow < 0 || root.ring.lockedSlot === root._lastNow))
+            root.ring.snapToSlot(root.nowSlot, root._lastNow < 0)
         root._lastNow = root.nowSlot
     }
 
@@ -567,7 +584,7 @@ Item {
             if (today.length) parts.push(today[0].name)
             return parts.join("  ·  ")
         }
-        return Weather.hasLocation ? Weather.place : "No location set"
+        return Weather.hasLocation ? StreamMode.mask(Weather.place) : "No location set"
     }
 
     // ── Reminders' quick-add ──────────────────────────────────────────────────
@@ -727,7 +744,7 @@ Item {
     // The refresh glyph turns while anything is fetching. `pulse`, not a switchable
     // duration: it's a busy signal, and a still icon says nothing.
     property real refreshPhase: 0
-    readonly property bool refreshing: Weather.loading || AirQuality.loading || Calendar.loading
+    readonly property bool refreshing: root.island ? Calendar.loading : (Weather.loading || AirQuality.loading || Calendar.loading)
     NumberAnimation on refreshPhase {
         running: root.refreshing
         from: 0; to: 360
@@ -747,7 +764,7 @@ Item {
 
         // ── Header card — a Clock module setting ──────────────────────────────
         PanelHeader {
-            visible: Config.clockPanelHeader()
+            visible: Config.clockPanelHeader() && !root.island
             Layout.fillHeight: false
             Layout.bottomMargin: Tokens.spacingXs
             glyph:     "󰃭"
@@ -781,7 +798,7 @@ Item {
                     { value: "calendar", label: "Calendar", icon: "calendar_month",
                       lit: Reminders.overdueCount > 0 || (root.nextUp !== null && root.nextUp.live) },
                     { value: "clocks",   label: "Clocks",   icon: "public", lit: root.alarmSoon }
-                ]
+                ].filter(p => !root.island || p.value !== "weather")
                 onPicked: (value) => root.view = value
             }
 
@@ -856,6 +873,7 @@ Item {
                 Layout.leftMargin: Tokens.spacingSm
 
                 ChipButton {
+                    visible: !root.island
                     label:   Weather.metric ? "°C" : "°F"
                     labelVariant: "title"
                     tint:    root.accent
@@ -866,7 +884,7 @@ Item {
                     tint:    root.accent
                     iconAngle: root.refreshing ? root.refreshPhase : 0
                     enabled: !root.refreshing
-                    onActivated: { Weather.refresh(); AirQuality.refresh(); Calendar.refresh() }
+                    onActivated: { if (!root.island) { Weather.refresh(); AirQuality.refresh() } Calendar.refresh() }
                 }
             }
         }
@@ -878,17 +896,34 @@ Item {
             id: views
             Layout.fillWidth: true
             Layout.preferredHeight: root.view === "calendar" ? calendarView.implicitHeight
-                                  : root.view === "clocks"   ? clocksView.implicitHeight
-                                  :                            weatherView.implicitHeight
+                                  : root.view === "clocks"   ? clocksLoader.implicitHeight
+                                  :                            weatherLoader.implicitHeight
 
             // ══ WEATHER — ClockWeatherView.qml ══
-            ClockWeatherView { id: weatherView; panel: root }
+            // Not built on an island, which has its own weather page.
+            Loader {
+                id: weatherLoader
+                active: !root.island
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                sourceComponent: ClockWeatherView { panel: root }
+            }
 
             // ══ CALENDAR — ClockCalendarView.qml ══
             ClockCalendarView { id: calendarView; panel: root }
 
             // ══ CLOCKS — ClockClocksView.qml ══
-            ClockClocksView { id: clocksView; panel: root }
+            // Built once the page is in, or on the first visit, whichever comes first: what the Calendar
+            // page does not need is not paid for while it opens.
+            Loader {
+                id: clocksLoader
+                active: root.clocksSeen || root.warm
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                sourceComponent: ClockClocksView { panel: root }
+            }
 
         }
     }

@@ -27,7 +27,7 @@ Rectangle {
     // straight back to 1 and the hover silently became a no-op.
     // The wallpaper on show, and a ticked row, are TONAL (primaryContainer), as the grid's tile frame is.
     color: (st.isCurrent || st.selected) ? Colors.of(QsWindow.window).primaryContainer
-         : rowHover.hovered ? Colors.of(QsWindow.window).surfaceHigh : Colors.of(QsWindow.window).surfaceContainer
+         : rowHover.hovered ? Colors.of(QsWindow.window).plate : Colors.of(QsWindow.window).plateLow
     border.width: row.kbFocused ? 2 : st.removeLatch.armed ? 1 : 0
     border.color: row.kbFocused ? Colors.of(QsWindow.window).focus
                 : st.removeLatch.armed ? Colors.of(QsWindow.window).danger

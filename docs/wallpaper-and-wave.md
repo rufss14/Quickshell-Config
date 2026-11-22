@@ -152,7 +152,8 @@ Two libraries behind one gallery. Images: `scripts/apply-wallpaper.sh` →
   **shell-only** (default — `Colors.overlay` in memory, nothing written) and
   **system-wide** (`Config.albumSchemeSystem` — writes `colors.json` and runs
   `reload-theme.sh`). `Config.albumSchemeLock` pins the album palette while music
-  plays so other schemes don't overwrite it. It's eager-loaded in `shell.qml`
+  plays so other schemes don't overwrite it. `Config.albumHold` is how long it stays after the music stops (seconds, -1 = until
+  something else plays; the grace timer). `AlbumScheme.previewPalette` is the cover read for a preview while following is off. It's eager-loaded in `shell.qml`
   because it must theme while music plays and nothing is on screen; inert while
   `Config.albumScheme` is off. **Per-wallpaper saved palettes** live in
   `theming/wallpaper-palettes/<key>.json` (key = image basename or `scene_<id>`)

@@ -133,7 +133,7 @@ Item {
                         spec: Motion.springSpatialFast
                         shape: Config.barShape ? "squircle"
                              : root.today ? "burst" : root.past ? "circle" : "cookie9"
-                        fillColor: root.past ? Colors.of(QsWindow.window).surfaceHigh
+                        fillColor: root.past ? Colors.of(QsWindow.window).plate
                                              : Colors.of(QsWindow.window).primaryContainer
 
                         ColumnLayout {

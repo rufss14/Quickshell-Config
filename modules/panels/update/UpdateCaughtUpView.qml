@@ -115,14 +115,10 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: false
             spacing: Tokens.spacingSm
-            InputField {
+            UpdatePasswordField {
                 id: caughtPassField
                 Layout.fillWidth: true
-                implicitHeight: panel._fieldH
-                cornerRadius: implicitHeight / 2
-                icon: "lock"
-                secret: true
-                placeholder: Translation.tr("sudo password…")
+                hint: Translation.tr("For Vencord: its installer runs as root")
                 onAccepted: panel._confirmVencord(caughtPassField.text)
                 onKeyPressed: (event) => { if (event.key === Qt.Key_Escape) { panel._escClose(); event.accepted = true } }
             }
@@ -137,5 +133,13 @@ ColumnLayout {
             disabled: caughtPassField.text.length === 0
             clickHandler: function() { panel._confirmVencord(caughtPassField.text) }
         }
+    }
+
+    // ══ ISLAND ONLY — the same row as the main view's (UpdateIslandPlates) ═════
+    UpdateIslandPlates {
+        Layout.topMargin: Tokens.spacingXs
+        panel: caughtCol.panel
+        shown: caughtCol.panel.caughtOn
+        delay: caughtCol.panel.lead + Motion.respond * 2
     }
 }

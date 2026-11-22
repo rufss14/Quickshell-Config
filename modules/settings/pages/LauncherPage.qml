@@ -12,9 +12,8 @@ import "../../panels"
 // Everything the launcher needs configured, in one place: who answers `?`, where `>`
 // runs commands, where a web search goes, and what it has learned from you.
 //
-// The AI half used to live in the launcher's own help sheet, which meant a panel you
-// summon with a keystroke and dismiss on Escape was also where you pasted an API key.
-// That is a settings job. The sheet now only lists the keys.
+// The AI half lives here and not in the launcher's help sheet: a panel you summon with a
+// keystroke and dismiss on Escape is no place to paste an API key. The sheet only lists the keys.
 //
 // ── The key is write-only ─────────────────────────────────────────────────────
 // Typed here and handed to scripts/ai-credentials.py over stdin (Ai.saveKey), which
@@ -26,7 +25,8 @@ import "../../panels"
 // The hero is LauncherField itself — the real search pill, inert — typing the same
 // hints the launcher types when it is empty (Launcher.idleHints). It is the quickest
 // way to learn the prefixes, and it can't drift from the launcher because it is the
-// launcher's. Under it, Ask beside Search: two cards of the same height.
+// launcher's. Under it the page is grouped rows: what the launcher answers (each feature a row you
+// tap anywhere), Ask, running and searching, and the site shortcuts.
 // ─────────────────────────────────────────────────────────────────────────────
 Item {
     id: root
@@ -73,25 +73,27 @@ Item {
     SettingsPage {
         anchors.fill: parent
 
-        bento:     true
+        grouped:   true
         glyph:     "󰀻"
         title:     Translation.tr("App")
         titleTail: "launcher"
         accent:    Colors.of(QsWindow.window).primary
-        subtitle:  !Config.aiEnabled ? "? searches the web"
-                 : Ai.blocker() !== "" ? ("Ask: " + Ai.blocker()) : ("? asks " + Ai.label)
+        subtitle:  !Config.aiEnabled ? Translation.tr("Type ? to search the web")
+                 : Ai.blocker() !== "" ? Ai.blocker()
+                 : Translation.tr("Type ? to ask %1").arg(Ai.label)
 
         // ══ The field ═════════════════════════════════════════════════════════
         Section {
-            span:   3
-            glyph:  "󰍉"
-            title:  Translation.tr("Prefixes")
-            help:   Translation.tr("Typed into the launcher's empty field, a prefix switches its mode: > runs a command, ? asks, + installs a package, ; searches your clipboard, : finds an emoji. Sums, unit conversions and site shortcuts (yt cats) just work.")
-            accent: Colors.of(QsWindow.window).primary
+            id: fieldHero
+            hero:  true
+            title: Translation.tr("Prefixes")
+            help:  Translation.tr("Typed into the launcher's empty field, a prefix switches its mode: > runs a command, ? asks, + installs a package, ; searches your clipboard, : finds an emoji. Sums, unit conversions and site shortcuts (yt cats) just work.")
 
             PreviewStage {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 76
+                // Concentric with the card: its radius less the card's padding.
+                radius: Tokens.radiusXl - fieldHero.padding
                 checkered: false
 
                 LauncherField {
@@ -105,79 +107,96 @@ Item {
                     placeholder: Translation.tr("Search apps")
                 }
             }
+
+            // Every prefix that is switched on, as the launcher itself would list them: the field
+            // above types them one at a time, this shows them all.
+            Flow {
+                Layout.fillWidth: true
+                spacing: Tokens.spacingLg
+
+                Repeater {
+                    model: Launcher.idleHints
+
+                    delegate: Row {
+                        id: hint
+                        required property var modelData
+                        spacing: Tokens.spacingXs
+
+                        StyledText {
+                            text: hint.modelData.key
+                            variant: "caption"
+                            font.family: Tokens.fontMono
+                            font.weight: Font.DemiBold
+                            color: fieldHero.ink
+                        }
+                        StyledText {
+                            text: hint.modelData.text
+                            variant: "caption"
+                            color: fieldHero.inkDim
+                        }
+                    }
+                }
+            }
         }
 
         // ══ What it answers ═══════════════════════════════════════════════════
         // Everything the launcher does beyond launching an app, each its own switch. Off, the
-        // launcher simply doesn't offer it: no row, no mode, nothing sent.
+        // launcher simply doesn't offer it: no row, no mode, nothing sent. Independent features,
+        // so rows you tap rather than a set of chips.
         Section {
-            span:     3
+            grouped:  true
             symbol:   "tune"
             title:    Translation.tr("Results")
-            subtitle: Translation.tr("What it answers, and how much of it")
-            accent:   Colors.of(QsWindow.window).primary
+            subtitle: Translation.tr("What it offers beside apps")
 
-            Flow {
-                Layout.fillWidth: true
-                spacing: Tokens.spacingSm
-
-                ToggleChip {
-                    symbol: "bolt"
-                    label:  Translation.tr("Shell actions")
-                    hint:   Translation.tr("Night light, game mode, the power menu and the rest of what the shell can do, as results when you type their name.")
-                    active: Config.launcherActions
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Shell actions")
+                detail: Config.launcherActions ? Translation.tr("Offered when you type their name") : Translation.tr("Only apps are listed")
+                help:   Translation.tr("Night light, game mode, the power menu and the rest of what the shell can do, as results when you type their name.")
+                onTapped: Config.launcherActions = !Config.launcherActions
+                Toggle {
+                    accent:  Colors.of(QsWindow.window).primary
+                    checked: Config.launcherActions
                     onToggled: Config.launcherActions = !Config.launcherActions
                 }
-                ToggleChip {
-                    symbol: "settings"
-                    label:  Translation.tr("Settings")
-                    hint:   Translation.tr("Three letters or more also search Settings; picking one opens its page.")
-                    active: Config.launcherSettings
+            }
+
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Settings")
+                detail: Config.launcherSettings ? Translation.tr("Three letters or more search Settings") : Translation.tr("Settings pages stay out of results")
+                help:   Translation.tr("Three letters or more also search Settings; picking one opens its page.")
+                onTapped: Config.launcherSettings = !Config.launcherSettings
+                Toggle {
+                    accent:  Colors.of(QsWindow.window).primary
+                    checked: Config.launcherSettings
                     onToggled: Config.launcherSettings = !Config.launcherSettings
                 }
-                ToggleChip {
-                    symbol: "calculate"
-                    label:  Translation.tr("Calculator")
-                    hint:   Translation.tr("Sums and unit conversions answer in the launcher: 12*8, 10 km to mi.")
-                    active: Config.launcherCalc
+            }
+
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Calculator")
+                detail: Config.launcherCalc ? Translation.tr("Answers 12*8 and 10 km to mi") : Translation.tr("Sums are searched as text")
+                help:   Translation.tr("Sums and unit conversions answer in the launcher: 12*8, 10 km to mi.")
+                onTapped: Config.launcherCalc = !Config.launcherCalc
+                Toggle {
+                    accent:  Colors.of(QsWindow.window).primary
+                    checked: Config.launcherCalc
                     onToggled: Config.launcherCalc = !Config.launcherCalc
                 }
-                ToggleChip {
-                    symbol: "package"
-                    label:  Translation.tr("Install with +")
-                    hint:   Translation.tr("A line starting with + searches the repos and installs a package through the update runner.")
-                    active: Config.launcherPackages
-                    onToggled: Config.launcherPackages = !Config.launcherPackages
-                }
-                ToggleChip {
-                    symbol: "content_paste"
-                    label:  Translation.tr("Clipboard with ;")
-                    hint:   Translation.tr("A line starting with ; searches what you copied. Enter puts the entry back on the clipboard. Off, ; is just a semicolon.")
-                    active: Config.launcherClipboard
-                    onToggled: Config.launcherClipboard = !Config.launcherClipboard
-                }
-                ToggleChip {
-                    symbol: "emoji_emotions"
-                    label:  Translation.tr("Emoji with :")
-                    hint:   Emoji.blocker() !== "" ? Emoji.blocker()
-                            : "A line starting with : finds an emoji by name. Enter copies it; the ones you pick most come first."
-                    available: Emoji.blocker() === ""
-                    active: Config.launcherEmoji
-                    onToggled: Config.launcherEmoji = !Config.launcherEmoji
-                }
-                ToggleChip {
-                    symbol: "public"
-                    label:  Translation.tr("AUR lookups")
-                    hint:   Translation.tr("The AUR half of + sends the longest word you typed to aur.archlinux.org, and only in + mode. Off keeps + to the repos synced on this machine.")
-                    available: Config.launcherPackages
-                    active: Config.launcherAur
-                    onToggled: Config.launcherAur = !Config.launcherAur
-                }
-                ToggleChip {
-                    symbol: "history"
-                    label:  Translation.tr("Learn from use")
-                    hint:   Translation.tr("Apps you open often rise within equally good matches. Off, ranking is match quality alone and nothing new is remembered.")
-                    active: Config.launcherLearn
+            }
+
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Learn from use")
+                detail: Config.launcherLearn ? Translation.tr("Often opened apps rise") : Translation.tr("Ranked by match quality alone")
+                help:   Translation.tr("Apps you open often rise within equally good matches. Off, ranking is match quality alone and nothing new is remembered.")
+                onTapped: Config.launcherLearn = !Config.launcherLearn
+                Toggle {
+                    accent:  Colors.of(QsWindow.window).primary
+                    checked: Config.launcherLearn
                     onToggled: Config.launcherLearn = !Config.launcherLearn
                 }
             }
@@ -196,13 +215,12 @@ Item {
 
         // ══ Ask ═══════════════════════════════════════════════════════════════
         Section {
-            span:     1
-            glyph:    "󰭹"
+            grouped:  true
+            symbol:   "chat"
             title:    Translation.tr("Ask")
-            accent:   Colors.of(QsWindow.window).primary
-            subtitle: !Config.aiEnabled ? "Off — ? opens a web search"
-                    : Ai.ready ? Ai.label + " is ready"
-                    : "Needs a key"
+            subtitle: !Config.aiEnabled ? Translation.tr("? opens a web search")
+                    : Ai.ready ? Translation.tr("%1 is ready").arg(Ai.label)
+                    : Translation.tr("Needs a key")
             help:     Translation.tr("Start a launcher line with ? to ask. Nothing is sent until you press Enter. Off, ? opens a web search in your browser instead.")
 
             actions: Toggle {
@@ -213,6 +231,7 @@ Item {
 
             ChipRow {
                 enabled: Config.aiEnabled
+                opacity: enabled ? 1 : 0.4
                 model:   root.providerChips
                 current: Config.aiProvider
                 onPicked: value => Config.aiProvider = value
@@ -226,14 +245,15 @@ Item {
                 spacing: Tokens.spacingSm
                 visible: Ai.needsKey
                 enabled: Config.aiEnabled
+                opacity: enabled ? 1 : 0.4
 
                 InputField {
                     cornerRadius: implicitHeight / 2
                     id: keyField
                     Layout.fillWidth: true
                     secret: true
-                    placeholder: Ai.ready ? ("Replace " + Ai.label + " key…")
-                                          : ("Paste your " + Ai.label + " API key…")
+                    placeholder: Ai.ready ? Translation.tr("Replace %1 key…").arg(Ai.label)
+                                          : Translation.tr("Paste your %1 API key…").arg(Ai.label)
                     // Enter and focus loss both land here; the button below is the
                     // visible way to say the same thing.
                     onCommitted: value => root.saveKey(value)
@@ -276,6 +296,7 @@ Item {
                 label:  Translation.tr("Model")
                 help:   Translation.tr("Empty is the provider's default. Change it if a provider starts answering 404.")
                 enabled: Config.aiEnabled
+                opacity: enabled ? 1 : 0.4
                 InputField {
                     cornerRadius: implicitHeight / 2
                     implicitWidth: 150
@@ -291,6 +312,7 @@ Item {
             SettingRow {
                 visible: !Ai.needsKey
                 enabled: Config.aiEnabled
+                opacity: enabled ? 1 : 0.4
                 label:   Translation.tr("Session")
                 detail:  Translation.tr("Kept between questions")
                 help:    Translation.tr("One Claude session named AppLauncher, kept between questions. Clears on reboot.")
@@ -303,29 +325,33 @@ Item {
             }
 
             SettingRow {
+                rowTap: true
                 visible: Config.aiProvider === "gemini"
                 enabled: Config.aiEnabled
+                opacity: enabled ? 1 : 0.4
                 label:   Translation.tr("Search the web first")
+                detail:  Config.aiGrounding ? Translation.tr("The question also reaches the search backend") : Translation.tr("The model answers alone")
                 help:    Translation.tr("Gemini only. The question also reaches the search backend.")
+                onTapped: Config.aiGrounding = !Config.aiGrounding
                 Toggle {
+                    accent:  Colors.of(QsWindow.window).primary
                     checked: Config.aiGrounding
                     onToggled: Config.aiGrounding = !Config.aiGrounding
                 }
             }
         }
 
-        // ══ Run and search ════════════════════════════════════════════════════
+        // ══ Run, search and learn ═════════════════════════════════════════════
         Section {
-            span:     1
-            glyph:    "󰆍"
+            grouped:  true
+            symbol:   "terminal"
             title:    Translation.tr("Run & search")
-            accent:   Colors.of(QsWindow.window).primary
             help:     Translation.tr("> runs a command in a terminal. A search that finds no app offers the web search instead.")
 
             SettingRow {
                 label:  Translation.tr("Terminal")
-                detail: "Now: " + Terminal.resolved
-                help:   "Where > commands run. Empty uses $TERMINAL, then " + Config.launcherTerminalFallback + "."
+                detail: Translation.tr("Now: %1").arg(Terminal.resolved)
+                help:   Translation.tr("Where > commands run. Empty uses $TERMINAL, then %1.").arg(Config.launcherTerminalFallback)
                 InputField {
                     cornerRadius: implicitHeight / 2
                     implicitWidth: 130
@@ -364,18 +390,85 @@ Item {
                 }
             }
 
-            // ── What it learned ───────────────────────────────────────────────
             SettingRow {
                 label:  Translation.tr("History")
-                detail: root.remembered + (root.remembered === 1 ? " app remembered" : " apps remembered")
-                help:   Translation.tr("Apps you open often rise within equally good matches. Only app ids and counts are kept — never what you typed.")
+                detail: root.remembered === 1 ? Translation.tr("1 app remembered") : Translation.tr("%1 apps remembered").arg(root.remembered)
+                help:   Translation.tr("Apps you open often rise within equally good matches. Only app ids and counts are kept, never what you typed.")
                 PanelButton {
                     capsule: true
-                    label: forgetLatch.armed ? "Sure?" : "Forget"
+                    label: forgetLatch.armed ? Translation.tr("Sure?") : Translation.tr("Forget")
                     variant: forgetLatch.armed ? "primary" : "normal"
                     accent: Colors.of(QsWindow.window).danger
                     enabled: root.remembered > 0
                     onActivated: forgetLatch.trigger()
+                }
+            }
+        }
+
+        // ══ Prefixes that do something ════════════════════════════════════════
+        // Beside Results so the two halves of the old long list read as a pair of similar height.
+        Section {
+            grouped:  true
+            symbol:   "keyboard"
+            title:    Translation.tr("Prefix modes")
+            subtitle: Translation.tr("Lines that start with a symbol")
+
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Install with +")
+                detail: Config.launcherPackages ? Translation.tr("+ searches the repos") : Translation.tr("+ is just a plus sign")
+                help:   Translation.tr("A line starting with + searches the repos and installs a package through the update runner.")
+                onTapped: Config.launcherPackages = !Config.launcherPackages
+                Toggle {
+                    accent:  Colors.of(QsWindow.window).primary
+                    checked: Config.launcherPackages
+                    onToggled: Config.launcherPackages = !Config.launcherPackages
+                }
+            }
+
+            SettingRow {
+                rowTap: true
+                enabled: Config.launcherPackages
+                opacity: enabled ? 1 : 0.4
+                label:  Translation.tr("AUR lookups")
+                detail: Config.launcherAur ? Translation.tr("+ also asks aur.archlinux.org")
+                                           : Translation.tr("Only the repos synced on this machine")
+                help:   Translation.tr("The AUR half of + sends the longest word you typed to aur.archlinux.org, and only in + mode. Off keeps + to the repos synced on this machine.")
+                onTapped: Config.launcherAur = !Config.launcherAur
+                Toggle {
+                    accent:  Colors.of(QsWindow.window).primary
+                    checked: Config.launcherAur
+                    onToggled: Config.launcherAur = !Config.launcherAur
+                }
+            }
+
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Clipboard with ;")
+                detail: Config.launcherClipboard ? Translation.tr("; searches what you copied") : Translation.tr("; is just a semicolon")
+                help:   Translation.tr("A line starting with ; searches what you copied. Enter puts the entry back on the clipboard. Off, ; is just a semicolon.")
+                onTapped: Config.launcherClipboard = !Config.launcherClipboard
+                Toggle {
+                    accent:  Colors.of(QsWindow.window).primary
+                    checked: Config.launcherClipboard
+                    onToggled: Config.launcherClipboard = !Config.launcherClipboard
+                }
+            }
+
+            SettingRow {
+                rowTap: true
+                enabled: Emoji.blocker() === ""
+                opacity: enabled ? 1 : 0.4
+                label:  Translation.tr("Emoji with :")
+                detail: Emoji.blocker() !== "" ? Emoji.blocker()
+                      : Config.launcherEmoji ? Translation.tr(": finds an emoji by name") : Translation.tr(": is just a colon")
+                help:   Emoji.blocker() !== "" ? Emoji.blocker()
+                        : Translation.tr("A line starting with : finds an emoji by name. Enter copies it; the ones you pick most come first.")
+                onTapped: Config.launcherEmoji = !Config.launcherEmoji
+                Toggle {
+                    accent:  Colors.of(QsWindow.window).primary
+                    checked: Config.launcherEmoji
+                    onToggled: Config.launcherEmoji = !Config.launcherEmoji
                 }
             }
         }
@@ -386,12 +479,27 @@ Item {
         // with a %s or whose key cannot be typed as a first word, so a bad row here is
         // marked (and ignored) rather than ever reaching the browser.
         Section {
-            span:     3
+            grouped:  true
+            // The rows are wide (key, name, address), so the group takes the page's whole width.
+            fullRow:  true
             symbol:   "language"
             title:    Translation.tr("Site shortcuts")
             subtitle: Translation.tr("Type a key, a space, then what to search")
-            accent:   Colors.of(QsWindow.window).primary
             help:     Translation.tr("yt cats opens YouTube's search for “cats”. The address needs https:// (or http://) and %s where the search goes.")
+
+            actions: [
+                PanelButton {
+                    capsule: true
+                    label: Translation.tr("Reset")
+                    onActivated: Config.launcherWebShortcuts = Config.webShortcutDefaults
+                },
+                PanelButton {
+                    capsule: true
+                    label: Translation.tr("Add")
+                    symbol: "add"
+                    onActivated: root.addShortcut()
+                }
+            ]
 
             Repeater {
                 model: root.shortcutRows
@@ -435,25 +543,6 @@ Item {
                         onActivated: root.removeShortcut(sc.index)
                     }
                 }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-                spacing: Tokens.spacingSm
-
-                PanelButton {
-                    capsule: true
-                    label: Translation.tr("Add")
-                    symbol: "add"
-                    onActivated: root.addShortcut()
-                }
-                PanelButton {
-                    capsule: true
-                    label: Translation.tr("Reset to the starting set")
-                    onActivated: Config.launcherWebShortcuts = Config.webShortcutDefaults
-                }
-                Item { Layout.fillWidth: true }
             }
         }
     }

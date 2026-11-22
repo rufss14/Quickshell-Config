@@ -25,7 +25,7 @@ Item {
         moduleId: "layout"
         anchors.fill: parent
         symbol: HyprLayout.info.symbol                                   // the bar pill's
-        active: UiState.sidePanel === "layout" && root.ownsPanel
+        active: UiState.sideShows("layout", root.screen)
         wheel: true
         onScrolled: function (d) { HyprLayout.step(d > 0 ? -1 : 1) }
         onClicked:      UiState.toggleSidePanel("layout", "layout", root.screen)

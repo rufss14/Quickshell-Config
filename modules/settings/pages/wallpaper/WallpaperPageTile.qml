@@ -12,8 +12,7 @@ import "../../../../services"
 import "../../../../services/wallfx.js" as FX
 import "../.."
 
-// WallpaperPageTile — WallpaperPage.qml's inline `WallTile`, moved into its own file (2026-11-08).
-// ── WallTile ─────────────────────────────────────────────────────────────
+// WallpaperPageTile — one tile of WallpaperPage.qml's gallery.
 // One gallery tile: picture (animated for GIF previews, but only on the
 // visible page), name bar, current mark, hover Apply, and the ✕ delete.
 //
@@ -50,6 +49,10 @@ Item {
     readonly property string name: tile.isObj
         ? (tile.entry.title ?? "")
         : String(tile.entry ?? "").split("/").pop()
+    // What the name bar shows: a picture's name without its extension (the tag beside it says
+    // the format). `name` stays the file name, which is the favourite's and the current's key.
+    readonly property string displayName: (tile.isObj || tile.isAction)
+        ? tile.name : tile.name.replace(/\.[A-Za-z0-9]{2,5}$/, "")
     readonly property string thumb: {
         if (tile.isAction) return ""
         if (!tile.isScene) {
@@ -82,9 +85,10 @@ Item {
     function doApply() {
         if (tile.isAction) { page.runAction(tile.entry.action); return }
         // A workspace is waiting for a wallpaper: this one becomes its own.
+        // Either pick, once done, goes back to the page it came from (page.endPick()).
         if (page.pickingWs > 0) {
             Wallpaper.assign(tile.value, [page.pickingWs])
-            page.pickingWs = 0
+            page.endPick()
             return
         }
         if (page.pickingActive) {
@@ -93,8 +97,7 @@ Item {
                 WallpaperEngine.spanMonitors(page.pickingScreens, tile.key)
             else
                 WallpaperEngine.assignMonitor(page.pickingForScreen, tile.key)
-            page.pickingForScreen = ""
-            page.pickingScreens = []
+            page.endPick()
             return
         }
         if (page.applyBusy || page.blocked !== "" || tile.applied) return
@@ -216,7 +219,7 @@ Item {
                     }
                     StyledText {
                         Layout.fillWidth: true
-                        text: tile.name
+                        text: tile.displayName
                         variant: "caption"
                         elide: Text.ElideRight
                     }
@@ -273,7 +276,7 @@ Item {
                           ? "Steam put it back: it is still subscribed. Press ✕ again, "
                             + "then click Unsubscribe on its Workshop page."
                           : "Press ✕ again to delete the files and open its Workshop "
-                            + "page — unsubscribe there, or Steam downloads it again."
+                            + "page. Unsubscribe there, or Steam downloads it again."
                 }
             }
 

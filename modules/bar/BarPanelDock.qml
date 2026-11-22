@@ -6,8 +6,11 @@ import "../../state"
 import "../panels"
 
 // ── BarPanelDock ──────────────────────────────────────────────────────────────
-// The left and right panel groups — wallpaper / colour scheme / equalizer on one
-// side, wifi / bluetooth on the other.
+// The bar's plain panel docks: left, middle and right, one card each. They hold the
+// panels that are on no island's rail (config/islands.js OFF_RAIL: the launcher, an
+// update run, Now Playing, a sidebar module placed on the bar), and every panel while
+// the islands are switched off (Config.island). A rail page opens in its island
+// instead (modules/island/IslandDock); UiState.togglePanel decides which.
 //
 // These used to be two `PanelWindow`s in modules/panels/PanelHost.qml. They live
 // inside Bar's own window now for exactly one reason: `Quicktest.Blobs` can only
@@ -190,6 +193,11 @@ Item {
     readonly property real rightCardW: rightDock.cardW
     readonly property real rightCardH: rightDock.cardH
 
+    // Each card's corner, for its blob lobe: the two must agree or the lobe shows round the card.
+    readonly property real leftCardR:   leftDock.cardRadius
+    readonly property real centerCardR: centerDock.cardRadius
+    readonly property real rightCardR:  rightDock.cardRadius
+
     // …and, for the cookie field (Bar.qml → Drift.setPanels), each card's fade and whether its panel
     // is still wanted: the field around a panel follows the first, and a closing panel takes the
     // cookies that are in it with it.
@@ -369,6 +377,8 @@ Item {
 
         function onUpdateRequestIdChanged() {
             if (!root.owns) return
+            // On an island's rail the page answers it (UiState opens the island), not this slot.
+            if (UiState._rail("update") !== "") return
             if (!root.updateActive) root.updateActive = true
             else root.updatePanel?.startUpdate(UiState.pendingUpdateCount)
         }

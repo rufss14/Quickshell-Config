@@ -12,14 +12,14 @@ import "hud.js" as H
 // overview, above and below the workspaces, and that you can PIN to be drawn over a fullscreen game.
 // (The desktop widgets are the opposite: under the windows.)
 //
-//     qs ipc -c ~/.config/quicktest call hud open        # the overview, a card inspected
+//     qs ipc -c ~/.config/quicktest call hud open        # the overview, the island on a widget's options
 //
 // ── Everything is in the overview ─────────────────────────────────────────────
-// Since 2026-10-20 there is no SUPER+G edit overlay. The cards (modules/hud/HudCard, two
-// strips framing the grid) are where you use them; a card's tune chip puts it in the island (`inspecting`), where
-// HudInspector places it on a map of the screen and sets its options; a card's move chip
-// (or the inspector's) starts ARRANGING (`arranging`): the overview steps back and the real
-// widgets are dragged where they really go (modules/hud/HudArrange). Pinned widgets are
+// There is no SUPER+G edit overlay. The overview's HUD chip (or the inspector's
+// move button) starts ARRANGING (`arranging`): the overview steps back and the real widgets are
+// dragged where they really go (modules/hud/HudArrange); a widget's tune chip there, or `hud open`,
+// puts it in the island (`inspecting`), where HudInspector places it on a map of the screen and sets
+// its options. Pinned widgets are
 // drawn by modules/hud/HudLayer — each one either over a fullscreen window on the focused
 // monitor (`where: "games"`), or always, as a plain overlay on the overlay's home monitor
 // (`where: "always"`, `homeScreen`).

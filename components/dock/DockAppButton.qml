@@ -12,7 +12,7 @@ import "../../services/workspaces.js" as Wsp
 import ".."
 import "."
 
-// DockAppButton — DockIconStrip's inline `AppButton`, moved into its own file (2026-11-08).
+// DockAppButton — one app's button on a DockIconStrip.
 Item {
     id: btn
     // The DockIconStrip this belongs to (its state and its actions; was `root`).
@@ -259,13 +259,31 @@ Item {
             }
         ]
 
+        // The tile under the icon: one tone for every app, no change when focused (the glider
+        // says which is in front), the accent's hover tint on top.
+        Rectangle {
+            visible: strip.plated
+            anchors.centerIn: parent
+            width:  strip.plateSize
+            height: strip.plateSize
+            radius: strip.plateRadius
+            color: Colors.of(QsWindow.window).plate
+            Rectangle {
+                anchors.fill: parent
+                radius: parent.radius
+                color: Colors.of(QsWindow.window).stateHoverBg
+                opacity: btn.hot ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: Motion.respond } }
+            }
+        }
+
         Image {
             id: img
             anchors.centerIn: parent
             visible: btn.iconPath !== ""
             source: btn.iconPath
-            width:  strip.iconPx
-            height: strip.iconPx
+            width:  strip.tileIconPx
+            height: strip.tileIconPx
             // Rasterised at the hovered size, so the hover scale-up stays crisp —
             // the tint's layer too (`tinted`), or it would draw at the resting size.
             sourceSize: Qt.size(strip.iconRaster, strip.iconRaster)
@@ -279,8 +297,7 @@ Item {
         }
 
         // Unseen notifications from this app (Notifications.unseenFor — since the
-        // notification panel was last opened; 2026-10-31, the user's pick: "richer
-        // glances"), on the icon's corner, so it lifts with it. Matched by the app's
+        // notification panel was last opened), on the icon's corner, so it lifts with it. Matched by the app's
         // desktop id or its name, so an app naming itself unlike its window class has none.
         CountBadge {
             anchors.top: img.top
@@ -446,7 +463,8 @@ Item {
     property real wheelAcc: 0
     WheelHandler {
         enabled: !strip.editMode
-        acceptedModifiers: Qt.NoModifier
+        // A dock that scrolls (more apps than fixed slots) takes the plain wheel itself.
+        acceptedModifiers: strip.wheelScrolls ? Qt.ControlModifier : Qt.NoModifier
         onWheel: function(event) {
             btn.wheelAcc += event.angleDelta.y
             if (Math.abs(btn.wheelAcc) < 120) return

@@ -37,7 +37,7 @@ Item {
             MorphShape {
                 anchors.fill: parent
                 shape: Config.barShape ? "squircle" : "cookie9"
-                fillColor: Colors.of(QsWindow.window).surfaceHigh
+                fillColor: Colors.of(QsWindow.window).plate
             }
             MaterialIcon {
                 anchors.centerIn: parent

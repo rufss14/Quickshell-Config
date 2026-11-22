@@ -325,12 +325,15 @@ commit_stage() {
             cp -f "$out/colors-kitty.conf" "$KITTY_DIR/.current-theme.conf.new" 2>>"$LOG" \
                 && mv -f "$KITTY_DIR/.current-theme.conf.new" "$KITTY_DIR/current-theme.conf" 2>>"$LOG" \
                 || rm -f "$KITTY_DIR/.current-theme.conf.new"
+            # the gradient is a block in that file: put it back (it is gone with every copy)
+            python3 "$SHELL_DIR/scripts/app-gradient.py" kitty 2>>"$LOG" || true
         fi
         # GTK's stylesheets go with the commit as well — see write_gtk4_css for why. GTK4 apps
         # with the live module repaint on the write; GTK3 apps on gtk3_refresh, started only when
         # the sheet really changed (the same wallpaper twice has nothing to repaint).
         if [[ -s "$out/colors.sh" ]]; then
             write_gtk4_css "$out/colors.sh" 2>>"$LOG"
+            python3 "$SHELL_DIR/scripts/app-gradient.py" gtk4 2>>"$LOG" || true
             GTK_CSS_CHANGED=0
             write_gtk3_css "$out/colors.sh" 2>>"$LOG"
             (( GTK_CSS_CHANGED )) && have gsettings && gtk3_refresh &

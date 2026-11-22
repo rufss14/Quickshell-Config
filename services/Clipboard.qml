@@ -2,6 +2,7 @@ pragma Singleton
 import Quickshell
 import Quickshell.Io
 import QtQuick
+import "../config"
 
 // ── Clipboard ─────────────────────────────────────────────────────────────────
 // Clipboard history: what you've copied, so you can put it back.
@@ -37,6 +38,31 @@ Singleton {
     readonly property bool ready: root._loaded
 
     property bool _loaded: false
+
+    // ── A copy landed ─────────────────────────────────────────────────────────
+    // A new newest entry (the store dedupes, so re-copying an old one moves it up with a fresh `at`:
+    // that counts) once the history has loaded. While a panel hangs where the sidebar's peek would
+    // open, the clock pill says so instead (Notifications.glance); SideClipboard asks the same.
+    property string _newest: ""
+    property real _newestAt: 0
+    function _noteCopy() {
+        const e = root.entries[0] ?? null
+        const h = e ? (e.hash ?? "") : ""
+        const at = e ? (e.at ?? 0) : 0
+        if (root._loaded && Config.peekClipboard && h !== "" && h !== root._newest && at >= root._newestAt)
+            Notifications.glanceEvent(root._copyInfo(e))
+        root._newest = h
+        root._newestAt = at
+    }
+    function _copyInfo(e) {
+        return { kind: "clipboard", symbol: "content_paste",
+                 title: Translation.tr("Copied"),
+                 detail: e.kind === "image" ? Translation.tr("Image") : root.label(e),
+                 // Not while the screen is shared: a picture is not masked like text.
+                 preview: e.kind === "image" && e.file && !StreamMode.active ? "file://" + e.file : "" }
+    }
+    // The newest copy on the pill, for a peek that a panel is about to cover.
+    function glanceLatest() { return root.entries.length > 0 && Notifications.glanceEvent(root._copyInfo(root.entries[0])) }
 
     // Set briefly after a copy so the panel can say it landed. Holds the hash of the
     // entry that was put back, "" the rest of the time.
@@ -95,7 +121,7 @@ Singleton {
 
     // Any successful store proves the watcher is healthy, so the budget resets. Without
     // this a shell up for days would spend its five retries on five unrelated blips.
-    onEntriesChanged: root._retries = 0
+    onEntriesChanged: { root._retries = 0; root._noteCopy() }
 
     Timer {
         id: restart
@@ -271,7 +297,7 @@ Singleton {
         // First non-empty line, so a copied block is identified by its first sentence
         // rather than by whatever whitespace happened to lead it.
         const first = t.split("\n").find(l => l.trim() !== "") || t
-        return first.trim()
+        return StreamMode.mask(first.trim())
     }
 
     function detail(entry) {
@@ -312,8 +338,8 @@ Singleton {
     function linkHost(entry) {
         const t = (entry && entry.preview || "").trim()
         const m = t.match(/^(?:https?:\/\/)?(?:[^@\/\n]+@)?([^:\/?#\n]+)/i)
-        if (!m) return t
-        return m[1].replace(/^www\./i, "")
+        if (!m) return StreamMode.mask(t)
+        return StreamMode.mask(m[1].replace(/^www\./i, ""))
     }
 
     // Mirrors linkHost's shape exactly — optional userinfo, host, optional port. An
@@ -324,7 +350,8 @@ Singleton {
         const t = (entry && entry.preview || "").trim()
         const m = t.match(/^(?:https?:\/\/)?(?:[^@\/\n]+@)?[^:\/?#\n]+(?::\d+)?(.*)$/i)
         const rest = m ? m[1] : ""
-        return (rest === "" || rest === "/") ? "" : rest
+        // Masked, the host line already says "Hidden"; a second line of it is noise.
+        return (rest === "" || rest === "/" || StreamMode.active) ? "" : rest
     }
 
     // Opens in whatever the desktop has registered. The URL is passed as an ARGUMENT,

@@ -31,10 +31,24 @@ Item {
     // Mouse & touchpad live in hardware.lua (HyprConfig): written to disk, applied by
     // the shared HyprApplyBar's reload — the same flow as Desktop › Tuning.
     function ptr(name) { return HyprConfig.pointer[name] ? HyprConfig.pointer[name].value : undefined }
-    function setLine(key, type, v) {
-        const d = HyprConfig.input[key]
-        if (d && d.line) HyprConfig.setValue(d.file, d.line, key, type, v)
+    function setLine(key, type, v) { HyprConfig.setInputLine(key, type, v) }
+    // A switch's state with the default Hyprland applies while the key is absent from the file.
+    function flag(name, dflt) { return dflt ? root.ptr(name) !== false : root.ptr(name) === true }
+    function toggle(name, dflt) { HyprConfig.setInput(name, !root.flag(name, dflt)) }
+    // Natural scrolling as it is in effect: the touchpad table's own key, or, where a config
+    // sets it only at the top of `input = {}`, that one (Hyprland applies it to touchpads too).
+    readonly property bool naturalScroll: {
+        const p = HyprConfig.pointer.touchpad_natural_scroll
+        if (p && p.present) return p.value === true
+        const g = HyprConfig.input.natural_scroll
+        return !!g && g.value === true
     }
+
+    // A control for a line the user's hardware.lua doesn't have is disabled with a
+    // reason, not left to do nothing: the by-line setter has nowhere to write. The
+    // table setters (setInput) insert a missing key, so their rows need no such guard.
+    readonly property bool haveSensitivity:  HyprConfig.loaded && HyprConfig.hasInput("sensitivity")
+    readonly property string notInConfig: Translation.tr("Not in your Hyprland config")
 
     property string search: ""
 
@@ -55,7 +69,9 @@ Item {
 
     // A fixed window inside the scrolling page — a GridView reports no implicit height.
     readonly property int cellHeight:  34
-    readonly property int visibleRows: 7
+    readonly property int visibleRows: 6
+    // Two short segments in a row's control slot.
+    readonly property int accelWidth: Tokens.fieldHeight * 6
 
 
     // "razer-razer-huntsman-mini" → "Razer Huntsman Mini". Consecutive duplicate words
@@ -71,7 +87,7 @@ Item {
     SettingsPage {
         anchors.fill: parent
 
-        bento:     true
+        grouped:   true
         glyph:     "󰌌"
         title:     Translation.tr("Keyboard")
         titleTail: Keyboard.layout
@@ -80,16 +96,22 @@ Item {
                  + Keyboard.repeatRate + "/s after " + Keyboard.repeatDelay + "ms"
 
 
-        banner: UndoBar { id: undoBar }
+        // Fixed above the scroll, so "saved, reload to apply" cannot scroll out of sight. The
+        // apply strip (layout, mouse and touchpad edits) is empty, and so absent, until needed.
+        banner: [
+            UndoBar { id: undoBar },
+            HyprApplyBar {
+                visible: HyprConfig.pendingApply || HyprConfig.canUndo || HyprConfig.lastError !== ""
+            }
+        ]
 
         // ══ Configured ════════════════════════════════════════════════════════
         Section {
-            span:     1
-            glyph:    "󰥻"
+            grouped:  true
+            symbol:   "keyboard"
             title:    Translation.tr("Your layouts")
-            subtitle: "Typing in " + Keyboard.layout
-            help:     Translation.tr("The bar's keyboard pill cycles these, in this order. To reorder, remove one and add it back — it goes to the end. Applied with hyprctl, so a Hyprland restart brings back what your config says.")
-            accent:   Colors.of(QsWindow.window).primary
+            subtitle: Translation.tr("Typing in %1").arg(Keyboard.layout)
+            help:     Translation.tr("The bar's keyboard pill cycles these, in this order. To reorder, remove one and add it back, and it goes to the end. Saved to hardware.lua and applied now, so a Hyprland restart keeps them.")
 
             Flow {
                 Layout.fillWidth: true
@@ -102,16 +124,16 @@ Item {
                         id: chip
                         required property string modelData
 
-                        // The last layout can't be removed — Hyprland won't accept a
-                        // keyboard with none, and the service refuses it anyway.
-                        readonly property bool removable: Keyboard.layouts.length > 1
+                        // The last layout can't be removed: Hyprland won't accept a keyboard
+                        // with none, and the service refuses it anyway. Nor can any while
+                        // hardware.lua has no kb_layout line to save to.
+                        readonly property bool removable: Keyboard.layouts.length > 1 && Keyboard.layoutsEditable
 
                         implicitWidth:  chipRow.implicitWidth + Tokens.spacingMd * 2
                         implicitHeight: Tokens.pillHeight
-                        radius: Tokens.radiusSm
-                        color:        Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.16)
-                        border.width: Tokens.borderWidth
-                        border.color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.40)
+                        // A capsule in the primary container's tone: tone alone, no outline.
+                        radius: height / 2
+                        color:  Colors.of(QsWindow.window).primaryContainer
 
                         RowLayout {
                             id: chipRow
@@ -120,7 +142,7 @@ Item {
 
                             StyledText {
                                 text:  chip.modelData
-                                color: Colors.of(QsWindow.window).primary
+                                color: Colors.of(QsWindow.window).fgOnPrimaryContainer
                                 variant: "body"
                                 font.weight: Font.DemiBold
                             }
@@ -128,12 +150,13 @@ Item {
                                 visible: (root.nameOf[chip.modelData] || "") !== ""
                                 text: root.nameOf[chip.modelData] || ""
                                 variant: "caption"
-                                emphasis: "dim"
+                                color: Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fgOnPrimaryContainer, 0.72)
                             }
                             MaterialIcon {
                                 visible: chip.removable
                                 glyph:    "󰅖"
-                                color:   removeHover.hovered ? Colors.of(QsWindow.window).danger : Colors.of(QsWindow.window).fgDim
+                                color:   removeHover.hovered ? Colors.of(QsWindow.window).danger
+                                                             : Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fgOnPrimaryContainer, 0.72)
                                 variant: "caption"
                                 Behavior on color { ColorAnimation { duration: Motion.respond } }
 
@@ -141,11 +164,11 @@ Item {
                                 TapHandler   {
                                     onTapped: {
                                         const code = chip.modelData
-                                        Keyboard.removeLayout(code)
+                                        if (!Keyboard.removeLayout(code)) return
                                         // Re-adding puts it at the END of the list, which
-                                        // the card already explains — so the undo says so
+                                        // the card already explains, so the undo says so
                                         // rather than pretending the order survived.
-                                        undoBar.show("Removed " + code + " — undo adds it back at the end",
+                                        undoBar.show(Translation.tr("Removed %1. Undo adds it back at the end.").arg(code),
                                                      function () { Keyboard.addLayout(code) })
                                     }
                                 }
@@ -155,7 +178,14 @@ Item {
                 }
             }
 
-            Divider {}
+            StyledText {
+                Layout.fillWidth: true
+                visible: HyprConfig.loaded && !Keyboard.layoutsEditable
+                text: Translation.tr("Not in your Hyprland config. Add a kb_layout line to hardware.lua to edit layouts here.")
+                wrapMode: Text.WordWrap
+                variant: "caption"
+                emphasis: "dim"
+            }
 
             // The keyboard these settings actually reach — a line of this card rather
             // than a card of its own.
@@ -184,8 +214,8 @@ Item {
                         // Keyboard.layout, not the device record's keymap: the layout
                         // follows the live `activelayout` event, the record is a snapshot.
                         text: Keyboard.inputDeviceCount > 1
-                               ? (Keyboard.inputDeviceCount - 1) + " other input devices follow these layouts"
-                               : "The only keyboard"
+                               ? Translation.tr("%1 other input devices follow these layouts").arg(Keyboard.inputDeviceCount - 1)
+                               : Translation.tr("The only keyboard")
                         variant: "caption"
                         emphasis: "dim"
                         elide: Text.ElideRight
@@ -194,13 +224,77 @@ Item {
             }
         }
 
+        // ══ Mouse ═════════════════════════════════════════════════════════════
+        Section {
+            grouped:  true
+            symbol:   "mouse"
+            title:    Translation.tr("Mouse")
+            help:     Translation.tr("Applies to every pointer. Saved to hardware.lua; Reload in the bar above applies it.")
+
+            SliderRow {
+                enabled: root.haveSensitivity
+                label: Translation.tr("Speed")
+                labelWidth: 100
+                numberWidth: 52
+                from: -1; to: 1; step: 0.05
+                value: HyprConfig.input.sensitivity ? Number(HyprConfig.input.sensitivity.value) : 0
+                readout: value.toFixed(2)
+                help: Translation.tr("Hyprland's sensitivity: 0 is the device's own speed.")
+                onCommit: function (v) { root.setLine("sensitivity", "float", Math.round(v * 100) / 100) }
+            }
+            StyledText {
+                Layout.fillWidth: true
+                visible: HyprConfig.loaded && !root.haveSensitivity
+                text: root.notInConfig
+                variant: "caption"
+                emphasis: "dim"
+            }
+            SettingRow {
+                label:  Translation.tr("Acceleration")
+                detail: (root.ptr("accel_profile") ?? "adaptive") === "flat" ? Translation.tr("The pointer moves 1:1 with your hand")
+                                                                              : Translation.tr("Speeds up the faster you move")
+                help:   Translation.tr("Adaptive speeds up with faster movement; Flat keeps it 1:1 (what most players want).")
+
+                TabStrip {
+                    // A SettingRow's control slot is a plain Item: size by implicitWidth.
+                    implicitWidth: root.accelWidth
+                    connected: true
+                    accent: Colors.of(QsWindow.window).primary
+                    model: [{ value: "adaptive", label: Translation.tr("Adaptive") }, { value: "flat", label: Translation.tr("Flat") }]
+                    current: root.ptr("accel_profile") ?? "adaptive"
+                    onPicked: function (v) { HyprConfig.setInput("accel_profile", v) }
+                }
+            }
+            SliderRow {
+                label: Translation.tr("Scroll speed")
+                labelWidth: 100
+                numberWidth: 52
+                from: 0.25; to: 3; step: 0.05
+                value: root.ptr("mouse_scroll_factor") ?? 1
+                readout: value.toFixed(2) + "×"
+                onCommit: function (v) { HyprConfig.setInput("mouse_scroll_factor", Math.round(v * 100) / 100) }
+            }
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Left-handed")
+                detail: root.flag("left_handed", false) ? Translation.tr("Buttons swapped") : ""
+                help:   Translation.tr("Swaps the primary and secondary buttons.")
+                onTapped: root.toggle("left_handed", false)
+
+                Toggle {
+                    accent: Colors.of(QsWindow.window).primary
+                    checked: root.flag("left_handed", false)
+                    onToggled: root.toggle("left_handed", false)
+                }
+            }
+        }
+
         // ══ Repeat ════════════════════════════════════════════════════════════
         Section {
-            span:     1
-            glyph:    "󰔛"
+            grouped:  true
+            symbol:   "timer"
             title:    Translation.tr("Key repeat")
             help:     Translation.tr("What a held-down key does: how soon it starts repeating, and how fast.")
-            accent:   Colors.of(QsWindow.window).primary
 
             // SliderRow: whole numbers you land on, with a stepper.
             SliderRow {
@@ -233,108 +327,72 @@ Item {
             }
         }
 
-        // Saved-but-not-applied mouse/touchpad edits (the page's banner is the layout
-        // UndoBar, so this sits in the flow, as on Desktop › Window manager).
-        HyprApplyBar {}
-
-        // ══ Mouse ═════════════════════════════════════════════════════════════
-        Section {
-            span:     3
-            symbol:   "mouse"
-            title:    Translation.tr("Mouse")
-            help:     Translation.tr("Applies to every pointer. Saved to hardware.lua; Reload in the bar above applies it.")
-            accent:   Colors.of(QsWindow.window).primary
-
-            SliderRow {
-                label: Translation.tr("Speed")
-                labelWidth: 100
-                numberWidth: 52
-                from: -1; to: 1; step: 0.05
-                value: HyprConfig.input.sensitivity ? Number(HyprConfig.input.sensitivity.value) : 0
-                readout: value.toFixed(2)
-                help: Translation.tr("Hyprland's sensitivity: 0 is the device's own speed.")
-                onCommit: function (v) { root.setLine("sensitivity", "float", Math.round(v * 100) / 100) }
-            }
-            SettingRow {
-                label: Translation.tr("Acceleration")
-                help:  Translation.tr("Adaptive speeds up with faster movement; Flat keeps it 1:1 (what most players want).")
-                ChipRow {
-                    accent: Colors.of(QsWindow.window).primary
-                    model: [{ value: "adaptive", label: "Adaptive" }, { value: "flat", label: "Flat" }]
-                    current: root.ptr("accel_profile") ?? "adaptive"
-                    onPicked: function (v) { HyprConfig.setInput("accel_profile", v) }
-                }
-            }
-            SliderRow {
-                label: Translation.tr("Scroll speed")
-                labelWidth: 100
-                numberWidth: 52
-                from: 0.25; to: 3; step: 0.05
-                value: root.ptr("mouse_scroll_factor") ?? 1
-                readout: value.toFixed(2) + "×"
-                onCommit: function (v) { HyprConfig.setInput("mouse_scroll_factor", Math.round(v * 100) / 100) }
-            }
-            SettingRow {
-                label: Translation.tr("Left-handed")
-                help:  Translation.tr("Swaps the primary and secondary buttons.")
-                Toggle {
-                    accent: Colors.of(QsWindow.window).primary
-                    checked: root.ptr("left_handed") === true
-                    onToggled: HyprConfig.setInput("left_handed", !checked)
-                }
-            }
-        }
-
         // ══ Touchpad ══════════════════════════════════════════════════════════
         Section {
-            span:     3
+            grouped:  true
             symbol:   "laptop"
             title:    Translation.tr("Touchpad")
             help:     Translation.tr("Laptop touchpads. Saved to hardware.lua; Reload in the bar above applies it.")
-            accent:   Colors.of(QsWindow.window).primary
 
+            // The touchpad table's own key, not the first natural_scroll in the file:
+            // a mouse table may carry one too.
             SettingRow {
-                label: Translation.tr("Natural scrolling")
-                help:  Translation.tr("Content follows your fingers, like a phone.")
+                rowTap: true
+                label:  Translation.tr("Natural scrolling")
+                help:   Translation.tr("Content follows your fingers, like a phone.")
+                onTapped: HyprConfig.setInput("touchpad_natural_scroll", !root.naturalScroll)
+
                 Toggle {
                     accent: Colors.of(QsWindow.window).primary
-                    checked: HyprConfig.input.natural_scroll ? HyprConfig.input.natural_scroll.value === true : false
-                    onToggled: root.setLine("natural_scroll", "bool", !checked)
+                    checked: root.naturalScroll
+                    onToggled: HyprConfig.setInput("touchpad_natural_scroll", !root.naturalScroll)
                 }
             }
             SettingRow {
-                label: Translation.tr("Tap to click")
+                rowTap: true
+                label:  Translation.tr("Tap to click")
+                onTapped: root.toggle("tap_to_click", true)
+
                 Toggle {
                     accent: Colors.of(QsWindow.window).primary
-                    checked: root.ptr("tap_to_click") !== false
-                    onToggled: HyprConfig.setInput("tap_to_click", !checked)
+                    checked: root.flag("tap_to_click", true)
+                    onToggled: root.toggle("tap_to_click", true)
                 }
             }
             SettingRow {
-                label: Translation.tr("Tap and drag")
-                help:  Translation.tr("Tap, then keep the finger down to drag.")
+                rowTap: true
+                label:  Translation.tr("Tap and drag")
+                help:   Translation.tr("Tap, then keep the finger down to drag.")
+                onTapped: root.toggle("tap_and_drag", true)
+
                 Toggle {
                     accent: Colors.of(QsWindow.window).primary
-                    checked: root.ptr("tap_and_drag") !== false
-                    onToggled: HyprConfig.setInput("tap_and_drag", !checked)
+                    checked: root.flag("tap_and_drag", true)
+                    onToggled: root.toggle("tap_and_drag", true)
                 }
             }
             SettingRow {
-                label: Translation.tr("Ignore while typing")
-                help:  Translation.tr("The touchpad pauses briefly after a key press, so a palm doesn't move the cursor.")
+                rowTap: true
+                label:  Translation.tr("Ignore while typing")
+                help:   Translation.tr("The touchpad pauses briefly after a key press, so a palm doesn't move the cursor.")
+                onTapped: root.toggle("disable_while_typing", true)
+
                 Toggle {
                     accent: Colors.of(QsWindow.window).primary
-                    checked: root.ptr("disable_while_typing") !== false
-                    onToggled: HyprConfig.setInput("disable_while_typing", !checked)
+                    checked: root.flag("disable_while_typing", true)
+                    onToggled: root.toggle("disable_while_typing", true)
                 }
             }
             SettingRow {
-                label: Translation.tr("Two-finger right-click")
-                help:  Translation.tr("Click with two fingers for a right-click and three for a middle-click, instead of by where you press.")
+                rowTap: true
+                label:  Translation.tr("Two-finger right-click")
+                help:   Translation.tr("Click with two fingers for a right-click and three for a middle-click, instead of by where you press.")
+                onTapped: root.toggle("clickfinger_behavior", false)
+
                 Toggle {
                     accent: Colors.of(QsWindow.window).primary
-                    checked: root.ptr("clickfinger_behavior") === true
-                    onToggled: HyprConfig.setInput("clickfinger_behavior", !checked)
+                    checked: root.flag("clickfinger_behavior", false)
+                    onToggled: root.toggle("clickfinger_behavior", false)
                 }
             }
             SliderRow {
@@ -350,11 +408,12 @@ Item {
 
         // ══ Catalogue ═════════════════════════════════════════════════════════
         Section {
-            span:     3
-            glyph:    "󰜄"
+            grouped:  true
+            symbol:   "add"
             title:    Translation.tr("Add a layout")
-            subtitle: root.catalogue.length + " available"
-            accent:   Colors.of(QsWindow.window).primary
+            subtitle: Keyboard.layoutsEditable || !HyprConfig.loaded
+                ? Translation.tr("%1 available").arg(root.catalogue.length)
+                : root.notInConfig
 
             InputField {
                 cornerRadius: implicitHeight / 2
@@ -415,15 +474,15 @@ Item {
                                 font.family: Tokens.fontMono
                             }
                             MaterialIcon {
-                                visible: rowHover.hovered
+                                visible: rowHover.hovered && Keyboard.layoutsEditable
                                 glyph:    "󰐕"
                                 color:   Colors.of(QsWindow.window).primary
                                 variant: "body"
                             }
                         }
 
-                        HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler   { onTapped: Keyboard.addLayout(layoutCell.modelData.code) }
+                        HoverHandler { id: rowHover; enabled: Keyboard.layoutsEditable; cursorShape: Qt.PointingHandCursor }
+                        TapHandler   { enabled: Keyboard.layoutsEditable; onTapped: Keyboard.addLayout(layoutCell.modelData.code) }
                     }
                 }
             }

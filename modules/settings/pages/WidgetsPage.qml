@@ -3,48 +3,36 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Services.Mpris
 import "../../../config"
 import "../../../components"
 import "../../../services"
 import "../../../state"
 import "../../desktop/widgets"
-import "../../desktop/widgets/toggles.js" as Toggles
 import ".."
 import "widgets"
 
 // ── WidgetsPage — Desktop › Widgets ───────────────────────────────────────────
-// Your desktop widgets, and how they all look — one page, one file, three jobs picking
-// a widget to place/edit, the shell-wide look, and everything that feeds a widget's
-// content (weather, calendars, presets). It used to be two views (a big map that
-// swallowed the page, and a Style tab a click away from the thing it changed), then one
-// view with all five jobs stacked in a bento grid — correct dialect, but a scroll of
-// unrelated cards. A header `TabStrip` (Desktop · Style · Content, `root.viewMode`)
-// swaps the body between them instead, the same header-takes-over-the-body idea as the
-// catalogue below, so it stays one file without pushing the Desktop page's view count up.
+// Your desktop widgets, and how they all look: grouped rows in two columns under the map, no modes.
+// Every job is a group, in the order you reach for them.
 //
-// ── Desktop: the map is small, and sits beside the widget's own settings ──────
-// "Your desktop" is a card: the screen, small, with every widget where it really is
-// (DesktopMap — drag one to move it, click one to pick it) and, beside it, the picked
-// widget's settings in place — its size, its type's options, move / remove. Nothing picked:
-// the widgets on this screen as chips, to pick from.
+// ── The map is the page ───────────────────────────────────────────────────────
+// The loud card is the screen with every widget where it really is (DesktopMap: drag one to
+// move it, click one to pick it), the map on the left and the page's master switch beside it. Under it: "On this screen" (which widgets, the picked one's size,
+// move / remove), then the picked widget's own options (WidgetsOptionsSection, and the photo frame's
+// two groups). With nothing placed those groups stay away and the gallery is the page.
 //
-// Adding is a MODE within Desktop: "Add widget" swaps the card for the catalogue; you pick
-// one, and land back with it selected. With nothing placed yet the catalogue is simply what
-// is shown, and the mode switch is moot (there's nothing to view in Style/Content either
-// until something's placed — they stay reachable, they're just empty).
+// ── Adding ────────────────────────────────────────────────────────────────────
+// "Add widget" in the header opens the gallery group at the top of the scroll; you pick one and land
+// back with it selected. A request plus a derived state, not one assignable bool: with nothing placed
+// the gallery IS the page, and an assignment would break that binding.
 //
-// ── Style: what every widget shares ────────────────────────────────────────────
-// The tile look (and its four switches), opacity, roundness, parallax, snap grid. Per-widget
-// opacity / roundness / glass / accent overrides were removed — every tile follows this.
-// `DesktopWidgets.setOpt(id, "opacity"|…)` still works (presets round-trip it), there is
-// just no per-widget control.
-//
-// ── Content: what feeds a widget, plus Presets ─────────────────────────────────
-// Weather (shell-wide — Night light's "follow the sun" and the calendar's holidays read it
-// too) and subscribed calendars feed the clock/calendar widgets. Presets is two related but
-// separate ideas that the old UI both called "layout": a saved whole-desktop snapshot you
-// load back later, and a wallpaper's own live widgets. See that Section's own comment.
+// ── Style, calendars, presets ─────────────────────────────────────────────────
+// Style is what every widget shares: the tile look (and its four switches), opacity, roundness,
+// parallax, snap grid. Per-widget opacity / roundness / glass / accent overrides were removed: every
+// tile follows this. `DesktopWidgets.setOpt(id, "opacity"|…)` still works (presets round-trip it),
+// there is just no per-widget control. Calendars feed the clock panel. Presets is two related but
+// separate ideas the old UI both called "layout" (see WidgetsPresetsSection). The weather place is set
+// in System › Language & region; a link row here opens it.
 //
 // ── Arranging happens on the DESKTOP, not here ────────────────────────────────
 // A 400px map of a 1920px desktop can't show whether a widget covers the thing you keep
@@ -61,22 +49,9 @@ Item {
     property int selectedId: -1
     readonly property var selected: DesktopWidgets.get(root.selectedId)
 
-    // Opens on the bare desktop: the canvas is the content, and a card over it on
-    // arrival would hide what you came to look at.
-
-    // ── Which job this page is doing ─────────────────────────────────────────
-    // The view did five things stacked in one bento grid (place/edit a widget, the
-    // shell-wide Look, Weather, Calendars, Presets/Per-wallpaper) — a header mode
-    // switch, same idea as the catalogue takeover below, keeps it one file/one view
-    // while only showing one job at a time.
-    property string viewMode: "desktop"   // "desktop" | "style" | "content"
-
-    // ── Adding ────────────────────────────────────────────────────────────────
-    // A request plus a derived state, not one assignable bool: with nothing placed
-    // the gallery IS the page, and an assignment would break that binding.
+    // Adding: a request plus a derived state (see the header).
     property bool _addRequested: false
-    readonly property bool adding: root.viewMode === "desktop"
-                                    && (root._addRequested || DesktopWidgets.shown.length === 0)
+    readonly property bool adding: root._addRequested || DesktopWidgets.shown.length === 0
 
     // Where a newly placed widget lands. A widget on a screen you're not looking at
     // looks exactly like one that failed to place, so multi-monitor users pick.
@@ -120,46 +95,27 @@ Item {
     SettingsPage {
         anchors.fill: parent
 
-        bento:     true
+        grouped:   true
         glyph:     "󰕮"
         title:     Translation.tr("Desktop")
-        titleTail: root.adding ? "gallery"
-                   : root.viewMode === "style"   ? "style"
-                   : root.viewMode === "content" ? "content"
-                   :                               "widgets"
+        titleTail: root.adding ? "gallery" : "widgets"
         accent:    Colors.of(QsWindow.window).primary
         subtitle:  root.adding
-                   ? "Pick a widget — it drops onto the wallpaper"
-                   : root.viewMode === "style"
-                   ? "How every widget looks"
-                   : root.viewMode === "content"
-                   ? "Weather, calendars and saved presets"
+                   ? Translation.tr("Pick a widget, it drops onto the wallpaper")
                    : (Config.widgetsEnabled
-                      ? DesktopWidgets.shown.length + " on your desktop"
-                      : "Hidden — still placed")
+                      ? Translation.tr("%1 on your desktop").arg(DesktopWidgets.shown.length)
+                      : Translation.tr("Hidden, still placed"))
 
         // Removing a widget throws away its size, position and options — all of which are in
         // the record, so it can be put back exactly.
         banner: UndoBar { id: undoBar }
 
         actions: [
-            TabStrip {
-                implicitWidth: 240
-                accent: Colors.of(QsWindow.window).primary
-                model: [
-                    { value: "desktop", label: "Desktop", icon: "dashboard" },
-                    { value: "style",   label: "Style",   icon: "palette"   },
-                    { value: "content", label: "Content", icon: "tune"      }
-                ]
-                current: root.viewMode
-                onPicked: function (v) { root.viewMode = v }
-            },
             ChipTray {
-                visible: root.viewMode === "desktop"
                 ChipButton {
                     visible: DesktopWidgets.shown.length > 0
                     symbol:  root.adding ? "close" : "add"
-                    label:   root.adding ? "Done" : "Add widget"
+                    label:   root.adding ? Translation.tr("Done") : Translation.tr("Add widget")
                     on:      !root.adding
                     tint:    Colors.of(QsWindow.window).primary
                     onActivated: root._addRequested = !root._addRequested
@@ -171,33 +127,32 @@ Item {
                     enabled: DesktopWidgets.shown.length > 0
                     onActivated: UiState.startArranging()
                 }
-            },
-            Toggle {
-                accent: Colors.of(QsWindow.window).primary
-                checked: Config.widgetsEnabled
-                onToggled: Config.widgetsEnabled = !Config.widgetsEnabled
             }
         ]
 
-        // ══ The catalogue (adding) ════════════════════════════════════════════
+        // ══ The gallery (adding) ══════════════════════════════════════════════
         WidgetsCatalogueSection {
             id: widgetsCatalogueSection
             page: root
         }
 
-        // ══ Your desktop ══════════════════════════════════════════════════════
-        WidgetsDesktopSection {
-            id: hero
-            page: root
-        }
+        // ══ Your desktop: the map, the live subject ═══════════════════════════
+        WidgetsDesktopSection { page: root }
 
+        // ══ Which widget, and what you do to it ═══════════════════════════════
+        WidgetsPickedSection { page: root }
+
+        // ══ The picked widget's own options ═══════════════════════════════════
+        WidgetsOptionsSection { page: root }
+        WidgetsPhotoSection { page: root }
+        WidgetsPhotoLookSection { page: root }
+
+        // ══ Style: what every widget shares ═══════════════════════════════════
         Section {
-            span:    root.viewMode === "style" ? 3 : 1
-            visible: root.viewMode === "style"
-            glyph:  "󰆾"
-            title:  Translation.tr("Look")
+            grouped:  true
+            symbol:   "palette"
+            title:    Translation.tr("Style")
             subtitle: Translation.tr("Every widget")
-            accent: Colors.of(QsWindow.window).primary
 
             actions: ChipTray {
                 ChipButton {
@@ -207,43 +162,64 @@ Item {
                 }
             }
 
-            Flow {
-                Layout.fillWidth: true
-                spacing: Tokens.spacingSm
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Liquid glass")
+                detail: Config.widgetGlass ? Translation.tr("Graded fill, lit rim and a sheen")
+                                           : Translation.tr("Plain translucent tile")
+                help:   Translation.tr("A graded fill, a lit rim and a sheen, instead of a plain translucent tile.")
+                onTapped: Config.widgetGlass = !Config.widgetGlass
 
-                ToggleChip {
-                    symbol: "blur_on"
-                    label:  Translation.tr("Liquid glass")
-                    hint:   Translation.tr("A graded fill, a lit rim and a sheen, instead of a plain translucent tile.")
-                    active: Config.widgetGlass
+                Toggle {
+                    accent: Colors.of(QsWindow.window).primary
+                    checked: Config.widgetGlass
                     onToggled: Config.widgetGlass = !Config.widgetGlass
                 }
-                // Was on Bar › Style, where its Config name (barHoverGrow) put it; the
-                // only thing that reads it is WidgetFrame, so it lives with the widgets.
-                ToggleChip {
-                    symbol: "mouse"
-                    label:  Translation.tr("Grow on hover")
-                    hint:   Translation.tr("A widget swells a little under the pointer.")
-                    active: Config.barHoverGrow
+            }
+            // The only thing that reads this one is WidgetFrame, so it lives with the widgets
+            // (its Config name, barHoverGrow, is from when it sat on Bar › Style).
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Grow on hover")
+                detail: Config.barHoverGrow ? Translation.tr("Swells a little under the pointer")
+                                            : Translation.tr("Stays put")
+                help:   Translation.tr("A widget swells a little under the pointer.")
+                onTapped: Config.barHoverGrow = !Config.barHoverGrow
+
+                Toggle {
+                    accent: Colors.of(QsWindow.window).primary
+                    checked: Config.barHoverGrow
                     onToggled: Config.barHoverGrow = !Config.barHoverGrow
                 }
-                // Hover over one of the previews above to see it.
-                ToggleChip {
-                    symbol: "open_with"
-                    label:  Translation.tr("Parallax")
-                    hint:   Translation.tr("A widget leans under the pointer and its contents shift the other way. Strength is under Tile.")
-                    active: Config.widgetParallax
+            }
+            // "Parallax tilt" here and "Parallax strength" below, so the two controls are not both just "Parallax".
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Parallax tilt")
+                detail: Config.widgetParallax ? Translation.tr("Leans under the pointer") : Translation.tr("Stays flat")
+                help:   Translation.tr("A widget leans under the pointer and its contents shift the other way. Hover a widget on the map to see it. How far is Parallax strength, below.")
+                onTapped: Config.widgetParallax = !Config.widgetParallax
+
+                Toggle {
+                    accent: Colors.of(QsWindow.window).primary
+                    checked: Config.widgetParallax
                     onToggled: Config.widgetParallax = !Config.widgetParallax
                 }
-                ToggleChip {
-                    symbol: "animation"
-                    label:  Translation.tr("Entrance")
-                    hint:   Translation.tr("Widgets pop in one after another when the desktop loads or one is added.")
-                    active: Config.widgetEntrance
+            }
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Entrance")
+                detail: Config.widgetEntrance ? Translation.tr("Pop in one after another")
+                                              : Translation.tr("Appear at once")
+                help:   Translation.tr("Widgets pop in one after another when the desktop loads or one is added.")
+                onTapped: Config.widgetEntrance = !Config.widgetEntrance
+
+                Toggle {
+                    accent: Colors.of(QsWindow.window).primary
+                    checked: Config.widgetEntrance
                     onToggled: Config.widgetEntrance = !Config.widgetEntrance
                 }
             }
-
 
             Fader {
                 label: Translation.tr("Opacity")
@@ -262,8 +238,8 @@ Item {
                 onCommit: function (v) { Config.widgetRoundness = Math.round(v) }
             }
             Fader {
-                label: Translation.tr("Parallax")
-                help:  Translation.tr("How far a widget leans and its contents shift under the pointer. Off in the chips above.")
+                label: Translation.tr("Parallax strength")
+                help:  Translation.tr("How far a widget leans and its contents shift under the pointer. Needs Parallax tilt on.")
                 accent: Colors.of(QsWindow.window).primary
                 enabled: Config.widgetParallax
                 opacity: Config.widgetParallax ? 1 : 0.4
@@ -283,83 +259,33 @@ Item {
             }
         }
 
-        // ══ Weather ═══════════════════════════════════════════════════════════
+        // ══ Weather: set in System › Language & region ═══════════════════════
+        // Night light's "follow the sun" and the calendar's holidays read the same place, so it is set once,
+        // there. This row is the way to it.
         Section {
-            span:     1
-            visible:  root.viewMode === "content"
-            glyph:    "󰖕"
+            grouped:  true
+            symbol:   "wb_sunny"
             title:    Translation.tr("Weather")
-            subtitle: Config.weatherPlace === "" ? "No location set" : Config.weatherPlace
-            help:     Translation.tr("Only the place you pick is ever requested — your location is never looked up from your IP. Night light and the calendar use it too.")
-            accent:   Colors.of(QsWindow.window).primary
+            subtitle: Config.weatherPlace === "" ? Translation.tr("No location set") : Config.weatherPlace
 
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-                spacing: Tokens.spacingSm
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Weather location")
+                detail: Config.weatherPlace !== "" ? Config.weatherPlace : Translation.tr("Not set")
+                help:   Translation.tr("Only the place you pick is ever requested. Your location is never looked up from your IP. Night light and the calendar use it too.")
+                onTapped: UiState.openSettingsTo("LanguagePage.qml")
 
-                InputField {
-                    cornerRadius: implicitHeight / 2
-                    id: cityField
-                    Layout.fillWidth: true
-                    placeholder: Translation.tr("City name, then Enter")
-                    // A network request — on Enter, never per keystroke.
-                    onAccepted: function (v) { if (v.trim() !== "") Weather.search(v.trim()) }
-                }
-                BusyDot {
-                    running: Weather.searching
-                    visible: Weather.searching
-                    tint: Colors.of(QsWindow.window).primary
+                MaterialIcon {
+                    name: "chevron_right"
+                    color: Colors.of(QsWindow.window).fgDim
                 }
             }
+        }
 
-            Repeater {
-                model: Weather.results
-
-                Rectangle {
-                    id: res
-                    required property var modelData
-                    Layout.fillWidth: true
-                    implicitHeight: resCol.implicitHeight + Tokens.spacingSm * 2
-                    radius: Tokens.radiusSm
-                    color: resHover.hovered ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fg, 0.08) : "transparent"
-                    Behavior on color { ColorAnimation { duration: Motion.respond } }
-
-                    ColumnLayout {
-                        id: resCol
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.leftMargin: Tokens.spacingSm
-                        anchors.rightMargin: Tokens.spacingSm
-                        spacing: 0
-                        StyledText { text: res.modelData.name; variant: "caption" }
-                        StyledText { text: res.modelData.detail; variant: "caption"; emphasis: "dim" }
-                    }
-
-                    HoverHandler { id: resHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler {
-                        onTapped: {
-                            Config.weatherLat     = res.modelData.lat
-                            Config.weatherLon     = res.modelData.lon
-                            Config.weatherPlace   = res.modelData.name
-                            // The calendar's special dates follow this.
-                            Config.weatherCountry = res.modelData.countryCode
-                            Weather.results = []
-                            cityField.clear()
-                        }
-                    }
-                }
-            }
-
-            TabStrip {
-                Layout.fillWidth: true
-                accent: Colors.of(QsWindow.window).primary
-                model: [{ value: true,  label: "°C" },
-                        { value: false, label: "°F" }]
-                current: Config.weatherMetric
-                onPicked: function (v) { Config.weatherMetric = v }
-            }
+        // ══ Layout presets ════════════════════════════════════════════════════
+        WidgetsPresetsSection {
+            id: presetSection
+            page: root
         }
 
         // ══ Calendars ═════════════════════════════════════════════════════════
@@ -368,13 +294,12 @@ Item {
         // lists them and takes a new one.
         Section {
             id: calSection
-            span:     1
-            visible:  root.viewMode === "content"
-            glyph:    "󰃭"
+            grouped:  true
+            symbol:   "calendar_month"
             title:    Translation.tr("Calendars")
-            subtitle: Calendar.feeds.length === 0 ? "Just your own" : Calendar.feeds.length + " subscribed"
-            help:     Translation.tr("Paste a calendar's .ics address — Google: your calendar's settings › Secret address in iCal format — and its events show in the clock panel, read-only, in a colour of their own. The address stays on this machine.")
-            accent:   Colors.of(QsWindow.window).primary
+            subtitle: Calendar.feeds.length === 0 ? Translation.tr("Just your own")
+                                                  : Translation.tr("%1 subscribed").arg(Calendar.feeds.length)
+            help:     Translation.tr("Paste a calendar's .ics address (Google: your calendar's settings › Secret address in iCal format) and its events show in the clock panel, read-only, in a colour of their own. The address stays on this machine.")
 
             // Nothing is fetched unless something holds the service; this page does while it is open,
             // so a feed you just added shows its state (and any error) here.
@@ -417,10 +342,11 @@ Item {
                             Layout.fillWidth: true
                             variant: "caption"
                             elide: Text.ElideRight
-                            text: feed.st.state === "loading" ? "Fetching…"
-                                : feed.st.state === "error"   ? "Couldn't reach it"
-                                : feed.st.state === "ok"      ? feed.st.count + (feed.st.count === 1 ? " event" : " events")
-                                :                               "Not fetched yet"
+                            text: feed.st.state === "loading" ? Translation.tr("Fetching…")
+                                : feed.st.state === "error"   ? Translation.tr("Couldn't reach it")
+                                : feed.st.state === "ok"      ? (feed.st.count === 1 ? Translation.tr("1 event")
+                                                                                     : Translation.tr("%1 events").arg(feed.st.count))
+                                :                               Translation.tr("Not fetched yet")
                             color: feed.st.state === "error" ? Colors.of(QsWindow.window).danger : Colors.of(QsWindow.window).fgDim
                         }
                     }
@@ -434,78 +360,56 @@ Item {
                 }
             }
 
-            InputField {
-                cornerRadius: implicitHeight / 2
-                id: feedName
-                Layout.fillWidth: true
-                placeholder: Translation.tr("Name (optional)")
-            }
-            InputField {
-                cornerRadius: implicitHeight / 2
-                id: feedUrl
-                Layout.fillWidth: true
-                placeholder: "https://… .ics"
-                invalid: calSection.feedError !== ""
-                onEdited: calSection.feedError = ""
-                onAccepted: addFeed.activated()
-            }
-            RowLayout {
+            // Adding one: a name, the address, and the button that takes both.
+            ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
                 spacing: Tokens.spacingSm
 
-                StyledText {
+                InputField {
+                    cornerRadius: implicitHeight / 2
+                    id: feedName
                     Layout.fillWidth: true
-                    visible: text !== ""
-                    text: calSection.feedError
-                    variant: "caption"
-                    color: Colors.of(QsWindow.window).danger
-                    wrapMode: Text.WordWrap
+                    placeholder: Translation.tr("Name (optional)")
                 }
-                Item { Layout.fillWidth: true; visible: calSection.feedError === "" }
-                PanelButton {
-                    capsule: true
-                    id: addFeed
-                    variant: "primary"
-                    accent:  Colors.of(QsWindow.window).primary
-                    symbol:  "add"
-                    label:   Translation.tr("Add")
-                    enabled: feedUrl.text.trim() !== ""
-                    onActivated: {
-                        calSection.feedError = Calendar.addFeed(feedName.text, feedUrl.text)
-                        if (calSection.feedError === "") { feedName.clear(); feedUrl.clear() }
+                InputField {
+                    cornerRadius: implicitHeight / 2
+                    id: feedUrl
+                    Layout.fillWidth: true
+                    placeholder: "https://… .ics"
+                    invalid: calSection.feedError !== ""
+                    onEdited: calSection.feedError = ""
+                    onAccepted: addFeed.activated()
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: false
+                    spacing: Tokens.spacingSm
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        visible: text !== ""
+                        text: calSection.feedError
+                        variant: "caption"
+                        color: Colors.of(QsWindow.window).danger
+                        wrapMode: Text.WordWrap
+                    }
+                    Item { Layout.fillWidth: true; visible: calSection.feedError === "" }
+                    PanelButton {
+                        capsule: true
+                        id: addFeed
+                        variant: "primary"
+                        accent:  Colors.of(QsWindow.window).primary
+                        symbol:  "add"
+                        label:   Translation.tr("Add")
+                        enabled: feedUrl.text.trim() !== ""
+                        onActivated: {
+                            calSection.feedError = Calendar.addFeed(feedName.text, feedUrl.text)
+                            if (calSection.feedError === "") { feedName.clear(); feedUrl.clear() }
+                        }
                     }
                 }
             }
-        }
-
-        // ══ Presets ═══════════════════════════════════════════════════════════
-        // Two related but separate ideas, and the old copy called both of them
-        // "layout" — the thing people couldn't tell apart. A PRESET is a named
-        // snapshot you load back onto any screen, once, like Bar's own presets.
-        // A wallpaper's OWN WIDGETS is live and automatic: whenever a screen shows
-        // that wallpaper, its tiles replace the normal ones — no "load" step, and
-        // it can start from a preset without becoming one. One card says both, in
-        // that order, because starting a wallpaper's own widgets from a preset is
-        // the common path (the chip row below "Start from a preset").
-        WidgetsPresetsSection {
-            id: presetSection
-            page: root
-        }
-    }
-
-    // ── Wheel = turn the gallery page ───────────────────────────────────────
-    MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.NoButton
-        enabled: root.adding && root.galPageCount > 1
-
-        property real acc: 0
-        onWheel: function (ev) {
-            acc += ev.angleDelta.y
-            if (acc <= -120) { widgetsCatalogueSection.galPager.incrementCurrentIndex(); acc = 0 }
-            else if (acc >= 120) { widgetsCatalogueSection.galPager.decrementCurrentIndex(); acc = 0 }
-            ev.accepted = true
         }
     }
 
@@ -524,10 +428,6 @@ Item {
         }
     }
 
-    // ── GalleryCard — one catalogue tile: live preview + name + placed state ────
-    // One of each type per screen (DesktopWidgets.add hands back the existing one), so
-    // the state is binary. Clicking places it if needed, selects it, and leaves the
-    // gallery.
     // The photo frame's picture/folder browser, over the whole page. Stores the choice
     // `~`-relative (DesktopWidgets.contractPath): presets are saved into the published repo.
     ImagePicker {

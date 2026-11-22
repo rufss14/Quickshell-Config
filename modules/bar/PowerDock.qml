@@ -19,24 +19,24 @@ import "../../state"
 // asks is services/powermenu.js.
 //
 // ── The only look it has ──────────────────────────────────────────────────────
-// There used to be a full-screen overlay beside it (2026-10-18: removed). That was also
-// what answered while a window was fullscreen on this monitor, where Hyprland hides the bar's
-// layer — so now nothing can show the menu there, and a request made then is DROPPED
-// (`blocked`) rather than left open and invisible with the keyboard held. Lock still works
+// This is the only view of the menu. Under a fullscreen window on this monitor Hyprland hides the
+// bar's layer, so nothing can show it there, and a request made then is DROPPED (`blocked`)
+// rather than left open and invisible with the keyboard held. Lock still works
 // from the sidebar's middle-click and the launcher.
 //
-// ── Motion: calm ──────────────────────────────────────────────────────────────
-// The house personality (Motion.qml): decelerate-only, no overshoot, nothing waiting its turn.
-// The column melts out of the frame and its buttons fade up WITH it, together. The pointed-at
-// (or keyed-to) button is marked by ONE highlight that travels between buttons rather than two
-// buttons cross-fading: its two edges head for the same place at different speeds
-// (`Motion.standard` / `Motion.trail`, the workspace pill's indicator), so it stretches across
-// the gap and contracts onto the next one. The buttons themselves only dip on a press.
+// ── Look and motion: Material 3 Expressive ────────────────────────────────────
+// The island rail's idiom (modules/island/IslandRail): the four actions stand in a flat tonal pill,
+// each a plain disc badge. The pointed-at (or keyed-to) one is marked by ONE capsule that travels
+// between them on two springs, the leading edge fast and the trailing one slower, so it stretches
+// across the gap and settles round onto the next; its badge blooms from a disc into a shape of its
+// own (squircle, clover, sunny, cookie: `shape` in powermenu.js) in the accent. Buttons arrive one
+// after another (PopIn) once the box is a third open, lean in under the pointer and dip on a press;
+// on the way out they are gone before the box shrinks. The box itself does not wobble.
 //
 // ── It asks twice, and the fill is the countdown ──────────────────────────────
-// Everything but lock ARMS on the first press: the warning colour RISES up the button to
-// full, then DRAINS over the `disarmMs` the arm lasts, so how long you have is the level on
-// screen. The icon swaps to a check (SwapFade) and the caption beside it asks the question and
+// Everything but lock ARMS on the first press: the warning colour RISES up a disc behind the
+// badge to full, then DRAINS over the `disarmMs` the arm lasts, so how long you have is the level
+// on screen. The badge goes the warning colour, its icon swaps to a check (SwapFade) and the caption beside it asks the question and
 // lists what the action would cut off (Session.interruptText). Colour alone can't carry that —
 // on a wallpaper palette `danger` and `primary` can be one ramp. The second press fires; one is
 // armed at a time. Firing holds the chosen button full while the others dim.
@@ -101,6 +101,8 @@ Item {
     // ══ Sizes ═════════════════════════════════════════════════════════════════
     readonly property int pad: Tokens.spacingXl
     readonly property int gap: Tokens.spacingLg
+    // The rail's margin round the stack of buttons.
+    readonly property int inset: Tokens.spacingXs
     readonly property int idealButton: Tokens.spacingXl * 5
     readonly property int disarmMs: 4000
 
@@ -255,14 +257,73 @@ Item {
         transform: Matrix4x4 { matrix: dock.welded ? dock.deformMatrix : Qt.matrix4x4() }
 
         // The buttons at their own full size, pinned to the edge, so the melting box
-        // uncovers them rather than squeezing them. They fade up together in the melt's
-        // last half — no stagger, no pop.
+        // uncovers them rather than squeezing them.
         Item {
             id: content
             x: card.width - dock.contentW
             width:  dock.contentW
             height: dock.contentH
-            opacity: Math.max(0, dock.grow * 2 - 1)
+            // In once the box is a third open; out in the first tenth of its closing, so the
+            // shrinking box is never seen cropping its own contents.
+            opacity: dock.wanted ? Math.max(0, Math.min(1, (dock.grow - 0.33) * 3))
+                                 : Math.max(0, Math.min(1, (dock.grow - 0.9) * 10))
+
+            // ── The rail ──────────────────────────────────────────────────────
+            // A flat tonal pill the four actions stand in: the island rail's idiom. The pointed-at
+            // action is marked by the one highlight below, travelling over it.
+            Rectangle {
+                x: col.x - dock.inset
+                y: col.y - dock.inset
+                width:  dock.button + dock.inset * 2
+                height: col.height + dock.inset * 2
+                radius: width / 2
+                color: Colors.of(QsWindow.window).section
+            }
+
+            // ── The highlight: ONE, travelling ─────────────────────────────────
+            // Under the badges, on the pointed-at action. Two springs on one target, the fast one
+            // leading and the slower one trailing (IslandRail's indicator), so it stretches into a
+            // capsule across the gap and settles round onto the next. It does not fly in from
+            // wherever it last was: it only springs while it is showing.
+            Rectangle {
+                id: hl
+                readonly property var target: rep.itemAt(dock.cursor)
+
+                // The button's top in this item's coordinates; held where it was while nothing is
+                // pointed at, so it fades out in place.
+                property real at: 0
+                Binding on at {
+                    when: hl.target !== null && hl.target !== undefined
+                    value: col.y + (hl.target ? hl.target.y : 0)
+                    restoreMode: Binding.RestoreNone
+                }
+                onAtChanged: {
+                    if (hl.opacity < 0.05) { lead.jump(hl.at); trail.jump(hl.at) }
+                    lead.target = hl.at
+                    trail.target = hl.at
+                }
+                SpringValue { id: lead;  spec: Motion.springSpatialFast; epsilon: 0.2 }
+                SpringValue { id: trail; spec: Motion.springSpatial;     epsilon: 0.2 }
+                // The dip of the button under it.
+                SpringValue {
+                    id: hlDip
+                    target: hl.target && hl.target.pressed ? 0.94 : 1
+                    spec: Motion.springSpatialFast
+                    epsilon: 0.001
+                }
+
+                x: col.x
+                y: Math.min(lead.value, trail.value)
+                width:  dock.button
+                height: Math.abs(lead.value - trail.value) + dock.button
+                radius: width / 2
+                color: Colors.of(QsWindow.window).primaryContainer
+
+                opacity: dock.cursor >= 0 && dock.wanted && hl.target ? 1 : 0
+                visible: hl.opacity > 0.005
+                Behavior on opacity { NumberAnimation { duration: Motion.respond } }
+                scale: hlDip.value
+            }
 
             Column {
                 id: col
@@ -299,19 +360,14 @@ Item {
                         width:  dock.button
                         height: dock.button
 
-                        // Pressing dips it a hair; pointing at it moves nothing (the face answers).
-                        scale: mouse.pressed ? 0.97 : 1.0
-                        Behavior on scale { NumberAnimation { duration: Motion.respond; easing.type: Motion.respondCurve } }
-
                         property real aside: btn.others ? 1 : 0
                         Behavior on aside { NumberAnimation { duration: Motion.exit; easing.type: Motion.exitCurve } }
-                        opacity: 1 - btn.aside * 0.6
 
-                        // ── The countdown is the fill ─────────────────────────────────────
-                        // Up to full as it arms, then down over the arm — `disarmMs` is a literal
-                        // duration on purpose: the time IS the information (Motion.qml, kind 2), so
-                        // it runs with animations off too. Letting go (disarm, Escape) drains it
-                        // out fast; firing holds it full.
+                        // ── The countdown is the well ─────────────────────────────────────
+                        // The warning colour rises up the badge's disc to full as it arms, then
+                        // drains over the arm — `disarmMs` is a literal duration on purpose: the
+                        // time IS the information (Motion.qml, kind 2), so it runs with animations
+                        // off too. Letting go (disarm, Escape) drains it out fast; firing holds it full.
                         property real level: 0
                         SequentialAnimation {
                             id: armAnim
@@ -343,52 +399,69 @@ Item {
                             onSwapped: btn._name = btn.asking ? "check" : ""
                         }
 
-                        // The face. A ClippingRectangle, so the fill is cut to the button's rounded
-                        // shape. It never reacts to the pointer — the shared highlight does.
-                        ClippingRectangle {
-                            id: face
-                            anchors.fill: parent
-                            radius: Tokens.radiusCard
-                            color: Colors.of(QsWindow.window).surfaceContainer
-                            border.width: Tokens.borderWidth
-                            border.color: btn.asking ? Colors.of(QsWindow.window).alpha(btn.warn, 0.7) : "transparent"
-                            Behavior on border.color { ColorAnimation { duration: Motion.respond } }
+                        // The cascade in, a beat after the box has opened; a press dips the stage
+                        // and the pointer leans it in, on the fast spring.
+                        PopIn { id: pop; active: dock.wanted; index: btn.index; cap: 4
+                                delay: Math.round(Motion.standard * 0.35) }
+                        SpringValue {
+                            id: lean
+                            target: btn.pressed ? 0.93 : btn.hot ? 1.06 : 1
+                            spec: Motion.springSpatialFast
+                            epsilon: 0.001
+                        }
 
-                            // The level: the warning colour, with a hairline on its surface so the
-                            // draining edge reads.
-                            Rectangle {
-                                anchors.bottom: parent.bottom
-                                width: parent.width
-                                height: parent.height * btn.level
-                                visible: btn.level > 0.001
-                                color: Colors.of(QsWindow.window).alpha(btn.warn, 0.34)
+                        Item {
+                            id: stage
+                            anchors.fill: parent
+                            opacity: pop.opacity * (1 - btn.aside * 0.6)
+                            scale: lean.value * pop.scale
+
+                            // The well: a disc the size of the highlight, holding the countdown.
+                            ClippingRectangle {
+                                id: well
+                                anchors.centerIn: parent
+                                width: dock.button
+                                height: dock.button
+                                radius: width / 2
+                                color: Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceHigh, btn.warn, 0.18)
+                                opacity: Math.min(1, btn.level * 5)
+                                visible: well.opacity > 0.005
 
                                 Rectangle {
-                                    anchors.top: parent.top
-                                    width: parent.width
-                                    height: Tokens.borderWidth
-                                    color: Colors.of(QsWindow.window).alpha(btn.warn, 0.7)
+                                    anchors.bottom: parent.bottom
+                                    width: well.width
+                                    height: well.height * btn.level
+                                    color: Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceHigh, btn.warn, 0.6)
                                 }
                             }
 
+                            // The badge: a plain disc at rest; pointed at, it blooms into the
+                            // action's own shape in the accent; asking, it goes the warning colour.
                             Item {
                                 id: iconBox
                                 anchors.centerIn: parent
-                                width: parent.width
-                                height: parent.height
+                                width: Math.round(dock.button * 0.68)
+                                height: width
 
+                                MorphShape {
+                                    anchors.fill: parent
+                                    shape: btn.hot || btn.asking ? btn.action.shape : "circle"
+                                    spec: Motion.springSpatialFast
+                                    fillColor: btn.asking ? btn.warn
+                                             : btn.hot    ? Colors.of(QsWindow.window).primary
+                                             :              Colors.of(QsWindow.window).surfaceHigh
+                                    Behavior on fillColor { ColorAnimation { duration: Motion.respond } }
+                                }
                                 MaterialIcon {
                                     anchors.centerIn: parent
                                     // Asking, the glyph becomes a check: the question is in the
                                     // caption, but the button itself must read as "press again".
                                     name: btn._name
                                     glyph: btn.action.glyph
-                                    variant: "title"
-                                    sizeScale: 2.0
+                                    font.pixelSize: Tokens.iconXl
                                     fill: btn.asking || btn.hot ? 1 : 0
-                                    color: btn.asking ? btn.warn
-                                         : btn.hot ? Colors.of(QsWindow.window).focus
-                                         :           Colors.of(QsWindow.window).fg
+                                    color: btn.asking || btn.hot ? Colors.of(QsWindow.window).fgOnPrimary
+                                                                 : Colors.of(QsWindow.window).fg
                                     Behavior on color { ColorAnimation { duration: Motion.respond } }
                                     Behavior on fill  { NumberAnimation { duration: Motion.respond } }
                                 }
@@ -407,55 +480,6 @@ Item {
                 }
             }
 
-            // ── The highlight: ONE, travelling ─────────────────────────────────
-            // Over the buttons, on the pointed-at one. Two edges, one target, two speeds
-            // (WorkspacesPill's indicator): the leading one arrives in `standard`, the trailing
-            // one in `trail`, so it stretches across the gap and contracts onto the next button.
-            // Both come from the same expression and `y`/`height` just track them, so a reversal
-            // can't cross the edges. It does not slide in from wherever it last was: its edges
-            // only animate once it is showing.
-            Rectangle {
-                id: hl
-                readonly property var target: rep.itemAt(dock.cursor)
-                readonly property bool armed: dock.armedKey !== "" && dock.cursor >= 0
-                                              && PowerJs.ACTIONS[dock.cursor].key === dock.armedKey
-                readonly property color tone: dock.cursor >= 0 && PowerJs.ACTIONS[dock.cursor].tone
-                    ? Colors.of(QsWindow.window)[PowerJs.ACTIONS[dock.cursor].tone] : Colors.of(QsWindow.window).focus
-
-                // The button's top in this item's coordinates; held where it was while nothing is
-                // pointed at, so it fades out in place.
-                property real at: 0
-                Binding on at {
-                    when: hl.target !== null && hl.target !== undefined
-                    value: col.y + (hl.target ? hl.target.y : 0)
-                    restoreMode: Binding.RestoreNone
-                }
-                property real leadPos:  hl.at
-                property real trailPos: hl.at
-                Behavior on leadPos  { enabled: hl.opacity > 0.05; NumberAnimation { duration: Motion.standard; easing.type: Motion.travel } }
-                Behavior on trailPos { enabled: hl.opacity > 0.05; NumberAnimation { duration: Motion.trail;    easing.type: Motion.travel } }
-
-                x: col.x
-                y: Math.min(hl.leadPos, hl.trailPos)
-                width:  dock.button
-                height: Math.abs(hl.leadPos - hl.trailPos) + dock.button
-                radius: Tokens.radiusCard
-                color: Colors.of(QsWindow.window).alpha(hl.armed ? hl.tone : Colors.of(QsWindow.window).focus,
-                                                        hl.armed ? 0.10 : 0.20)
-                border.width: Tokens.borderWidth
-                border.color: Colors.of(QsWindow.window).alpha(hl.armed ? hl.tone : Colors.of(QsWindow.window).focus, 0.6)
-                Behavior on color        { ColorAnimation { duration: Motion.respond } }
-                Behavior on border.color { ColorAnimation { duration: Motion.respond } }
-
-                opacity: dock.cursor >= 0 && dock.wanted && hl.target ? 1 : 0
-                visible: hl.opacity > 0.005
-                Behavior on opacity { NumberAnimation { duration: Motion.respond } }
-
-                // Dips with the button under it.
-                scale: hl.target && hl.target.pressed ? 0.97 : 1.0
-                Behavior on scale { NumberAnimation { duration: Motion.respond; easing.type: Motion.respondCurve } }
-            }
-
             // Leaving the column clears a POINTER selection (the tooltip goes with it); the gaps
             // between buttons are inside this item, so crossing one keeps the highlight alive
             // and travelling. A key's selection stays.
@@ -466,8 +490,8 @@ Item {
     }
 
     // ══ The tooltip ═══════════════════════════════════════════════════════════
-    // Beside the selected button, on its LEFT — outside the card, which clips. A panel-style
-    // card (radiusCard, the Card's own `surface` fill): the action's name and what it does; armed, the name
+    // Beside the selected button, on its LEFT — outside the card, which clips. A flat
+    // plate (radiusCard, `surfaceHigh`): the action's name and what it does; armed, the name
     // becomes the question in the warning tone, says to press again, and lists what it would
     // cut off. Display only: it is not in the mask. It eases out from under the column, GLIDES
     // from button to button on the highlight's lead edge (the two travel as one) and swaps its
@@ -508,11 +532,18 @@ Item {
         // Glides between buttons — but not on its first appearance, or it would fly in from the top.
         Behavior on y { enabled: cap.capK > 0.9; NumberAnimation { duration: Motion.standard; easing.type: Motion.travel } }
 
+        // A flat plate that casts a shadow (it floats over the desktop, outside the lobe); asking,
+        // it takes a wash of the warning tone instead of an outline.
         radius: Tokens.radiusCard
-        color:  Colors.of(QsWindow.window).surface
-        border.width: Tokens.borderWidth
-        border.color: dock.capArmed ? Colors.of(QsWindow.window).alpha(dock.capTone, 0.7) : Colors.of(QsWindow.window).outline
-        Behavior on border.color { ColorAnimation { duration: Motion.respond } }
+        color:  dock.capArmed ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceHigh, dock.capTone, 0.18)
+                              : Colors.of(QsWindow.window).surfaceHigh
+        Behavior on color { ColorAnimation { duration: Motion.respond } }
+        Loader {
+            z: -1
+            anchors.fill: parent
+            active: Tokens.shadowDp(Tokens.elevationCard) > 0
+            sourceComponent: Elevation { elevation: Tokens.elevationCard; radius: cap.radius }
+        }
 
         SwapFade {
             target: capCol
@@ -531,8 +562,7 @@ Item {
                 text: dock.capAction ? (dock.capArmed ? dock.capAction.ask : dock.capAction.label) : ""
                 variant: "label"
                 font.weight: Font.DemiBold
-                color: dock.capArmed ? dock.capTone : Colors.of(QsWindow.window).fg
-                Behavior on color { ColorAnimation { duration: Motion.respond } }
+                color: Colors.of(QsWindow.window).fg
             }
             StyledText {
                 text: dock.capAction ? dock.capAction.hint : ""
@@ -544,7 +574,7 @@ Item {
                 visible: dock.capArmed
                 text: Translation.tr("Press again to confirm")
                 variant: "caption"
-                color: dock.capTone
+                emphasis: "muted"
             }
             // What this would cut off — only while it asks, and only for what ends the session.
             StyledText {

@@ -190,7 +190,7 @@ Item {
             MorphShape {
                 anchors.fill: parent
                 shape: "circle"
-                fillColor: Colors.of(QsWindow.window).surfaceContainer
+                fillColor: Colors.of(QsWindow.window).plateLow
                 strokeColor: root.container
                 strokeWidth: 2
             }
@@ -252,7 +252,7 @@ Item {
                     StyledText {
                         Layout.fillWidth: true
                         visible: root.showDetail && Weather.place !== ""
-                        text: Weather.place
+                        text: StreamMode.mask(Weather.place)
                         variant: "title"
                         font.weight: Font.Bold
                         color: Colors.of(QsWindow.window).fg
@@ -407,7 +407,7 @@ Item {
                             scale: lift.value
                             color: hourCell.isNow ? root.container
                                  : hourCell.pointed ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceHigh, Colors.of(QsWindow.window).fg, Tokens.stateHover)
-                                 : Colors.of(QsWindow.window).surfaceHigh
+                                 : Colors.of(QsWindow.window).plate
                             Behavior on color { ColorAnimation { duration: Motion.respond } }
 
                             Column {

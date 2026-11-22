@@ -5,3 +5,8 @@ WidgetLayer   1.0 WidgetLayer.qml
 WaveCurtain   1.0 WaveCurtain.qml
 SnapOverlay 1.0 SnapOverlay.qml
 WallFx 1.0 WallFx.qml
+DeskMenuCatcher 1.0 DeskMenuCatcher.qml
+DeskMenu 1.0 DeskMenu.qml
+DeskMenuBody 1.0 DeskMenuBody.qml
+DeskMenuTile 1.0 DeskMenuTile.qml
+DeskMenuRow 1.0 DeskMenuRow.qml

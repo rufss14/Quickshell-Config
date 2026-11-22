@@ -39,7 +39,8 @@ Item {
     readonly property string blocked: Clips.blocker()
     readonly property bool ownsPanel: UiState.sidePanelScreen
         ? UiState.sidePanelScreen === root.screen : root.screen === Quickshell.screens[0]
-    readonly property bool open: UiState.sidePanel !== "" && UiState.sidePanelFrom === "clips" && root.ownsPanel
+    readonly property bool open: (UiState.sidePanel !== "" && UiState.sidePanelFrom === "clips" && root.ownsPanel)
+                                 || UiState.sideShows("clips", root.screen)
     readonly property bool focusedHere:
         Hyprland.focusedMonitor !== null && Hyprland.focusedMonitor.name === (root.monitor?.name ?? "")
 

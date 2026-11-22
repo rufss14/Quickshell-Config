@@ -4,9 +4,9 @@
 
 ### A Quickshell desktop shell for Hyprland
 
-![The bar with two panels open, welded into one shape: the wallpaper gallery and Now Playing with synced lyrics](assets/previews/MorphPreview.png)
+![The bar with the Now Playing island open, welded to the bar, with synced lyrics and the desktop widgets behind it](assets/previews/MorphPreview.png)
 
-`v0.4.1` &nbsp;|&nbsp; Arch Linux &nbsp;|&nbsp; Hyprland &nbsp;|&nbsp; QML / JS
+`v0.4.2` &nbsp;|&nbsp; Arch Linux &nbsp;|&nbsp; Hyprland &nbsp;|&nbsp; QML / JS
 
 </div>
 
@@ -33,22 +33,19 @@ Log out and back in, and the shell starts with Hyprland. More options under
 [Keybinds](#keybinds) · [Configuration](#configuration) · [Dependencies](#dependencies) ·
 [Troubleshooting](#troubleshooting) · [Contributing](#contributing)
 
-## What's new in 0.4.1
+## What's new in 0.4.2
 
-- **One Modules page for the bar and the sidebar.** A module library shows every module by
-  kind, where it is now, and why one is unavailable. Any module can live on either edge,
-  looks the same on both, and you drag it across. Arranging dims the desktop and shows
-  exactly where a drop will land.
-- **Rebuilt panels.** Screen time, Brightness, Wi‑Fi, Bluetooth, Clipboard, To‑do, Timer,
-  Stats and Claude sessions share one look: a card that says what's going on, and tiles below.
-- **Tooltips on the bar**, and a hover on a workspace shows its windows as live tiles.
-- **Clips** gains a latest-clips row, tags, filters, hover scrub, a clean-up button, and
-  Send to Discord that shrinks a clip to your upload limit.
-- **Discord call log**, **VPN switching** in the Wi‑Fi panel, **high contrast** and
-  **reduced motion** settings, and **export/import of your whole look**.
-- **Steam follows the palette live** and starts in about 9 seconds instead of 80.
-- **Safer by default:** crash-looping startup falls back to safe mode, and the Spotify bridge
-  no longer accepts requests from websites.
+- **Islands.** The bar's panels can open on three islands (left, middle, right) from handles
+  on the bar, and the sidebar's buttons open pages on three islands on the bottom edge.
+  New pages include Desk, Captures, Network, Power, Files, Agenda, Displays, a Workout log and
+  a drawing-tablet page.
+- **Settings rebuilt.** Grouped rows that fill the width, no view tabs, a labelled rail, and a
+  search that finds every control and jumps to its row.
+- **Rebuilt pages** for the wallpaper, colour scheme, audio mixer, Now Playing (queue, Jam,
+  links), Weather, Calendar, Performance (a Tasks tab), Notifications and System update.
+- **A gradient for the bar** that each colour scheme carries, plus a calmer overview.
+- **New modules:** Stream mode and Spacer, and the dock gets icon tiles and fixed slots.
+- **Karaoke** can listen to a Discord call, and the call timer shows when the call began.
 
 Full notes are on the [releases page](https://github.com/rufss14/Quickshell-Config/releases).
 Coming from v0.3 or older, install by hand once: see [Updating](#updating).
@@ -60,11 +57,11 @@ Coming from v0.3 or older, install by hand once: see [Updating](#updating).
 ![The top bar](assets/previews/TopBarPreview.png)
 
 Floating pills or square edge-to-edge, one pill per region or one per group. Thickness,
-radius, opacity, font and icon scale are in **Settings → Bar & sidebar**. Arrange it by
+radius, opacity, font and icon scale are in **Settings → Bar & islands**. Arrange it by
 dragging modules between groups, between the bar and the sidebar, or back into the library;
 save layouts as presets.
 
-![Settings → Bar & sidebar → Modules: the module library](assets/previews/ModulesPreview.png)
+![Settings → Bar & islands → Modules: the module library](assets/previews/ModulesPreview.png)
 
 Modules: workspaces, visualizer and Now Playing with synced lyrics, clock and weather, volume
 and microphone, Wi‑Fi, Bluetooth, battery, wallpaper and colour scheme, updates,
@@ -79,8 +76,8 @@ plugin fuses panel and bar with a metaball shader.
 
 <table>
 <tr>
-<td width="50%"><img src="assets/previews/WallpaperPanelPreview.png" alt="Wallpaper gallery panel"></td>
-<td width="50%"><img src="assets/previews/ColorSchemePanelPreview.png" alt="Colour scheme panel"></td>
+<td width="50%"><img src="assets/previews/WallpaperPanelPreview.png" alt="Wallpaper gallery island"></td>
+<td width="50%"><img src="assets/previews/ColorSchemePanelPreview.png" alt="Colour scheme island"></td>
 </tr>
 <tr>
 <td align="center"><sub>Wallpaper gallery: images and Wallpaper Engine scenes together</sub></td>
@@ -108,7 +105,7 @@ The second edge, arranged like the bar. It can auto-hide and dodge windows.
 SUPER+D reveals it while hidden; SUPER+SHIFT+D hides or shows it entirely.
 
 </td>
-<td width="40%"><img src="assets/previews/SidebarPanelPreview.png" alt="The sidebar with its System stats panel open"></td>
+<td width="40%"><img src="assets/previews/SidebarPanelPreview.png" alt="The sidebar and the desktop widgets beside it"></td>
 </tr>
 </table>
 
@@ -160,6 +157,7 @@ frame. The library has favourites, tags, filters and search.
 | **Lens** | SUPER+O: select an area and copy its text (OCR). SUPER+SHIFT+O translates it in place |
 | **Screenshots** | A toast with a preview: copy, annotate, send over Bluetooth, or trash |
 | **Magnifier** | SUPER+CTRL+scroll to zoom, SUPER+CTRL+Z to toggle |
+| **Drawing tablet** | A page for the pen area, rotation, pressure range and profiles; a live pen readout after a one-time udev rule |
 | **Snap zones** | SUPER-drag a floating window to an edge, corner or the top |
 | **Game mode** | SUPER+G: performance CPU, notifications paused, no screen blanking |
 | **Night light · Anti-flashbang** | Warm the screen; dim a sudden full-white one |
@@ -179,12 +177,13 @@ frame. The library has favourites, tags, filters and search.
 
 ### Settings
 
-![Settings, on the Appearance page](assets/previews/SettingsPreview.png)
+![Settings, on the Wallpaper page](assets/previews/SettingsPreview.png)
 
-A searchable settings app in ten groups: Appearance, Wallpaper, Bar & sidebar, Launcher,
-Sidebar, Desktop, Devices (sound, displays, Wi‑Fi, Bluetooth, input, battery), Window manager
-(keybinds and compositor tuning, written to your Hyprland config with backups), Integrations,
-and System (updates, setup, presets, storage, about).
+A searchable settings app in seven groups: Look & feel, Wallpaper, Bar & islands, Desktop
+(widgets, lock screen, plus keybinds and compositor tuning, written to your Hyprland
+config with backups), Devices (sound, network, Bluetooth, displays, input, battery, tablet),
+Apps (launcher, clips, screen time, lyrics, Discord), and System (updates, setup,
+presets, storage, language, about).
 
 ## Installation
 
@@ -246,7 +245,7 @@ Click the update pill to install: no password, and the shell restarts on the new
 
 Releases are signed, and your install only accepts updates signed with the key it already
 has. Updates keep your settings, presets, colour schemes and API keys. Shell files you
-edited by hand **are** replaced, so keep tweaks in a shell preset (**Settings → Shell preset**).
+edited by hand **are** replaced, so keep tweaks in a shell preset (**Settings → Setup → Shell presets**).
 
 Coming from v0.3 or older, or installed with `git clone`: install this version once by hand.
 A git checkout updates with `git pull`.
@@ -263,9 +262,11 @@ In the bundled Hyprland config. On your own, bind any of them to the same `qs ip
 | SUPER+T · SUPER+ALT+1…9 | Focus the dock · launch or focus the nth dock app |
 | SUPER+O · SUPER+SHIFT+O | Lens: copy text · translate |
 | SUPER+G | Game mode |
+| SUPER+P · SUPER+SHIFT+P | Screenshot an area: save · copy |
 | SUPER+CTRL+scroll · SUPER+CTRL+Z | Magnifier |
 | ALT+F10 · ALT+SHIFT+F10 | Save a clip · toggle clipping |
 | ALT+F9 · ALT+SHIFT+F9 | Record the screen · record a region |
+| ALT+F8 | Clips gallery |
 | ALT+Q | Restart the shell |
 | SUPER+L | Lock (falls back to hyprlock if the shell doesn't answer) |
 
@@ -295,6 +296,7 @@ qs ipc -c ~/.config/quicktest show              # every target the shell exposes
 | `pipewire`, `wireplumber`, `networkmanager`, `bluez` | Audio, network, Bluetooth |
 | `python-pywal16`, `python-pillow`, `imagemagick` | Palettes from wallpapers and album art, the cursor theme |
 | `cava` | The audio visualizer |
+| `playerctl` | The media keys |
 | `gpu-screen-recorder`, `ffmpeg`, `slurp` | Clips (default pack) |
 | `gamemode`, `mangohud` | Game mode (default pack) |
 | `hyprsunset`, `hyprpicker`, `wl-clipboard` | Night light, colour picker, clipboard history |
@@ -344,7 +346,7 @@ page or dependency; `docs/` has notes for each area. The rules the codebase hold
 
 `bash scripts/check-all.sh` runs every static checker and test (a pass means "no typos", not
 "it works"); `bash scripts/smoke-headless.sh` starts a throwaway shell in a sandbox and opens
-every panel. CI runs both. Tested on Quickshell 0.3, Hyprland 0.56 and Qt 6.11–6.12.
+every panel. CI runs both. Tested on Quickshell 0.3, Hyprland 0.56–0.57 and Qt 6.11–6.12.
 
 ```
 quicktest/

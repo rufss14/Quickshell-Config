@@ -104,6 +104,8 @@ Item {
 
     IconButton {
         id: pill
+        tipProvider: Config.barTooltips ? function () { return ModuleGlance.tip("battery") } : null
+        quickId: "battery"
         container: false
         height: Config.barPillHeight
         width:  root.collapsed ? collapsedW : expandedW

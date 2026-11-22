@@ -11,8 +11,10 @@ import "../../../desktop/widgets"
 import "../../../desktop/widgets/toggles.js" as Toggles
 import "../.."
 
-// (Was WidgetsPage's inline `GalleryCard`; `host` is the WidgetsPage.)
-Surface {
+// One catalogue tile: a live preview, the name and whether it is placed. `host` is the WidgetsPage.
+// A tile lifted on the gallery's plate (surfaceHigh); one that is already on the screen is the
+// chosen card (primaryContainer), so the state reads without an outline.
+Rectangle {
     id: card
     required property var host
     property var entry
@@ -25,12 +27,16 @@ Surface {
     readonly property int placedCount:
         card.multi ? DesktopWidgets.count(card.entry.type, host.targetScreen) : 0
 
-    elevation: Tokens.elevationNested
-    cornerRadius: Tokens.radiusSm
-    focused: cardMouse.containsMouse || card.placed
-    border.color: card.placed             ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).primary, 0.55)
-                : cardMouse.containsMouse ? Colors.of(QsWindow.window).outlineFocus
-                :                           Colors.of(QsWindow.window).outlineFor(card.elevation)
+    // Rounder under the pointer, on a spring.
+    SpringValue {
+        id: rounding
+        target: cardMouse.containsMouse ? Tokens.radiusXl : Tokens.radiusCard
+        spec: Motion.springSpatialFast
+    }
+    radius: rounding.value
+    color: card.placed ? Colors.of(QsWindow.window).primaryContainer : Colors.of(QsWindow.window).surfaceHigh
+    Behavior on color { ColorAnimation { duration: Motion.respond } }
+    clip: true
 
     ColumnLayout {
         anchors.fill: parent
@@ -49,8 +55,6 @@ Surface {
             }
         }
 
-        Divider { Layout.fillWidth: true }
-
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: false
@@ -66,6 +70,7 @@ Surface {
                     text: card.entry.label
                     variant: "caption"
                     font.weight: Font.DemiBold
+                    color: card.placed ? Colors.of(QsWindow.window).fgOnPrimaryContainer : Colors.of(QsWindow.window).fg
                     elide: Text.ElideRight
                 }
                 StyledText {
@@ -73,7 +78,8 @@ Surface {
                     text: card.multi && card.placedCount > 0 ? card.placedCount + " here · add another"
                         : card.placed ? "On this screen" : card.entry.detail
                     variant: "caption"
-                    color: card.placed ? Colors.of(QsWindow.window).primary : Colors.of(QsWindow.window).fgDim
+                    color: card.placed ? Colors.of(QsWindow.window).alpha(Colors.of(QsWindow.window).fgOnPrimaryContainer, 0.72)
+                                       : Colors.of(QsWindow.window).fgDim
                     elide: Text.ElideRight
                 }
             }
@@ -81,7 +87,7 @@ Surface {
                 name: card.placed && !card.multi ? "check_circle" : "add_circle"
                 fill: card.placed ? 1 : 0
                 variant: "body"
-                color: card.placed             ? Colors.of(QsWindow.window).primary
+                color: card.placed             ? Colors.of(QsWindow.window).fgOnPrimaryContainer
                      : cardMouse.containsMouse ? Colors.of(QsWindow.window).fg
                      :                           Colors.of(QsWindow.window).fgDim
             }

@@ -50,9 +50,18 @@ Rectangle {
         tip.y = Math.max(Tokens.spacingMd, y)
     }
 
+    // A pill's tip would sit over an island or panel hanging from the same edge.
+    Connections {
+        target: UiState
+        function onBarSurfaceOpenChanged() {
+            if (UiState.barSurfaceOpen && tip.source && tip.source.pill === true) { tipDelay.stop(); tip.shown = false }
+        }
+    }
+
     onSourceChanged: {
         const src = tip.source
-        if (!src || !src.parent || !tip._owns(src.parent) || (tip.skipPills && src.pill === true)) {
+        if (!src || !src.parent || !tip._owns(src.parent) || (tip.skipPills && src.pill === true)
+                || (src.pill === true && UiState.barSurfaceOpen)) {
             tipDelay.stop()
             tip.shown = false
             return

@@ -96,7 +96,7 @@ Item {
         // `tintBg` is still the tile's tone, because the card uses it as the ground of its
         // track card; its own fill is turned off with `color`.
         color:       "transparent"
-        tintBg:      Colors.of(QsWindow.window).surfaceContainer
+        tintBg:      Colors.of(QsWindow.window).plateLow
         tintFg:      root.albumColours ? AlbumArt.fg      : Colors.of(QsWindow.window).fg
         tintFgDim:   root.albumColours ? AlbumArt.fgDim   : Colors.of(QsWindow.window).fgDim
         tintFgMuted: root.albumColours ? AlbumArt.fgMuted : Colors.of(QsWindow.window).fgMuted

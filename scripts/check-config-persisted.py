@@ -31,6 +31,7 @@ EXEMPT = {
     "cursorPresets": "own file, presets/cursor.json",
     "prefsLoaded":   "runtime flag, true once config.json has been read",
     "frameMerge":    "legacy key, read by barLayout's loader and never written",
+    "barHidden":     "transient like UiState.sidebarHidden: a hidden bar comes back on the next reload",
 }
 
 

@@ -41,6 +41,16 @@ class BlobGroup : public QObject {
     // outline is touched, so with no border (borderWidth 0) it does nothing.
     Q_PROPERTY(QVector4D rimSweep READ rimSweep WRITE setRimSweep NOTIFY rimSweepChanged)
     Q_PROPERTY(QColor rimColor READ rimColor WRITE setRimColor NOTIFY rimSweepChanged)
+    // ── The gradient (Quicktest addition) ───────────────────────────────────────
+    // The fill as three colours along a line instead of one flat `color`. gradAxis is (x0, y0, dx, dy)
+    // in scene pixels: t = dot(p - (x0, y0), (dx, dy)) / |(dx, dy)|², 0 at gradColor0 and 1 at
+    // gradColor2, gradColor1 at t = gradMid. gradMid 0 (the default) is off: the fill is `color`. The
+    // cookies and the outline draw over it as they do over the flat fill. Opaque, like `color`.
+    Q_PROPERTY(QVector4D gradAxis READ gradAxis WRITE setGradAxis NOTIFY gradientChanged)
+    Q_PROPERTY(qreal gradMid READ gradMid WRITE setGradMid NOTIFY gradientChanged)
+    Q_PROPERTY(QColor gradColor0 READ gradColor0 WRITE setGradColor0 NOTIFY gradientChanged)
+    Q_PROPERTY(QColor gradColor1 READ gradColor1 WRITE setGradColor1 NOTIFY gradientChanged)
+    Q_PROPERTY(QColor gradColor2 READ gradColor2 WRITE setGradColor2 NOTIFY gradientChanged)
 
 public:
     explicit BlobGroup(QObject* parent = nullptr);
@@ -99,6 +109,18 @@ public:
 
     void setRimColor(const QColor& c);
 
+    QVector4D gradAxis() const { return m_gradAxis; }
+    void setGradAxis(const QVector4D& v);
+    qreal gradMid() const { return m_gradMid; }
+    void setGradMid(qreal m);
+    QColor gradColor0() const { return m_gradColors[0]; }
+    QColor gradColor1() const { return m_gradColors[1]; }
+    QColor gradColor2() const { return m_gradColors[2]; }
+    void setGradColor0(const QColor& c) { setGradColor(0, c); }
+    void setGradColor1(const QColor& c) { setGradColor(1, c); }
+    void setGradColor2(const QColor& c) { setGradColor(2, c); }
+    const QColor* gradColors() const { return m_gradColors; }
+
     void addShape(BlobShape* shape);
     void removeShape(BlobShape* shape);
 
@@ -125,6 +147,7 @@ signals:
     void cookieTonesChanged();
     void cookieStrokeChanged();
     void rimSweepChanged();
+    void gradientChanged();
 
 private:
     qreal m_smoothing = 32.0;
@@ -137,6 +160,11 @@ private:
     qreal m_cookieStroke = 1.0;
     QVector4D m_rimSweep;
     QColor m_rimColor{ 255, 255, 255, 0 };
+    QVector4D m_gradAxis{ 0, 0, 1, 0 };
+    qreal m_gradMid = 0.0;
+    QColor m_gradColors[3];
+
+    void setGradColor(int i, const QColor& c);
 
     void setTone(int i, const QColor& c);
     QList<BlobShape*> m_shapes;

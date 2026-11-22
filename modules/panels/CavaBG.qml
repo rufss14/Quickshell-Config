@@ -7,18 +7,18 @@ import Quickshell.Widgets
 import "../../config"
 import "../../components"
 import "../../services"
+import "../../services/gradient.js" as Grad
 
 // ── CavaBG ────────────────────────────────────────────────────────────────────
 // A full-width audio spectrum pinned to the bottom of the desktop, *behind* every
 // application window. Transparent, click-through, on the wlr "background" layer.
 // Toggled by left-clicking the visualizer pill (Config.cavaBg).
 //
-// It used to run its own `cava` process — a third one, on top of the two the
-// status bar was running. All three analyzed the same audio to draw the same
-// spectrum. It now shares the one Cava service, holding a reference only while
-// it's actually visible.
+// It shares the one Cava service rather than running a `cava` of its own on top of the
+// status bar's (three processes analyzing the same audio to draw the same spectrum),
+// holding a reference only while it's actually visible.
 //
-// ── Ring, music only, caps, glow (2026-10-31, the user's picks) ────────────────
+// ── Ring, music only, caps, glow ───────────────────────────────────────────────
 // "ring" is the spectrum as spokes round the screen's middle (the window then covers the
 // screen, still click-through and under every window), the album cover inside it
 // (Config.cavaBgRingCover). "Music only" (Config.cavaBgMusicOnly, on by default) listens to
@@ -207,7 +207,7 @@ PanelWindow {
         visible: opacity > 0.005
         Behavior on opacity { NumberAnimation { duration: Motion.emphasized; easing.type: Motion.enter } }
 
-        // ── Its colours (Config.cavaBgBlend / cavaBgBlendDir, 2026-10-31) ──────
+        // ── Its colours (Config.cavaBgBlend / cavaBgBlendDir) ──────────────────
         // The renderer draws a STENCIL (only its alpha counts — Avatar's mask) and one fill is
         // shown through it, so every style takes every blend: 1–5 scheme colours (or the
         // cover's accent), laid across (left to right; round the ring, mirrored so the halves
@@ -233,6 +233,15 @@ PanelWindow {
         function flat(p) { return viz.at(viz.across ? p : 1 - p) }
         // Round the ring, across: mirrored, the first colour at the top and the bottom.
         function round(p) { return viz.at(1 - Math.abs(2 * p - 1)) }
+
+        // ── …or the shell's gradient (Config.cavaBgGradient) ──────────────────
+        // The three colours the bar and the islands wear, at the angle they wear them, across this
+        // item's own box (GradientPlate's rule for a surface that isn't the bar), so the blend above
+        // is not used. The stops come whole: the gradient's strength is how far the bar's fill
+        // moves toward them, and this has no fill to move from. Only while the gradient is on.
+        readonly property var gradDoc: Grad.clean(Config.barGradient)
+        readonly property bool matchGrad: Config.cavaBgGradient && viz.gradDoc.on
+        readonly property var gradColors: Grad.vivid(viz.gradDoc, n => String(viz.pal.role(n, viz.pal.primary)))
 
         // Only the picked style is ever instantiated — switching styles is rare
         // (a settings-page pick, not a per-frame thing), but there is no reason
@@ -270,7 +279,7 @@ PanelWindow {
             layer.enabled: Config.cavaBgGlow
             layer.effect: MultiEffect {
                 shadowEnabled: true
-                shadowColor: viz.at(0.5)
+                shadowColor: viz.matchGrad ? viz.gradColors[1] : viz.at(0.5)
                 shadowBlur: 1.0
                 shadowOpacity: 0.9
                 shadowHorizontalOffset: 0
@@ -290,13 +299,20 @@ PanelWindow {
 
                 Rectangle {
                     anchors.fill: parent
-                    visible: !root.ring
+                    visible: !root.ring && !viz.matchGrad
                     gradient: blend
+                }
+                GradientFill {
+                    anchors.fill: parent
+                    visible: viz.matchGrad
+                    angle: viz.gradDoc.angle
+                    mid: viz.gradDoc.mid
+                    colors: viz.gradColors
                 }
                 // The ring's blends go round it (across) or from the circle out to the tips (up).
                 Shape {
                     anchors.fill: parent
-                    visible: root.ring
+                    visible: root.ring && !viz.matchGrad
                     ShapePath {
                         strokeWidth: -1
                         fillGradient: viz.across ? conical : radial
@@ -366,7 +382,7 @@ PanelWindow {
     // live-tracking curve. Ramp3 rather than a semantic role (focus/primary) —
     // this is decoration, not a control state, so it gets its own hue out of the
     // wallpaper's palette instead of borrowing one that means something
-    // elsewhere in the shell. (Since 2026-10-31 that is only the default: the colour is
+    // elsewhere in the shell. (That is only the default: the colour is
     // Config.cavaBgBlend's, shown through the bars as a stencil — see `viz`.)
     Component {
         id: barsComp

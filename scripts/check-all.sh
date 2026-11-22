@@ -43,6 +43,10 @@ for c in aliases duplicates readonly-anim final palette imports singletons qmldi
 done
 run check-config-persisted python3 scripts/check-config-persisted.py
 run check-contrast python3 scripts/check-contrast.py
+run check-settings-links python3 scripts/check-settings-links.py
+# The search index is generated from the pages: a page edited without a rebuild is a
+# setting search can't find (or one it finds that is gone).
+run settings-index-fresh python3 scripts/build-settings-index.py --check
 if python3 -c 'import fontTools' 2>/dev/null; then
     run check-glyphs python3 scripts/check-glyphs.py
 else

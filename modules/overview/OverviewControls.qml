@@ -18,8 +18,7 @@ import "../../services/mediasource.js" as MediaSource
 //   │              ⤮  ⏮  ⏯  ⏭  ⟳   ▬▬▬▬▬▬ 37%      │                          │
 //   ╰───────────────────────────────────────────────────────────────────────╯
 //
-// Now playing is the Now Playing panel's own player (2026-10-20, the user: "should look more
-// like the one from the Now Playing panel"): the cover in a turning cookie with its level ring
+// Now playing is the Now Playing panel's own player: the cover in a turning cookie with its level ring
 // (CookieCover), title / artist / album, the wavy seek (MediaSeek), the cookie transport
 // (MediaTransport) and the PLAYER's own volume (Audio.playerLevel, as the panel's) — the same
 // components, not look-alikes. No lyrics: the strip has no width for them. A new track swaps
@@ -32,13 +31,13 @@ import "../../services/mediasource.js" as MediaSource
 // isn't listed. Everything real is Audio / Brightness / the MPRIS player / each switch's own
 // service — this shows them and calls them.
 // ─────────────────────────────────────────────────────────────────────────────
-Surface {
+Item {
     id: root
 
-    elevation:    Tokens.elevationCard
-    cornerRadius: Tokens.radiusXl
-
-    readonly property int pad: Tokens.spacingLg
+    readonly property var pal: Colors.of(QsWindow.window)
+    // The island's ground frames the two plates; this adds nothing round them.
+    readonly property int pad: 0
+    readonly property int platePad: Tokens.spacingMd
     // Whether the island is up and showing this — the playhead's per-frame work only then.
     property bool live: true
 
@@ -61,7 +60,7 @@ Surface {
     // With Settings › Appearance › "Tint media cards" on (Config.albumCardColors), the island
     // wears the playing cover's accent (services/AlbumArt — the media cards' palette): the
     // transport, the seek, the ring, and a tint on the island itself (OverviewIsland reads
-    // `tone`/`dressed`). Off, the shell palette — the user's call, 2026-10-20.
+    // `tone`/`dressed`). Off, the shell palette.
     // Handed to AlbumArt only while this is on screen; it falls back to the palette
     // whenever the art can't be read.
     readonly property bool dressed: Config.albumCardColors && AlbumArt.ready && root.player !== null && root.shownTrack.art !== ""
@@ -132,6 +131,7 @@ Surface {
         ValueSlider {
             Layout.preferredWidth: lv.sliderWidth
             thickness: 9
+            expressive: true
             value: lv.value
             maximum: lv.maximum
             accent: lv.tint
@@ -170,11 +170,22 @@ Surface {
         anchors.centerIn: parent
         spacing: Tokens.spacingLg
 
-        // ── Now playing ───────────────────────────────────────────────────────
+        // ── Now playing: the island's loud plate ──────────────────────────────
+        // The accent container, or the cover's own colour in the same tone when "Tint media cards" is on.
+        Rectangle {
+            id: nowPlate
+            visible: root.player !== null
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth: playing.implicitWidth + root.platePad * 2
+            implicitHeight: playing.implicitHeight + root.platePad * 2
+            radius: Tokens.radiusCard
+            color: root.dressed ? root.pal.mix(root.pal.surfaceContainer, root.tone, 0.26) : root.pal.primaryContainer
+            Behavior on color { ColorAnimation { duration: Motion.slow } }
+            readonly property color ink: root.pal.fgOnPrimaryContainer
+
         RowLayout {
             id: playing
-            Layout.fillHeight: false
-            Layout.alignment: Qt.AlignVCenter
+            anchors.centerIn: parent
             visible: root.player !== null
             spacing: Tokens.spacingLg
 
@@ -208,6 +219,7 @@ Surface {
                     text: root.shownTrack.title !== "" ? root.shownTrack.title : (root.player?.identity ?? "")
                     variant: "title"
                     font.weight: Font.Bold
+                    color: nowPlate.ink
                     elide: Text.ElideRight
                 }
                 StyledText {
@@ -215,6 +227,7 @@ Surface {
                     visible: text !== ""
                     text: root.shownTrack.artist
                     variant: "caption"
+                    color: root.pal.alpha(nowPlate.ink, 0.72)
                     elide: Text.ElideRight
                 }
                 StyledText {
@@ -222,7 +235,7 @@ Surface {
                     visible: text !== ""
                     text: root.shownTrack.album
                     variant: "caption"
-                    color: root.tone
+                    color: root.pal.alpha(nowPlate.ink, 0.72)
                     elide: Text.ElideRight
                 }
                 MediaSeek {
@@ -260,19 +273,19 @@ Surface {
             }
         }
 
-        Rectangle {
-            visible: playing.visible
-            Layout.preferredWidth: Tokens.borderWidth
-            Layout.fillHeight: true
-            Layout.topMargin: Tokens.spacingMd
-            Layout.bottomMargin: Tokens.spacingMd
-            color: Colors.of(QsWindow.window).outline
         }
 
-        // ── The system: levels, then the quick switches ───────────────────────
-        ColumnLayout {
-            Layout.fillHeight: false
+        // ── The system: levels, then the quick switches, on a section plate ───
+        Rectangle {
             Layout.alignment: Qt.AlignVCenter
+            implicitWidth: system.implicitWidth + root.platePad * 2
+            implicitHeight: system.implicitHeight + root.platePad * 2
+            radius: Tokens.radiusCard
+            color: root.pal.section
+
+        ColumnLayout {
+            id: system
+            anchors.centerIn: parent
             spacing: Tokens.spacingSm
 
             Level {
@@ -312,12 +325,14 @@ Surface {
                 }
             }
 
-            // ── Quick switches (2026-10-20, the user's pick) ──────────────────
+            // ── Quick switches ────────────────────────────────────────────────
             // One tap each, without leaving the overview: Wi-Fi, Bluetooth, Do Not Disturb,
             // night light, the mic, Game mode. Each is its service's own toggle; one whose
             // service has nothing to switch is dimmed.
             ChipTray {
                 Layout.alignment: Qt.AlignHCenter
+                border.width: 0
+                color: root.pal.surfaceHigh
                 ChipButton {
                     symbol: Net.wifiEnabled ? "wifi" : "wifi_off"
                     on: Net.wifiEnabled
@@ -360,6 +375,7 @@ Surface {
                     HoverTip { text: Translation.tr("Game mode: more speed for games") }
                 }
             }
+        }
         }
     }
 }

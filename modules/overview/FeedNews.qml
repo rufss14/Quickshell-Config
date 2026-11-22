@@ -8,7 +8,7 @@ import "../../services"
 import "../../state"
 
 // ── FeedNews ──────────────────────────────────────────────────────────────────
-// The left face's News page (OverviewFeed): headlines from services/News — near you (your
+// The drawer's News page (OverviewFeed): headlines from services/News — near you (your
 // country's top stories) or the world, plus a few subjects. The first story is the hero, tinted
 // and bigger; the rest are rows. A click opens the story in the browser and the overview leaves.
 // Pictures (News.pictures, a second pass) fill in as they arrive: the hero becomes a photo card —
@@ -87,8 +87,6 @@ Item {
                 spacing: Tokens.spacingSm
                 boundsBehavior: Flickable.StopAtBounds
                 model: News.items
-                // Scrolled by the face's wheel (OverviewFeed); a mouse drag here is the swipe.
-                interactive: false
                 // A new topic starts at its top story, and its stories rise in (`bornAt`); a row
                 // built later, by scrolling, is simply there.
                 property real bornAt: 0
@@ -114,8 +112,6 @@ Item {
                                storyHover.hovered ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceHigh, root.accent, story.hero ? 0.2 : 0.08)
                              : story.hero ? Colors.of(QsWindow.window).mix(Colors.of(QsWindow.window).surfaceContainer, root.accent, 0.14)
                              : Colors.of(QsWindow.window).surfaceContainer, 0.88)
-                    border.width: story.hero ? Tokens.borderWidth : 0
-                    border.color: Colors.of(QsWindow.window).alpha(root.accent, 0.35)
                     SpringValue { id: storyLean; target: storyTap.pressed ? 0.98 : 1; spec: Motion.springSpatialFast; epsilon: 0.001 }
                     scale: storyLean.value
                     Behavior on color { ColorAnimation { duration: Motion.respond } }

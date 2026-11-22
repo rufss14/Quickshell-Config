@@ -15,7 +15,7 @@ import "../../../services/lyricsmotion.js" as LyricMotion
 //
 // ── Motion is shown, not described ────────────────────────────────────────────
 // "Motion: Subtle" is a word about something that only exists while music is playing
-// and the overview is open — you set it here and found out there. The card now holds a
+// and the overview is open — you set it here and found out there. The loud card at the top holds a
 // line of lyric that actually moves, word by word, through
 // services/lyricsmotion.js — the SAME function LyricGlyphs calls per syllable, at the
 // same intensity — so the preview cannot describe a motion the card doesn't have.
@@ -63,30 +63,29 @@ Item {
     SettingsPage {
         anchors.fill: parent
 
-        bento:     true
+        grouped:   true
         glyph:     "󰲹"
         title:     Translation.tr("Lyrics")
         titleTail: Translation.tr("& translation")
         accent:    Colors.of(QsWindow.window).primary
-        subtitle:  (Lyrics.viaBridge ? "Spotify bridge"
-                    : Lyrics.hasSynced   ? "Fallback lookup"
-                    : "Nothing loaded")
-                 + "  ·  translation " + (Config.lyricsTranslate ? "on" : "off")
+        subtitle:  (Lyrics.viaBridge ? Translation.tr("Spotify bridge")
+                    : Lyrics.hasSynced   ? Translation.tr("Fallback lookup")
+                    : Translation.tr("Nothing loaded"))
+                 + "  ·  " + (Config.lyricsTranslate ? Translation.tr("Translation on") : Translation.tr("Translation off"))
 
-        // ══ Motion ════════════════════════════════════════════════════════════
+        // ══ The line ══════════════════════════════════════════════════════════
+        // The hero is the demo line itself; the Motion group under it holds the sliders it answers to.
         Section {
-            span:     2
-            glyph:    "󰓞"
-            title:    Translation.tr("Motion")
-            accent:   Colors.of(QsWindow.window).primary
-            subtitle: Config.lyricsMotion <= 0.01 ? "Words stay still" : ""
-            help:     Translation.tr("How far each word travels as it is sung — never the timing, which stays keyed to the vocal. Point at the line to play it.")
+            id: stageHero
+            hero: true
 
             PreviewStage {
                 id: stage
                 Layout.fillWidth: true
                 Layout.preferredHeight: 116
                 padding: Tokens.spacingLg
+                // Concentric with the card: its radius less the card's padding.
+                radius: Tokens.radiusXl - stageHero.padding
                 // The line is opaque text on a dark ground, like the card it imitates;
                 // a checkerboard behind it would just be noise under the words.
                 checkered: false
@@ -182,8 +181,8 @@ Item {
                         }
                     }
 
-                    // The translated line, when translation is on — the setting in the
-                    // card beside this one, shown where it will actually appear.
+                    // The translated line, when translation is on, shown where it will
+                    // actually appear.
                     StyledText {
                         anchors.horizontalCenter: parent.horizontalCenter
                         visible: Config.lyricsTranslate
@@ -198,11 +197,20 @@ Item {
                     anchors.bottom: parent.bottom
                     anchors.margins: Tokens.spacingSm
                     visible: !stageHover.containsMouse && !replayHold.running
-                    text: Translation.tr("hover to play")
+                    text: Translation.tr("Hover to play")
                     variant: "micro"
                     emphasis: "dim"
                 }
             }
+        }
+
+        // ══ Motion ════════════════════════════════════════════════════════════
+        Section {
+            grouped:  true
+            symbol:   "animation"
+            title:    Translation.tr("Motion")
+            subtitle: Config.lyricsMotion <= 0.01 ? Translation.tr("Words stay still") : ""
+            help:     Translation.tr("How far each word travels as it is sung, never the timing, which stays keyed to the vocal. Point at the line to play it.")
 
             // Scales the travel and the pop, never the timing, which stays keyed to
             // the vocal. A percentage would be a number pretending to be information.
@@ -211,21 +219,57 @@ Item {
                 accent: Colors.of(QsWindow.window).primary
                 from: 0; to: 1; step: 0.05
                 value: Config.lyricsMotion
-                readout: Config.lyricsMotion <= 0.01 ? "Still"
-                       : Config.lyricsMotion <= 0.40 ? "Subtle"
-                       : Config.lyricsMotion <= 0.80 ? "Moderate"
-                       : "Full"
+                readout: Config.lyricsMotion <= 0.01 ? Translation.tr("Still")
+                       : Config.lyricsMotion <= 0.40 ? Translation.tr("Subtle")
+                       : Config.lyricsMotion <= 0.80 ? Translation.tr("Moderate")
+                       : Translation.tr("Full")
                 onCommit: function (v) { Config.lyricsMotion = v }
+            }
+
+            // How the card moves from one line to the next. Each is the way back out of a feel that is on by default.
+            SettingRow {
+                rowTap: true
+                label: Translation.tr("Ripple between lines")
+                detail: Config.lyricsStagger ? Translation.tr("Lines further away follow a beat later") : Translation.tr("The card slides as one")
+                help:   Translation.tr("When the card slides to the next line, the lines further from it arrive a little later, like a wave.")
+                wrapDetail: true
+                onTapped: Config.lyricsStagger = !Config.lyricsStagger
+                Toggle {
+                    accent: Colors.of(QsWindow.window).primary
+                    checked: Config.lyricsStagger
+                    onToggled: Config.lyricsStagger = !Config.lyricsStagger
+                }
+            }
+            SettingRow {
+                rowTap: true
+                label: Translation.tr("Soft focus")
+                detail: Config.lyricsSoftFocus ? Translation.tr("Distant lines blur a little") : Translation.tr("Every line stays sharp")
+                help:   Translation.tr("Blurs the lines that are two or more away from the one being sung, more the further they are.")
+                wrapDetail: true
+                onTapped: Config.lyricsSoftFocus = !Config.lyricsSoftFocus
+                Toggle {
+                    accent: Colors.of(QsWindow.window).primary
+                    checked: Config.lyricsSoftFocus
+                    onToggled: Config.lyricsSoftFocus = !Config.lyricsSoftFocus
+                }
+            }
+            Fader {
+                label: Translation.tr("Slide ahead")
+                accent: Colors.of(QsWindow.window).primary
+                from: 0; to: 0.4; step: 0.05
+                value: Config.lyricsScrollAhead
+                readout: Config.lyricsScrollAhead <= 0.01 ? Translation.tr("On the line")
+                       : Translation.tr("%1 ms before").arg(Math.round(Config.lyricsScrollAhead * 1000))
+                onCommit: function (v) { Config.lyricsScrollAhead = v }
             }
         }
 
         // ══ Source ════════════════════════════════════════════════════════════
         Section {
-            span:     1
-            glyph:    "󰲹"
+            grouped:  true
+            symbol:   "source"
             title:    Translation.tr("Source")
             help:     Translation.tr("Which provider answered for the current track, and whether the shell may look lyrics up itself.")
-            accent:   Colors.of(QsWindow.window).primary
 
             // ── Which source is actually in use ───────────────────────────────
             // "The lyrics are worse on this song" and "the bridge isn't running" look
@@ -239,13 +283,13 @@ Item {
                         if (Lyrics.blockedReason === "connecting") return "Connecting to Spotify…"
                         if (Lyrics.blockedReason === "waiting")    return "Waiting for Spotify…"
                         if (Lyrics.blockedReason === "unanswered")
-                            return "The Spotify bridge has nothing for this track — fallback is off"
+                            return "The Spotify bridge has nothing for this track, fallback is off"
                         return "Nothing loaded"
                     }
                     if (Lyrics.viaBridge)
-                        return "Spotify bridge — " + Lyrics.provider
+                        return "Spotify bridge: " + Lyrics.provider
                              + (Lyrics.community ? ", community" : "") + ", per-syllable"
-                    return "Fallback lookup" + (Lyrics.source ? " — " + Lyrics.source : "")
+                    return "Fallback lookup" + (Lyrics.source ? ": " + Lyrics.source : "")
                          + (Lyrics.kind ? ", per-" + Lyrics.kind : "")
                 }
             }
@@ -255,10 +299,12 @@ Item {
             // artist, title and album; and word/line-level results where the bridge
             // is per-syllable, so a "successful" answer can be a downgrade.
             SettingRow {
+                rowTap: true
                 label: Translation.tr("Look up as a fallback")
-                detail: Config.lyricsFallback ? "NetEase and LRCLIB" : "Off"
+                detail: Config.lyricsFallback ? Translation.tr("NetEase and LRCLIB fill the gaps") : Translation.tr("Only the Spotify bridge is used")
                 help:   Translation.tr("Asks NetEase and LRCLIB when the Spotify bridge has nothing. It sends the artist, title and album.")
                 wrapDetail: true
+                onTapped: Config.lyricsFallback = !Config.lyricsFallback
                 Toggle {
                     accent: Colors.of(QsWindow.window).primary
                     checked: Config.lyricsFallback
@@ -269,32 +315,34 @@ Item {
 
         // ══ Translation ═══════════════════════════════════════════════════════
         // Off by default in a published config: the network fallback sends each line to
-        // a third party. The tile is the switch; the card beside it only exists once
-        // the switch is on, so nothing here is a control you can set and not use.
-        QuickToggleTile {
-            roomy:  true
-            symbol: "translate"
-            label:  Translation.tr("Translate lyrics")
-            accent: Colors.of(QsWindow.window).primary
-            active: Config.lyricsTranslate
-            subLabel: !Config.lyricsTranslate ? "A line under each lyric"
-                    : LyricsTranslate.backendUsed !== ""
-                      ? "Via " + LyricsTranslate.backendUsed
-                      : "On-device first, then network"
-            onToggled: Config.lyricsTranslate = !Config.lyricsTranslate
-        }
-
+        // a third party. The first row is the switch; the rows under it dim while it is off,
+        // so nothing here is a control you can set and not use.
         Section {
-            span:     2
-            visible:  Config.lyricsTranslate
-            glyph:    "󰗊"
+            grouped:  true
+            symbol:   "translate"
             title:    Translation.tr("Translation")
             help:     Translation.tr("Which service translates, and its optional API key.")
-            accent:   Colors.of(QsWindow.window).primary
+
+            SettingRow {
+                rowTap: true
+                label:  Translation.tr("Translate lyrics")
+                detail: !Config.lyricsTranslate ? Translation.tr("Lyrics stay in their own language")
+                        : LyricsTranslate.backendUsed !== ""
+                          ? Translation.tr("A line under each lyric, via %1").arg(LyricsTranslate.backendUsed)
+                          : Translation.tr("A line under each lyric, on-device first then network")
+                onTapped: Config.lyricsTranslate = !Config.lyricsTranslate
+                Toggle {
+                    accent: Colors.of(QsWindow.window).primary
+                    checked: Config.lyricsTranslate
+                    onToggled: Config.lyricsTranslate = !Config.lyricsTranslate
+                }
+            }
 
             // The order and the cache toggle live on the Now Playing panel's
             // settings — one editor for the backend list, not two to keep in sync.
             SettingRow {
+                enabled: Config.lyricsTranslate
+                opacity: enabled ? 1 : 0.4
                 label: Translation.tr("Backends")
                 wrapDetail: true
                 detail: (LyricsTranslate.state === "ready" && LyricsTranslate.backendUsed
@@ -310,7 +358,7 @@ Item {
             StyledText {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 0
-                visible: LyricsTranslate.blocker() !== ""
+                visible: Config.lyricsTranslate && LyricsTranslate.blocker() !== ""
                 text: LyricsTranslate.blocker()
                     + (LyricsTranslate.installHint ? "  (" + LyricsTranslate.installHint + ")" : "")
                 variant: "caption"
@@ -322,14 +370,14 @@ Item {
             // Handed straight to scripts/lyrics-translate-credentials.py over stdin,
             // which writes it 0600. Never an argument, never written from QML, never
             // read back: this page only ever learns LyricsTranslate.hasDeeplKey.
-            Divider {}
-
             StyledText {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 0
+                enabled: Config.lyricsTranslate
+                opacity: enabled ? 1 : 0.4
                 text: LyricsTranslate.hasDeeplKey
-                    ? "DeepL key saved — a documented API rather than a scraped endpoint. Leave blank to keep it."
-                    : "Optional DeepL key (free, no card) — a documented API instead of a scraped endpoint."
+                    ? "DeepL key saved: a documented API rather than a scraped endpoint. Leave blank to keep it."
+                    : "Optional DeepL key (free, no card): a documented API instead of a scraped endpoint."
                 variant: "caption"
                 emphasis: "dim"
                 wrapMode: Text.WordWrap
@@ -338,6 +386,8 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
+                enabled: Config.lyricsTranslate
+                opacity: enabled ? 1 : 0.4
                 spacing: Tokens.spacingSm
 
                 InputField {

@@ -3,5 +3,6 @@ WallpaperBrowseView 1.0 WallpaperBrowseView.qml
 WallpaperEffectsView 1.0 WallpaperEffectsView.qml
 WallpaperEngineView 1.0 WallpaperEngineView.qml
 WallpaperGalleryView 1.0 WallpaperGalleryView.qml
+WallpaperNowCard 1.0 WallpaperNowCard.qml
 WallpaperPageTile 1.0 WallpaperPageTile.qml
 WallpaperPropertiesView 1.0 WallpaperPropertiesView.qml

@@ -409,6 +409,20 @@ void BlobShape::fillCookies(BlobMaterial* material) const {
     material->m_rimColor[1] = static_cast<float>(rc.greenF());
     material->m_rimColor[2] = static_cast<float>(rc.blueF());
     material->m_rimColor[3] = static_cast<float>(rc.alphaF());
+    // The gradient rides along too. A mid of 0 is off, and the shader then draws the flat colour.
+    const QVector4D ax = m_group->gradAxis();
+    material->m_gradAxis[0] = ax.x();
+    material->m_gradAxis[1] = ax.y();
+    material->m_gradAxis[2] = ax.z();
+    material->m_gradAxis[3] = ax.w();
+    material->m_gradMid = static_cast<float>(m_group->gradMid());
+    for (int g = 0; g < 3; ++g) {
+        const QColor& c = m_group->gradColors()[g];
+        material->m_gradColors[g * 4 + 0] = static_cast<float>(c.redF());
+        material->m_gradColors[g * 4 + 1] = static_cast<float>(c.greenF());
+        material->m_gradColors[g * 4 + 2] = static_cast<float>(c.blueF());
+        material->m_gradColors[g * 4 + 3] = 1.0f;
+    }
     for (int t = 0; t < 4; ++t) {
         const QColor& c = m_group->tones()[t];
         material->m_tones[t * 4 + 0] = static_cast<float>(c.redF());

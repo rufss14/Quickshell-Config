@@ -67,6 +67,10 @@ Singleton {
     readonly property string downloadsDir:
         DockJs.downloadDir(userDirs.loaded ? userDirs.text() : "", root.home)
 
+    // Pictures, the same way: the folder a file picker starts a picture search in.
+    readonly property string picturesDir:
+        DockJs.userDir(userDirs.loaded ? userDirs.text() : "", root.home, "PICTURES", "Pictures")
+
     FolderListModel {
         id: downloads
         folder: DockJs.pathToFileUrl(root.downloadsDir)

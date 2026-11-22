@@ -15,8 +15,8 @@ import "toggles.js" as Toggles
 // ── No switch logic lives here ────────────────────────────────────────────────
 // State, "why can't it run" and the action itself all come from ShellActions — the same
 // table the launcher's toggle rows use — so a toggle here and one there cannot disagree.
-// The one exception is Bluetooth's power, which ShellActions doesn't carry (its row opens
-// the panel): that is `Bt.adapter.enabled`, written directly exactly as the Bluetooth
+// Bluetooth's power is the one switch ShellActions' table doesn't run (its row opens the
+// panel): `switchOn` / `switchFlip` write `Bt.adapter.enabled` directly, as the Bluetooth
 // panel and page do (Bt.qml says why there is no wrapper). A missing adapter disables the
 // button with its reason, the shell's blocker() contract.
 //
@@ -42,20 +42,9 @@ Item {
     readonly property var ids: (root.opts.toggles ?? []).filter(id => root.table[id] !== undefined)
         .slice(0, root.size === "large" ? 8 : 4)
 
-    function isOn(id) {
-        if (id === "bluetooth") return Bt.powered
-        const s = ShellActions.stateOf(id)
-        return s === "On" || s === "Muted" || s === "Light"
-    }
-    function blocker(id) {
-        if (id === "bluetooth") return Bt.available ? "" : "No Bluetooth adapter"
-        return ShellActions.blockerOf(id)
-    }
-    function flip(id) {
-        if (root.blocker(id) !== "") return
-        if (id === "bluetooth") { if (Bt.adapter) Bt.adapter.enabled = !Bt.adapter.enabled }
-        else ShellActions.run(id)
-    }
+    function isOn(id) { return ShellActions.switchOn(id) }
+    function blocker(id) { return ShellActions.blockerOf(id) }
+    function flip(id) { ShellActions.switchFlip(id) }
 
     WidgetEmpty {
         visible: root.ids.length === 0
@@ -72,81 +61,20 @@ Item {
 
         Repeater {
             model: root.ids
-            ToggleButton {
+            delegate: ToggleOrb {
+                id: orb
                 required property string modelData
+                readonly property var meta: root.table[orb.modelData]
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                tid: modelData
-            }
-        }
-    }
-
-    component ToggleButton: Item {
-        id: btn
-        property string tid: ""
-        readonly property var meta: root.table[btn.tid] ?? { label: "", on: "", off: "" }
-        readonly property bool lit: root.isOn(btn.tid)
-        readonly property string why: root.blocker(btn.tid)
-        readonly property bool named: root.size !== "small"
-
-        opacity: btn.why === "" ? 1 : 0.4
-
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: Tokens.spacingXs
-
-            Item {
-                id: face
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-
-                readonly property real side: Math.min(width, height, Tokens.iconXl * 2 + Tokens.spacingLg)
-
-                SpringValue {
-                    id: squash
-                    spec: Motion.springSpatialFast
-                    epsilon: 0.0005
-                    target: mouse.pressed ? 0.88 : mouse.containsMouse && btn.why === "" ? 1.06 : 1
-                }
-
-                MorphShape {
-                    anchors.centerIn: parent
-                    width: face.side
-                    height: face.side
-                    scale: squash.value
-                    spec: Motion.springSpatialFast
-                    shape: Config.barShape ? "squircle" : btn.lit ? "cookie9" : "circle"
-                    fillColor: btn.lit ? root.accent : Colors.of(QsWindow.window).surfaceHigh
-                }
-                MaterialIcon {
-                    anchors.centerIn: parent
-                    scale: squash.value
-                    name: btn.lit ? btn.meta.on : btn.meta.off
-                    fill: btn.lit ? 1 : 0
-                    font.pixelSize: Math.round(face.side * 0.4)
-                    color: btn.lit ? Colors.of(QsWindow.window).fgOnPrimary : Colors.of(QsWindow.window).fg
-                }
-                MouseArea {
-                    id: mouse
-                    anchors.centerIn: parent
-                    width: face.side
-                    height: face.side
-                    enabled: btn.why === ""
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.flip(btn.tid)
-                }
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                visible: btn.named
-                horizontalAlignment: Text.AlignHCenter
-                text: btn.meta.label
-                variant: "caption"
-                font.weight: btn.lit ? Font.DemiBold : Font.Normal
-                color: btn.lit ? Colors.of(QsWindow.window).fg : Colors.of(QsWindow.window).fgMuted
-                elide: Text.ElideRight
+                label: orb.meta.label
+                symbolOn: orb.meta.on
+                symbolOff: orb.meta.off
+                lit: root.isOn(orb.modelData)
+                why: root.blocker(orb.modelData)
+                named: root.size !== "small"
+                accent: root.accent
+                onActivated: root.flip(orb.modelData)
             }
         }
     }

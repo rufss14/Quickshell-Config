@@ -8,16 +8,17 @@ import "../../services"
 import "../../state"
 import "../../services/clockfmt.js" as ClockFmt
 // ── OverviewChips ─────────────────────────────────────────────────────────────
-// Live chips in the overview's header, each there only while it has something to say
-// (2026-10-20, the user's pick): a running timer counting down, the reminders that are
+// The tray at the top right of the overview: live chips, each there only while it has something to say: a running timer counting down, the reminders that are
 // due — each gives way to the panel that owns it (the sidebar's timer, the clock panel) —
-// Undo for the last window move while there is one, and Sessions, always, which opens its card under the header (OverviewSessions). In
-// the Now Playing panel's round-chip pill (ChipTray), gone when there's nothing to say.
-// (The notifications have the header's Workspaces | Notifications tabs.) Holds the
-// seconds clock only while a timer is counting.
+// Undo for the last window move while there is one, and Sessions, always, which opens its card under the tray (OverviewSessions), and More, which
+// opens the drawer and the HUD row. Holds the seconds clock only while a timer is counting.
 // ─────────────────────────────────────────────────────────────────────────────
 ChipTray {
     id: root
+
+    // A flat plate, no hairline.
+    border.width: 0
+    color: Colors.of(QsWindow.window).surfaceHigh
 
     property var screen: null
     property bool live: false
@@ -72,5 +73,30 @@ ChipTray {
         label: WorkspaceSessions.restoring !== "" ? Translation.tr("Restoring…") : ""
         on: root.sessionsOpen
         onActivated: root.sessionsAsked()
+    }
+    // The HUD widgets (performance, clips, voice, key display) are placed on the real screen: the only way in
+    // from here, since they are not cards in the overview any more.
+    ChipButton {
+        visible: root.live
+        symbol: "widgets"
+        onActivated: Hud.arrange(true, "")
+        HoverTip {
+            below: true
+            text: Translation.tr("Place the HUD widgets on your screen: performance, replay clips, voice chat and key display.")
+        }
+    }
+    // The extra panels (the drawer and the HUD row), folded away until asked for (Config.overviewMore).
+    ChipButton {
+        visible: root.live
+        symbol: "dashboard"
+        label: Config.overviewMore ? Translation.tr("Less") : Translation.tr("More")
+        on: Config.overviewMore
+        onActivated: Config.overviewMore = !Config.overviewMore
+        HoverTip {
+            below: true
+            text: Config.overviewMore
+                ? Translation.tr("Hide the extra panels: Ask, News, notifications, replay clips and key display. (Ctrl+M)")
+                : Translation.tr("Show the extra panels: Ask, News, notifications, replay clips and key display. (Ctrl+M)")
+        }
     }
 }

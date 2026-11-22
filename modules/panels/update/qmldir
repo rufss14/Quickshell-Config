@@ -7,3 +7,9 @@ UpdatePkgRow 1.0 UpdatePkgRow.qml
 UpdateRebootBanner 1.0 UpdateRebootBanner.qml
 UpdateRunningView 1.0 UpdateRunningView.qml
 UpdateShellUpdateButton 1.0 UpdateShellUpdateButton.qml
+UpdateIslandHero 1.0 UpdateIslandHero.qml
+UpdatePasswordField 1.0 UpdatePasswordField.qml
+UpdateSpacePlate 1.0 UpdateSpacePlate.qml
+UpdateHistoryPlate 1.0 UpdateHistoryPlate.qml
+UpdateNewsCard 1.0 UpdateNewsCard.qml
+UpdateIslandPlates 1.0 UpdateIslandPlates.qml

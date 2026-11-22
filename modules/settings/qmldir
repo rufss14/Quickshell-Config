@@ -11,3 +11,6 @@ ModuleLibrary 1.0 ModuleLibrary.qml
 DockOptions 1.0 DockOptions.qml
 StatsOptions 1.0 StatsOptions.qml
 SideLink 1.0 SideLink.qml
+MotionStage 1.0 MotionStage.qml
+SchemeCard 1.0 SchemeCard.qml
+WallpaperSchemeHero 1.0 WallpaperSchemeHero.qml

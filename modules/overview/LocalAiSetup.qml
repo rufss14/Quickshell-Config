@@ -27,9 +27,7 @@ ClippingRectangle {
 
     implicitHeight: col.implicitHeight + Tokens.spacingLg * 2
     radius: Tokens.radiusCard
-    color: Colors.of(QsWindow.window).fade(Colors.of(QsWindow.window).surfaceContainer, 0.92)
-    border.width: Tokens.borderWidth
-    border.color: Colors.of(QsWindow.window).alpha(root.accent, 0.4)
+    color: Colors.of(QsWindow.window).surfaceHigh
 
     Column {
         id: col

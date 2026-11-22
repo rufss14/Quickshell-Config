@@ -5,6 +5,7 @@ import "../../state"
 import "../../services"
 import "../../services/dock.js" as DockJs
 import "../../services/sidemodules.js" as Side
+import "../../services/spacer.js" as Spacer
 
 // ── SideRail ──────────────────────────────────────────────────────────────────
 // The layout of the one screen edge the dock stands on, shared by everything
@@ -287,6 +288,12 @@ QtObject {
                         const cells = rail.cellsFor(id)
                         out[id] = cells > 0 ? Config.sidebarRun(cells) + rail.pad * 2 : 0
                     }
+        // The spacer's length is a setting, not a count of cells; it may follow another small
+        // module's length, so it is worked out after them. Arranging lifts it to one cell, so it
+        // can be picked up.
+        if (out.spacer !== undefined)
+            out.spacer = Spacer.length(Config.spacerSize(), out[Config.spacerFollow()] ?? 0, Config.spacerFill(),
+                                       UiState.sidebarArrange ? Config.sidebarRun(1) + rail.pad * 2 : 0)
         return out
     }
     readonly property var allLengths: Object.assign({}, rail.lengths, rail.smallLengths)

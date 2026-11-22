@@ -19,15 +19,15 @@ GridLayout {
 
     readonly property bool wide: root.width >= 640
     columns: root.wide ? 2 : 1
-    columnSpacing: Tokens.spacingXxl
-    rowSpacing: Tokens.spacingMd
+    columnSpacing: Tokens.spacingLg
+    rowSpacing: Tokens.spacingLg
     Layout.fillWidth: true
     Layout.fillHeight: false
 
     readonly property var readings: [
         { key: "cpu",     symbol: "memory",          label: "CPU" },
         { key: "gpu",     symbol: "developer_board", label: "GPU",
-          na: !SysInfo.hasGpu, why: "No utilisation to read — the kernel publishes it for AMD and Intel, not NVIDIA" },
+          na: !SysInfo.hasGpu, why: "No utilisation to read. The kernel publishes it for AMD and Intel, not NVIDIA" },
         { key: "ram",     symbol: "memory_alt",      label: "Memory" },
         { key: "net",     symbol: "swap_vert",       label: "Network" },
         { key: "swap",    symbol: "swap_horiz",      label: "Swap",
@@ -57,20 +57,14 @@ GridLayout {
     function mbpsText(v) { return v >= 1000 ? (v / 1000) + " Gbit/s" : v + " Mbit/s" }
 
     // ── Readings and rings ────────────────────────────────────────────────────
-    ColumnLayout {
-        Layout.fillWidth: true
-        Layout.fillHeight: false
+    Section {
+        grouped: true
         Layout.preferredWidth: 0
-        Layout.alignment: Qt.AlignTop
-        spacing: Tokens.spacingSm
+        symbol:  "memory"
+        title:   Translation.tr("Readings")
+        subtitle: Translation.tr("The button shows the first three")
+        help:    Translation.tr("The button shows the first three readings you pick, and its panel shows every one.")
 
-        StyledText {
-            text: Translation.tr("Readings — the button shows the first three, its panel every one")
-            variant: "caption"
-            emphasis: "dim"
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-        }
         Flow {
             Layout.fillWidth: true
             spacing: Tokens.spacingSm
@@ -98,19 +92,23 @@ GridLayout {
         }
 
         SettingRow {
+            rowTap: true
             label:  Translation.tr("Temperatures")
             enabled: SysInfo.hasCpuTemp || SysInfo.hasGpuTemp
             detail: SysInfo.hasCpuTemp || SysInfo.hasGpuTemp
-                ? (Config.sidebarStatsTempArcs ? "Inner arc, 0–100°C" : "Off")
-                : "No CPU or GPU sensor found"
+                ? (Config.sidebarStatsTempArcs ? Translation.tr("Inner arc, 0–100°C") : Translation.tr("Rings only"))
+                : Translation.tr("No CPU or GPU sensor found")
             help:   Translation.tr("An inner arc on the CPU and GPU rings showing the temperature, 0–100°C.")
+            onTapped: Config.sidebarStatsTempArcs = !Config.sidebarStatsTempArcs
             Toggle { checked: Config.sidebarStatsTempArcs; onToggled: Config.sidebarStatsTempArcs = !Config.sidebarStatsTempArcs }
         }
         SettingRow {
+            rowTap: true
             label:  Translation.tr("Split network")
             enabled: root.has("net")
-            detail: Config.sidebarStatsNetSplit ? "Down outside, up inside" : "One combined arc"
+            detail: Config.sidebarStatsNetSplit ? Translation.tr("Down outside, up inside") : Translation.tr("One combined arc")
             help:   Translation.tr("Download on the network ring's outer arc, upload on the inner one.")
+            onTapped: Config.sidebarStatsNetSplit = !Config.sidebarStatsNetSplit
             Toggle { checked: Config.sidebarStatsNetSplit; onToggled: Config.sidebarStatsNetSplit = !Config.sidebarStatsNetSplit }
         }
         SliderRow {
@@ -128,17 +126,18 @@ GridLayout {
     }
 
     // ── Alerts and the monitor ────────────────────────────────────────────────
-    ColumnLayout {
-        Layout.fillWidth: true
-        Layout.fillHeight: false
+    Section {
+        grouped: true
         Layout.preferredWidth: 0
-        Layout.alignment: Qt.AlignTop
-        spacing: Tokens.spacingSm
+        symbol:  "warning"
+        title:   Translation.tr("Alerts")
 
         SettingRow {
+            rowTap: true
             label:  Translation.tr("Alerts")
-            detail: Config.sidebarStatsAlerts ? "After " + Math.round(SysStats.alertSustain / 1000) + "s over" : "Off"
+            detail: Config.sidebarStatsAlerts ? Translation.tr("After %1s over").arg(Math.round(SysStats.alertSustain / 1000)) : Translation.tr("No warnings on the rings")
             help:   Translation.tr("A ring held over its threshold says so in its card. CPU and memory alert on load, the temperatures on degrees.")
+            onTapped: Config.sidebarStatsAlerts = !Config.sidebarStatsAlerts
             Toggle { checked: Config.sidebarStatsAlerts; onToggled: Config.sidebarStatsAlerts = !Config.sidebarStatsAlerts }
         }
         SliderRow {
@@ -162,24 +161,30 @@ GridLayout {
             onCommit: function (v) { Config.sidebarStatsAlertTemp = Math.round(v) }
         }
         SettingRow {
+            rowTap: true
             enabled: Config.sidebarStatsAlerts
             label:  Translation.tr("Notify")
-            detail: Config.sidebarStatsAlertNotify ? "One notification as it starts" : "Only in the card"
+            detail: Config.sidebarStatsAlertNotify ? Translation.tr("One notification as it starts") : Translation.tr("Only in the card")
+            onTapped: Config.sidebarStatsAlertNotify = !Config.sidebarStatsAlertNotify
             Toggle { checked: Config.sidebarStatsAlertNotify; onToggled: Config.sidebarStatsAlertNotify = !Config.sidebarStatsAlertNotify }
         }
-        StyledText {
-            Layout.topMargin: Tokens.spacingSm
-            text: Translation.tr("System monitor") + "  ·  runs in " + Terminal.resolved
-            variant: "caption"
-            emphasis: "dim"
-        }
-        InputField {
-            cornerRadius: implicitHeight / 2
+        ColumnLayout {
             Layout.fillWidth: true
-            mono: true
-            seed: Config.sidebarStatsMonitor
-            placeholder: "Automatic — " + SysStats.monitorCommand
-            onCommitted: function (v) { Config.sidebarStatsMonitor = v.trim() }
+            Layout.fillHeight: false
+            spacing: Tokens.spacingSm
+            StyledText {
+                text: Translation.tr("System monitor") + "  ·  " + Translation.tr("runs in %1").arg(Terminal.resolved)
+                variant: "caption"
+                emphasis: "dim"
+            }
+            InputField {
+                cornerRadius: implicitHeight / 2
+                Layout.fillWidth: true
+                mono: true
+                seed: Config.sidebarStatsMonitor
+                placeholder: Translation.tr("Automatic: %1").arg(SysStats.monitorCommand)
+                onCommitted: function (v) { Config.sidebarStatsMonitor = v.trim() }
+            }
         }
     }
 }

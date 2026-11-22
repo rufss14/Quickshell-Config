@@ -187,11 +187,6 @@ Singleton {
         newsProc.running = true
     }
 
-    function _unescape(s) {
-        return s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-                .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&#x27;/gi, "'")
-    }
-
     Process {
         id: newsProc
         running: false
@@ -199,14 +194,11 @@ Singleton {
             "curl -sL --max-time 10 https://archlinux.org/feeds/news/ 2>/dev/null | head -c 16000"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const first = (text.split("<entry>")[1] || "")
-                const t = first.match(/<title[^>]*>([\s\S]*?)<\/title>/)
-                const l = first.match(/<link[^>]*href="([^"]+)"/)
-                const d = first.match(/<updated>(\d{4}-\d{2}-\d{2})/)
-                     || first.match(/<published>(\d{4}-\d{2}-\d{2})/)
-                root._newsTitle = t ? root._unescape(t[1].replace(/<[^>]+>/g, "").trim()) : ""
-                root._newsUrl   = l ? l[1] : ""
-                root._newsDate  = d ? d[1] : ""
+                // UL.parseNewsFeed: RSS (what Arch serves) or Atom; only an https link is kept.
+                const n = UL.parseNewsFeed(text)
+                root._newsTitle = n ? n.title : ""
+                root._newsUrl   = n ? n.url : ""
+                root._newsDate  = n ? n.date : ""
             }
         }
     }

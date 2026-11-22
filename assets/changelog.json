@@ -1,6 +1,114 @@
 {
   "versions": [
     {
+      "version": "0.4.2",
+      "name": "Islands and a rebuilt Settings",
+      "date": "2026-11-22",
+      "summary": "Pages open on islands from the top and bottom edges, Settings is rebuilt, and a drawing tablet, workouts and a bar gradient arrive.",
+      "highlights": [
+        {
+          "symbol": "dashboard",
+          "title": "Islands",
+          "text": "The bar's panels and the sidebar's buttons open as pages on islands, on the top and the bottom edge."
+        },
+        {
+          "symbol": "settings",
+          "title": "Settings, rebuilt",
+          "text": "Grouped rows that fill the width, no tabs, and a search that finds every control and jumps to its row."
+        },
+        {
+          "symbol": "tablet",
+          "title": "A drawing tablet page",
+          "text": "Set the pen's area, rotation and pressure range, with profiles and a live pen readout."
+        },
+        {
+          "symbol": "palette",
+          "title": "A gradient for the bar",
+          "text": "Three colours along a line; each colour scheme keeps its own."
+        },
+        {
+          "symbol": "music_note",
+          "title": "Now Playing and Karaoke",
+          "text": "Spotify's queue and Jam, and Karaoke that listens to a Discord call."
+        }
+      ],
+      "sections": [
+        {
+          "title": "Islands and pages",
+          "symbol": "dashboard",
+          "items": [
+            "The bar's panels can sit on three islands that open from handles on the bar: Settings › Bar & islands › Islands",
+            "The sidebar's buttons open pages on three islands on the bottom edge; both side islands of a row can be open at once",
+            "New pages: Desk, Captures, Network, Power, Files, Agenda, Displays, Assistant, Workout and Tablet",
+            "Rebuilt pages: wallpaper, colour scheme, audio mixer, Weather, Calendar, Notifications, Performance, System update and more",
+            "Scrolling over an island no longer flips its page: hold Ctrl and scroll",
+            "Islands open and close more softly, and the pin is now a padlock"
+          ]
+        },
+        {
+          "title": "Settings",
+          "symbol": "settings",
+          "items": [
+            "Grouped rows that fill the width, a labelled rail that unfolds the current section, and no view tabs",
+            "Search finds every control and jumps to its row; Settings opens where you left off",
+            "Bar & islands › Modules: the picked module's settings are two cards side by side, and library tiles on a row match in height",
+            "Colour scheme: Presets as cards, Album colours set up before following, and an After it stops choice"
+          ]
+        },
+        {
+          "title": "Look",
+          "symbol": "palette",
+          "items": [
+            "A bar gradient: three colours along a line, kept per colour scheme and worn by cards, popups, tiles and themed apps",
+            "The gradient needs the Morph plugin rebuilt (Setup shows the command); until then its view says it is unavailable",
+            "Desktop visualiser: a Match the gradient option",
+            "Three new colour schemes: Ados Best Adobum, Love me forever and Vice City",
+            "The Reload failed card comes out of the bar as a blob"
+          ]
+        },
+        {
+          "title": "Bar, dock and overview",
+          "symbol": "dock",
+          "items": [
+            "New Stream mode module hides notifications and the overview from a capture, and a Spacer module makes a gap",
+            "Dock: Icon tiles, and App slots that keep the dock the same length whatever is running",
+            "The overview's extras live in one drawer; arrange HUD widgets from the HUD chip",
+            "The overview is calmer: one slim search row, the workspaces in the middle, key hints in a footer"
+          ]
+        },
+        {
+          "title": "Tablet and workouts",
+          "symbol": "tablet",
+          "items": [
+            "Tablet: pen area, rotation, pressure range, profiles and a pen-corner test, on the island and in Settings › Devices › Tablet",
+            "The live pen and express keys need Settings › Devices › Tablet › Allow live pen, once (it adds a udev rule)",
+            "Workout: start a workout with a timer, log exercise, reps, sets and weight or time, and see your history on a heat grid"
+          ]
+        },
+        {
+          "title": "Music and Discord",
+          "symbol": "music_note",
+          "items": [
+            "Now Playing: a Queue tab, Jam, links to Spotify pages, Liked Songs, a player picker, and Spotify Canvas in the cover's cookie",
+            "Lyrics retry when rate-limited, and the timing is one control with a Resync button",
+            "Karaoke listens to a Discord call as well (Media › Settings), and word tracking is more forgiving",
+            "The Discord call timer shows when the call really began"
+          ]
+        },
+        {
+          "title": "Fixed",
+          "symbol": "bolt",
+          "items": [
+            "The desktop visualiser follows a player whose stream was replaced (Zen) and no longer listens to the microphone",
+            "The mixer's Recording list no longer counts the shell's own visualiser",
+            "Weather: the sky is the middle of five models, and switching places no longer mixes two forecasts",
+            "Calendar: the month list could open on the wrong month, and today was marked in the same month of other years",
+            "The Arch news warning before an update now appears"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.4.1",
       "name": "Bar and sidebar as one",
       "date": "2026-11-11",

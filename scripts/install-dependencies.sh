@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# InstalDependencies.sh
+# install-dependencies.sh
 # Installs the system dependencies needed by this quickshell config on Arch Linux.
 # Third-party app integrations (Spicetify, Vencord, Vesktop, Zen Browser, GTK4 apps)
 # are intentionally NOT installed here since they're optional and user-specific.
@@ -34,6 +34,9 @@ OFFICIAL_PKGS=(
     # than none.
     hyprlock
     hyprsunset
+    # playerctl: the media keys in hypr/binds.lua (XF86AudioPlay/Next/Prev). Without it they
+    # do nothing, silently.
+    playerctl
     # base-devel: makepkg, for the AUR helper and every AUR package (pywal16). The blob
     # plugin's own toolchain (cmake, qt6-shadertools) is PACK_PKGS[blob], below.
     base-devel
